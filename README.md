@@ -1,10 +1,7 @@
 # لفّة · Laffeh
 
-AI-powered route optimization built around the **Afdal VRP** API and **Google Maps**. Drop points on the map, hit `تحسين المسار`, and get back the smartest order plus driveable polylines for the go / return / full trip.
+AI-powered route optimization built around the **Afdal VRP**. Drop points on the map, hit, and get back the smartest order plus driveable polylines for the go / return / full trip.
 
-The app is Arabic-first (RTL), uses Bloc/Cubit for state, Dio for networking, GetIt for DI, and `flutter_dotenv` for secrets.
-
----
 
 ## ✨ Features
 
