@@ -1,0 +1,74 @@
+name: laffeh
+description: "Laffeh - AI Route Optimization (Afdal VRP)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_bloc: ^8.1.4
+  bloc: ^8.1.3
+  equatable: ^2.0.5
+
+  # DI
+  get_it: ^7.6.4
+
+  # UI
+  flutter_screenutil: ^5.9.0
+  flutter_svg: ^2.0.10+1
+  shimmer: ^3.0.0
+  iconsax: ^0.0.8
+  intl: ^0.20.2
+  flutter_easyloading: ^3.0.5
+
+  # Network
+  dio: ^5.4.2+1
+  pretty_dio_logger: ^1.3.1
+
+  # Env / Config
+  flutter_dotenv: ^5.1.0
+
+  # External links
+  url_launcher: ^6.2.6
+
+  # Local storage (route history)
+  shared_preferences: ^2.2.3
+
+  # Maps & Location
+  google_maps_flutter: ^2.14.0
+  geolocator: ^11.0.0
+  geocoding: ^3.0.0
+  permission_handler: ^11.3.1
+  flutter_polyline_points: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/afdalLogo.png
+
+  fonts:
+    - family: Almarai
+      fonts:
+        - asset: assets/fonts/Almarai-Regular.ttf
+        - asset: assets/fonts/Almarai-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Almarai-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Almarai-Light.ttf
+          weight: 300

@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:/Users/moham/OneDrive/Desktop/api_test\")",
+      "Bash(ls \"C:/flutter projects/aura_care\")",
+      "Bash(cp \"C:/flutter projects/aura_care/assets/fonts/Almarai-Regular.ttf\" \"C:/flutter projects/laffeh/assets/fonts/\")",
+      "Bash(cp \"C:/flutter projects/aura_care/assets/fonts/Almarai-Bold.ttf\" \"C:/flutter projects/laffeh/assets/fonts/\")",
+      "Bash(cp \"C:/flutter projects/aura_care/assets/fonts/Almarai-ExtraBold.ttf\" \"C:/flutter projects/laffeh/assets/fonts/\")",
+      "Bash(cp \"C:/flutter projects/aura_care/assets/fonts/Almarai-Light.ttf\" \"C:/flutter projects/laffeh/assets/fonts/\")",
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "Bash(find \"C:/flutter projects/laffeh\" -iname \"*afdal*\" 2>/dev/null; find \"C:/Users/moham/OneDrive/Desktop\" -maxdepth 3 -iname \"*afdal*\" 2>/dev/null | head -20; find \"C:/Users/moham/Downloads\" -maxdepth 3 -iname \"*afdal*\" 2>/dev/null | head -20)",
+      "Bash(gh --version)",
+      "Bash(git --version)",
+      "Bash(gh auth *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
