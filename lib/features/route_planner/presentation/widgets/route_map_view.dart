@@ -95,9 +95,9 @@ class RouteMapViewState extends State<RouteMapView> {
           ),
           children: [
             TileLayer(
-              urlTemplate: EnvConfig.osmTileUrlTemplate,
+              urlTemplate: EnvConfig.tileUrlTemplate,
               userAgentPackageName: 'com.example.laffeh',
-              maxNativeZoom: 19,
+              maxNativeZoom: 22,
             ),
             PolylineLayer(polylines: _buildPolylines(state)),
             MarkerLayer(markers: _buildMarkers(state)),
@@ -105,7 +105,9 @@ class RouteMapViewState extends State<RouteMapView> {
               showFlutterMapAttribution: false,
               attributions: [
                 TextSourceAttribution(
-                  '© CARTO, © OpenStreetMap',
+                  EnvConfig.mapboxAccessToken.isNotEmpty
+                      ? '© Mapbox, © OpenStreetMap'
+                      : '© CARTO, © OpenStreetMap',
                   onTap: _openOsmCopyright,
                 ),
               ],
