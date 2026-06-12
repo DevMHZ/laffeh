@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../models/route_request_model.dart';
 import '../models/route_response_model.dart';
@@ -23,7 +24,7 @@ class AiRouteRemoteDataSource {
 
       final body = response.data;
       if (body is! Map<String, dynamic>) {
-        throw const InvalidResponseException('استجابة غير صالحة من الخادم');
+        throw InvalidResponseException(AppStrings.errInvalidResponse);
       }
       return RouteResponseModel.fromJson(body);
     } on DioException catch (e) {
@@ -35,14 +36,14 @@ class AiRouteRemoteDataSource {
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.sendTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
-      return const NetworkException('انتهت مهلة الاتصال بالخادم');
+      return NetworkException(AppStrings.errTimeout);
     }
     if (e.type == DioExceptionType.connectionError) {
-      return const NetworkException('تعذر الاتصال بالخادم');
+      return NetworkException(AppStrings.errServerConnection);
     }
 
     final body = e.response?.data;
-    String message = 'فشل تحسين المسار';
+    String message = AppStrings.errRouteOptimizationFailed;
     if (body is Map && body['message'] != null) {
       message = body['message'].toString();
     } else if (body is Map && body['detail'] != null) {

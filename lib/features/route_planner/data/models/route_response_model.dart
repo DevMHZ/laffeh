@@ -14,10 +14,7 @@ class RouteResponseModel {
   final RouteMetricsModel metrics;
   final List<OptimizedRouteModel> routes;
 
-  const RouteResponseModel({
-    required this.metrics,
-    required this.routes,
-  });
+  const RouteResponseModel({required this.metrics, required this.routes});
 
   factory RouteResponseModel.fromJson(Map<String, dynamic> json) {
     final routesRaw = json['routes'] ?? const [];

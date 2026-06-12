@@ -36,11 +36,17 @@ class SavedRoutesRepositoryImpl implements SavedRoutesRepository {
     final List<SavedRouteModel> all;
     try {
       all = (await _ds.readAll()).toList(); // mutable copy
-      developer.log('upsert: read existing → ${all.length} entries',
-          name: _tag);
+      developer.log(
+        'upsert: read existing → ${all.length} entries',
+        name: _tag,
+      );
     } catch (e, st) {
-      developer.log('upsert: ❌ readAll failed',
-          error: e, stackTrace: st, name: _tag);
+      developer.log(
+        'upsert: ❌ readAll failed',
+        error: e,
+        stackTrace: st,
+        name: _tag,
+      );
       rethrow;
     }
 
@@ -54,8 +60,12 @@ class SavedRoutesRepositoryImpl implements SavedRoutesRepository {
       model = SavedRouteModel.fromEntity(updated);
       developer.log('upsert: model built (id=$ensuredId)', name: _tag);
     } catch (e, st) {
-      developer.log('upsert: ❌ SavedRouteModel.fromEntity threw',
-          error: e, stackTrace: st, name: _tag);
+      developer.log(
+        'upsert: ❌ SavedRouteModel.fromEntity threw',
+        error: e,
+        stackTrace: st,
+        name: _tag,
+      );
       rethrow;
     }
 
@@ -75,8 +85,12 @@ class SavedRoutesRepositoryImpl implements SavedRoutesRepository {
       await _ds.writeAll(all);
       developer.log('upsert: ✅ persisted to SharedPreferences', name: _tag);
     } catch (e, st) {
-      developer.log('upsert: ❌ writeAll failed',
-          error: e, stackTrace: st, name: _tag);
+      developer.log(
+        'upsert: ❌ writeAll failed',
+        error: e,
+        stackTrace: st,
+        name: _tag,
+      );
       rethrow;
     }
 

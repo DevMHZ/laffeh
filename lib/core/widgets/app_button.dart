@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -25,8 +26,8 @@ class AppButton extends StatelessWidget {
     this.leading,
     this.loading = false,
     this.expand = true,
-    this.height = 54,
-    this.radius = 14,
+    this.height = 56,
+    this.radius = 16,
   });
 
   @override
@@ -69,11 +70,16 @@ class AppButton extends StatelessWidget {
       color: style.background,
       borderRadius: BorderRadius.circular(radius),
       child: InkWell(
-        onTap: disabled ? null : onPressed,
+        onTap: disabled
+            ? null
+            : () {
+                HapticFeedback.lightImpact();
+                onPressed?.call();
+              },
         borderRadius: BorderRadius.circular(radius),
         child: Container(
           height: height,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
             border: style.border == null
@@ -93,8 +99,9 @@ class AppButton extends StatelessWidget {
     switch (v) {
       case AppButtonVariant.primary:
         return _ButtonStyle(
-          background:
-              disabled ? AppColors.primary.withOpacity(0.55) : AppColors.primary,
+          background: disabled
+              ? AppColors.primary.withValues(alpha: 0.55)
+              : AppColors.primary,
           foreground: AppColors.white,
         );
       case AppButtonVariant.secondary:
@@ -110,8 +117,9 @@ class AppButton extends StatelessWidget {
         );
       case AppButtonVariant.danger:
         return _ButtonStyle(
-          background:
-              disabled ? AppColors.danger.withOpacity(0.55) : AppColors.danger,
+          background: disabled
+              ? AppColors.danger.withValues(alpha: 0.55)
+              : AppColors.danger,
           foreground: AppColors.white,
         );
       case AppButtonVariant.ghost:

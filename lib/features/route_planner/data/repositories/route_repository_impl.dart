@@ -1,8 +1,9 @@
 import 'dart:developer' as developer;
 
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_result.dart';
@@ -26,9 +27,9 @@ class RouteRepositoryImpl implements RouteRepository {
     required AiRouteRemoteDataSource ai,
     required OsrmRoutingDataSource routing,
     required NetworkInfo network,
-  })  : _ai = ai,
-        _routing = routing,
-        _network = network;
+  }) : _ai = ai,
+       _routing = routing,
+       _network = network;
 
   @override
   Future<ApiResult<OptimizedRoute>> optimize({
@@ -36,16 +37,17 @@ class RouteRepositoryImpl implements RouteRepository {
     String routingMode = AppConfig.defaultRoutingMode,
   }) async {
     if (!await _network.isConnected) {
-      return const ApiFailure(NetworkFailure('تحقق من الاتصال بالإنترنت'));
+      return ApiFailure(NetworkFailure(AppStrings.errNoInternet));
     }
 
-    final depot = points.firstWhere((p) => p.isDepot, orElse: () => points.first);
+    final depot = points.firstWhere(
+      (p) => p.isDepot,
+      orElse: () => points.first,
+    );
     final stops = points.where((p) => p.id != depot.id).toList();
 
     if (stops.isEmpty) {
-      return const ApiFailure(
-        ValidationFailure('يرجى اختيار وجهة واحدة على الأقل بعد نقطة الانطلاق'),
-      );
+      return ApiFailure(ValidationFailure(AppStrings.errMinOneStopAfterDepot));
     }
 
     final request = RouteRequestModel(
@@ -72,9 +74,7 @@ class RouteRepositoryImpl implements RouteRepository {
       final response = await _ai.optimize(request);
 
       if (response.routes.isEmpty) {
-        return const ApiFailure(
-          ServerFailure('لم يُرجِع النموذج أي مسار مُحسَّن'),
-        );
+        return ApiFailure(ServerFailure(AppStrings.errEmptyOptimizedRoute));
       }
 
       final ordered = _reorderPoints(
@@ -89,6 +89,8 @@ class RouteRepositoryImpl implements RouteRepository {
         base: response.metrics.toEntity(),
         ordered: ordered,
         polyline: polylines.fullPolyline,
+        roadDistanceKm: polylines.fullDistanceKm,
+        roadDurationMinutes: polylines.fullDurationMinutes,
         userStops: points,
       );
 
@@ -134,8 +136,10 @@ class RouteRepositoryImpl implements RouteRepository {
 
       // Skip the depot entries (start/end). They are recognisable
       // by either equal address with depot label or coordinates.
-      final isDepotLike = _isSameCoord(s.lat, s.lon, depot.latitude, depot.longitude) ||
-          (s.address.trim() == (depot.address ?? '').trim() && s.address.isNotEmpty);
+      final isDepotLike =
+          _isSameCoord(s.lat, s.lon, depot.latitude, depot.longitude) ||
+          (s.address.trim() == (depot.address ?? '').trim() &&
+              s.address.isNotEmpty);
       if (isDepotLike) continue;
 
       // 1) match by address (case-insensitive)
@@ -165,7 +169,7 @@ class RouteRepositoryImpl implements RouteRepository {
             id: 'srv_${result.length}',
             latitude: s.lat,
             longitude: s.lon,
-            label: 'نقطة ${result.length + 1}',
+            label: AppStrings.stopLabel(result.length + 1),
             address: s.address,
             weight: s.weight,
             kind: RoutePointKind.stop,
@@ -207,14 +211,15 @@ class RouteRepositoryImpl implements RouteRepository {
         .map((p) => p.latLng)
         .toList();
 
-    final directionsMode = _mapModeToDirections(mode);
+    final osrmProfile = _mapModeToOsrmProfile(mode);
 
-    final full = await _routing.fetchPolyline(
+    final fullRoute = await _routing.fetchRoute(
       origin: origin,
       destination: destination,
       waypoints: waypoints,
-      mode: directionsMode,
+      profile: osrmProfile,
     );
+    final full = fullRoute.polyline;
 
     if (full.isEmpty) {
       // Fallback: straight segments.
@@ -225,6 +230,8 @@ class RouteRepositoryImpl implements RouteRepository {
         goPolyline: fallback.sublist(0, lastStopIndex + 1),
         returnPolyline: fallback.sublist(lastStopIndex),
         hasRoadGeometry: false,
+        fullDistanceKm: null,
+        fullDurationMinutes: null,
       );
     }
 
@@ -235,33 +242,41 @@ class RouteRepositoryImpl implements RouteRepository {
     final goWaypoints = waypoints.isNotEmpty
         ? waypoints.sublist(0, waypoints.length - 1)
         : <LatLng>[];
-    final go = await _routing.fetchPolyline(
+    final goRoute = await _routing.fetchRoute(
       origin: origin,
       destination: lastStop,
       waypoints: goWaypoints,
-      mode: directionsMode,
+      profile: osrmProfile,
     );
 
-    final back = await _routing.fetchPolyline(
+    final backRoute = await _routing.fetchRoute(
       origin: lastStop,
       destination: destination,
-      mode: directionsMode,
+      profile: osrmProfile,
     );
 
     return _PolylineBundle(
       fullPolyline: full,
-      goPolyline: go.isNotEmpty ? go : full,
-      returnPolyline: back.isNotEmpty ? back : [lastStop, destination],
+      goPolyline: goRoute.polyline.isNotEmpty ? goRoute.polyline : full,
+      returnPolyline: backRoute.polyline.isNotEmpty
+          ? backRoute.polyline
+          : [lastStop, destination],
       hasRoadGeometry: true,
+      fullDistanceKm: fullRoute.distanceMeters > 0
+          ? fullRoute.distanceMeters / 1000
+          : null,
+      fullDurationMinutes: fullRoute.durationSeconds > 0
+          ? fullRoute.durationSeconds / 60
+          : null,
     );
   }
 
-  String _mapModeToDirections(String mode) {
+  String _mapModeToOsrmProfile(String mode) {
     switch (mode) {
       case 'bike':
-        return 'bicycling';
+        return 'cycling';
       case 'walking':
-        return 'walking';
+        return 'foot';
       case 'car':
       default:
         return 'driving';
@@ -277,12 +292,18 @@ class RouteRepositoryImpl implements RouteRepository {
     required RouteMetrics base,
     required List<RoutePoint> ordered,
     required List<LatLng> polyline,
+    required double? roadDistanceKm,
+    required double? roadDurationMinutes,
     required List<RoutePoint> userStops,
   }) {
-    final totalKm = base.totalDistanceKm ??
+    final totalKm =
+        roadDistanceKm ??
+        base.totalDistanceKm ??
         (polyline.length >= 2
             ? DistanceUtils.pathLengthKm(polyline)
-            : DistanceUtils.pathLengthKm(ordered.map((p) => p.latLng).toList()));
+            : DistanceUtils.pathLengthKm(
+                ordered.map((p) => p.latLng).toList(),
+              ));
 
     // Naive baseline = visit stops in the user's input order.
     final baselineKm = DistanceUtils.pathLengthKm(
@@ -290,13 +311,17 @@ class RouteRepositoryImpl implements RouteRepository {
         ..add(userStops.firstWhere((p) => p.isDepot).latLng),
     );
 
-    final savedDistance = base.savedDistanceKm ??
+    final savedDistance =
+        base.savedDistanceKm ??
         (baselineKm > totalKm ? (baselineKm - totalKm) : null);
 
     // ~40 km/h urban average — used only when no duration was provided.
     final estimatedDuration =
-        base.estimatedDurationMinutes ?? ((totalKm / 40.0) * 60);
-    final savedDuration = base.savedDurationMinutes ??
+        base.estimatedDurationMinutes ??
+        roadDurationMinutes ??
+        ((totalKm / 40.0) * 60);
+    final savedDuration =
+        base.savedDurationMinutes ??
         (savedDistance != null ? (savedDistance / 40.0) * 60 : null);
 
     // 8 L / 100 km — rough urban average. Only used when fuel wasn't
@@ -318,18 +343,24 @@ class _PolylineBundle {
   final List<LatLng> goPolyline;
   final List<LatLng> returnPolyline;
   final bool hasRoadGeometry;
+  final double? fullDistanceKm;
+  final double? fullDurationMinutes;
 
   const _PolylineBundle({
     required this.fullPolyline,
     required this.goPolyline,
     required this.returnPolyline,
     required this.hasRoadGeometry,
+    required this.fullDistanceKm,
+    required this.fullDurationMinutes,
   });
 
   factory _PolylineBundle.empty() => const _PolylineBundle(
-        fullPolyline: [],
-        goPolyline: [],
-        returnPolyline: [],
-        hasRoadGeometry: false,
-      );
+    fullPolyline: [],
+    goPolyline: [],
+    returnPolyline: [],
+    hasRoadGeometry: false,
+    fullDistanceKm: null,
+    fullDurationMinutes: null,
+  );
 }

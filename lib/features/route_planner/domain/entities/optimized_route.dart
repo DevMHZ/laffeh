@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'route_metrics.dart';
 import 'route_point.dart';
@@ -11,7 +11,7 @@ enum RouteSegment { full, go, returnLeg }
 ///
 /// The AI VRP returns the order in which to visit the stops; we
 /// also keep a list of LatLngs along the actual driveable path
-/// (populated from the Directions API) so the polyline matches
+/// (populated from OSRM) so the polyline matches
 /// real roads. If Directions fails we fall back to straight
 /// segments between stops.
 class OptimizedRoute extends Equatable {
@@ -31,7 +31,7 @@ class OptimizedRoute extends Equatable {
 
   final RouteMetrics metrics;
 
-  /// True when [fullPolyline] is real Directions geometry; false
+  /// True when [fullPolyline] is real router geometry; false
   /// if we fell back to straight lines.
   final bool hasRoadGeometry;
 
@@ -48,11 +48,11 @@ class OptimizedRoute extends Equatable {
 
   @override
   List<Object?> get props => [
-        orderedPoints,
-        fullPolyline,
-        goPolyline,
-        returnPolyline,
-        metrics,
-        hasRoadGeometry,
-      ];
+    orderedPoints,
+    fullPolyline,
+    goPolyline,
+    returnPolyline,
+    metrics,
+    hasRoadGeometry,
+  ];
 }

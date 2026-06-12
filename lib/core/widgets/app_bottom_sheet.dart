@@ -35,27 +35,33 @@ class AppSheetContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final effectivePadding = contentPadding.copyWith(
+      bottom: contentPadding.bottom + safeBottom,
+    );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showDragHandle) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 9),
           Center(
             child: Container(
-              width: 44,
+              width: 38,
               height: 5,
               decoration: BoxDecoration(
-                color: AppColors.borderStrong,
+                color: AppColors.borderStrong.withValues(alpha: 0.82),
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
           ),
         ],
         if (title != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
@@ -75,17 +81,16 @@ class AppSheetContainer extends StatelessWidget {
                     ],
                   ),
                 ),
-                ...actions,
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(width: 10),
+                  Wrap(spacing: 2, children: actions),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          const Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: 12),
         ],
-        Padding(
-          padding: contentPadding,
-          child: child,
-        ),
+        Padding(padding: effectivePadding, child: child),
       ],
     );
   }

@@ -14,16 +14,22 @@ class EnvConfig {
     return value.trim();
   }
 
-  static String get googleMapsApiKey =>
-      _read('GOOGLE_MAPS_API_KEY', fallback: 'YOUR_GOOGLE_MAPS_API_KEY_HERE');
-
-  static String get aiRouteBaseUrl =>
-      _read('AI_ROUTE_BASE_URL', fallback: 'https://back.laffa.afdal.tech/api/v1');
+  static String get aiRouteBaseUrl => _read(
+    'AI_ROUTE_BASE_URL',
+    fallback: 'https://back.laffa.afdal.tech/api/v1',
+  );
 
   static String get aiRouteApiKey =>
       _read('AI_ROUTE_API_KEY', fallback: 'test-key-001');
 
-  static bool get hasGoogleMapsKey =>
-      googleMapsApiKey.isNotEmpty &&
-      googleMapsApiKey != 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
+  static String get osmTileUrlTemplate => _read(
+    'OSM_TILE_URL_TEMPLATE',
+    fallback:
+        'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+  );
+
+  static String get nominatimBaseUrl => _read(
+    'NOMINATIM_BASE_URL',
+    fallback: 'https://nominatim.openstreetmap.org',
+  );
 }

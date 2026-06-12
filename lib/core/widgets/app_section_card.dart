@@ -32,8 +32,15 @@ class AppSectionCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: background ?? AppColors.surface,
-        borderRadius: borderRadius ?? BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        borderRadius: borderRadius ?? BorderRadius.circular(20),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.70)),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadowSoft,
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,9 +52,7 @@ class AppSectionCard extends StatelessWidget {
                   Icon(titleIcon, size: 18, color: AppColors.primary),
                   const SizedBox(width: 8),
                 ],
-                Expanded(
-                  child: Text(title!, style: AppTextStyles.titleMd),
-                ),
+                Expanded(child: Text(title!, style: AppTextStyles.titleMd)),
                 if (trailing != null) trailing!,
               ],
             ),

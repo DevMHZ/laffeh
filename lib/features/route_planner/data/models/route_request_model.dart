@@ -29,13 +29,13 @@ class RouteRequestModel {
   });
 
   Map<String, dynamic> toJson() => {
-        'num_vehicles': numVehicles,
-        'vehicle_capacity': vehicleCapacity,
-        'depot_lat': depotLat,
-        'depot_lon': depotLon,
-        'routing_mode': routingMode,
-        'time_limit': timeLimitSeconds,
-        'max_vehicle_time': maxVehicleTimeMinutes,
-        'deliveries': deliveries.map((d) => d.toJson()).toList(),
-      };
+    'num_vehicles': numVehicles,
+    'vehicle_capacity': vehicleCapacity,
+    'depot_lat': depotLat,
+    'depot_lon': depotLon,
+    'routing_mode': routingMode,
+    'time_limit': timeLimitSeconds,
+    'max_vehicle_time': maxVehicleTimeMinutes,
+    'deliveries': deliveries.map((d) => d.toJson()).toList(),
+  };
 }

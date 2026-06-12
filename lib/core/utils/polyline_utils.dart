@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'distance_utils.dart';
 
@@ -13,10 +13,10 @@ import 'distance_utils.dart';
 class PolylineUtils {
   PolylineUtils._();
 
-  /// Decode a Google-encoded polyline string into LatLng coordinates.
+  /// Decode an encoded polyline string into LatLng coordinates.
   static List<LatLng> decode(String encoded) {
     if (encoded.isEmpty) return const [];
-    final points = PolylinePoints().decodePolyline(encoded);
+    final points = PolylinePoints.decodePolyline(encoded);
     return points
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList(growable: false);
@@ -96,7 +96,8 @@ class PolylineUtils {
     final dLon = _deg2rad(b.longitude - a.longitude);
 
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
 
     final brng = _rad2deg(math.atan2(y, x));

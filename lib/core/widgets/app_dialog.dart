@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../constants/app_constants.dart';
@@ -51,8 +52,8 @@ class AppDialogAction {
 
   /// Cancel button — convention is a quiet text button on the right
   /// (RTL leading) that pops with `null`.
-  factory AppDialogAction.cancel({String label = AppStrings.cancel}) =>
-      AppDialogAction(label: label, popWith: null);
+  factory AppDialogAction.cancel({String? label}) =>
+      AppDialogAction(label: label ?? AppStrings.cancel, popWith: null);
 }
 
 /// Unified, brand-styled dialog used everywhere in the app.
@@ -101,7 +102,10 @@ class AppDialog extends StatelessWidget {
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 220),
       transitionBuilder: (ctx, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
         return Opacity(
           opacity: curved.value,
           child: Transform.scale(
@@ -131,8 +135,8 @@ class AppDialog extends StatelessWidget {
     required BuildContext context,
     required String title,
     required String message,
-    String confirmLabel = AppStrings.save,
-    String cancelLabel = AppStrings.cancel,
+    String? confirmLabel,
+    String? cancelLabel,
     IconData? confirmIcon,
     IconData? icon,
     AppDialogTone tone = AppDialogTone.primary,
@@ -147,7 +151,7 @@ class AppDialog extends StatelessWidget {
       actions: [
         AppDialogAction.cancel(label: cancelLabel),
         AppDialogAction(
-          label: confirmLabel,
+          label: confirmLabel ?? AppStrings.save,
           icon: confirmIcon,
           primary: true,
           destructive: destructive,
@@ -164,8 +168,8 @@ class AppDialog extends StatelessWidget {
     String? message,
     String? hint,
     String initialValue = '',
-    String confirmLabel = AppStrings.save,
-    String cancelLabel = AppStrings.cancel,
+    String? confirmLabel,
+    String? cancelLabel,
     IconData? confirmIcon = Iconsax.save_2,
     IconData? icon,
     AppDialogTone tone = AppDialogTone.primary,
@@ -188,11 +192,10 @@ class AppDialog extends StatelessWidget {
       actions: [
         AppDialogAction.cancel(label: cancelLabel),
         AppDialogAction(
-          label: confirmLabel,
+          label: confirmLabel ?? AppStrings.save,
           icon: confirmIcon,
           primary: true,
-          onPressed: () =>
-              Navigator.of(context).pop(controller.text.trim()),
+          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
         ),
       ],
     );
@@ -228,7 +231,7 @@ class AppDialog extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: tone.accent.withOpacity(0.12),
+                      color: tone.accent.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, color: tone.accent, size: 28),
@@ -236,24 +239,19 @@ class AppDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
               ],
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.h3,
-              ),
+              Text(title, textAlign: TextAlign.center, style: AppTextStyles.h3),
               if (message != null) ...[
                 const SizedBox(height: 8),
                 Text(
                   message!,
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.bodyMd
-                      .copyWith(color: AppColors.textSecondary, height: 1.55),
+                  style: AppTextStyles.bodyMd.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.55,
+                  ),
                 ),
               ],
-              if (content != null) ...[
-                const SizedBox(height: 16),
-                content!,
-              ],
+              if (content != null) ...[const SizedBox(height: 16), content!],
               const SizedBox(height: 20),
               _Actions(actions: actions),
             ],
@@ -335,6 +333,7 @@ class _ButtonWidget extends StatelessWidget {
     }
 
     void onTap() {
+      HapticFeedback.selectionClick();
       if (action.onPressed != null) {
         action.onPressed!();
       } else {
@@ -376,7 +375,9 @@ class _ButtonWidget extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(13),
         onTap: onTap,
-        child: fullWidth ? SizedBox(width: double.infinity, child: child) : child,
+        child: fullWidth
+            ? SizedBox(width: double.infinity, child: child)
+            : child,
       ),
     );
   }

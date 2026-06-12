@@ -35,22 +35,22 @@ class RoutePointTile extends StatelessWidget {
     final color = depot
         ? AppColors.primary
         : isReturnPoint
-            ? AppColors.accent
-            : AppColors.info;
+        ? AppColors.accent
+        : AppColors.info;
 
     final badge = depot
         ? Iconsax.flag
         : isReturnPoint
-            ? Iconsax.home_2
-            : Iconsax.location;
+        ? Iconsax.home_2
+        : Iconsax.location;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        color: AppColors.surfaceAlt.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.72)),
       ),
       child: Row(
         children: [
@@ -73,10 +73,16 @@ class RoutePointTile extends StatelessWidget {
                     ),
                     if (depot) ...[
                       const SizedBox(width: 6),
-                      _MiniBadge(label: 'انطلاق', color: AppColors.primary),
+                      _MiniBadge(
+                        label: AppStrings.departureBadge,
+                        color: AppColors.primary,
+                      ),
                     ] else if (isReturnPoint) ...[
                       const SizedBox(width: 6),
-                      _MiniBadge(label: 'عودة', color: AppColors.accent),
+                      _MiniBadge(
+                        label: AppStrings.returnBadge,
+                        color: AppColors.accent,
+                      ),
                     ],
                   ],
                 ),
@@ -91,6 +97,15 @@ class RoutePointTile extends StatelessWidget {
               ],
             ),
           ),
+          if (onRename != null || onRemove != null || onSetAsDeparture != null)
+            const Padding(
+              padding: EdgeInsetsDirectional.only(start: 4),
+              child: Icon(
+                Icons.drag_indicator,
+                color: AppColors.hint,
+                size: 19,
+              ),
+            ),
           if (onRename != null || onRemove != null || onSetAsDeparture != null)
             _OverflowMenu(
               canSetAsDeparture: !depot && onSetAsDeparture != null,
@@ -108,7 +123,11 @@ class _Leading extends StatelessWidget {
   final Color color;
   final IconData icon;
   final int index;
-  const _Leading({required this.color, required this.icon, required this.index});
+  const _Leading({
+    required this.color,
+    required this.icon,
+    required this.index,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +138,7 @@ class _Leading extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.14),
+            color: color.withValues(alpha: 0.14),
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
@@ -136,7 +155,10 @@ class _Leading extends StatelessWidget {
             ),
             child: Text(
               '$index',
-              style: AppTextStyles.bodySm.copyWith(color: AppColors.white, fontSize: 10),
+              style: AppTextStyles.bodySm.copyWith(
+                color: AppColors.white,
+                fontSize: 10,
+              ),
             ),
           ),
         ),
@@ -155,12 +177,16 @@ class _MiniBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         label,
-        style: AppTextStyles.bodySm.copyWith(color: color, fontSize: 10, fontWeight: FontWeight.w700),
+        style: AppTextStyles.bodySm.copyWith(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -198,36 +224,42 @@ class _OverflowMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         if (onRename != null)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _Action.rename,
             child: Row(
               children: [
-                Icon(Iconsax.edit, size: 18, color: AppColors.textSecondary),
-                SizedBox(width: 10),
+                const Icon(
+                  Iconsax.edit,
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 10),
                 Text(AppStrings.rename),
               ],
             ),
           ),
         if (canSetAsDeparture)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _Action.setDeparture,
             child: Row(
               children: [
-                Icon(Iconsax.flag, size: 18, color: AppColors.primary),
-                SizedBox(width: 10),
+                const Icon(Iconsax.flag, size: 18, color: AppColors.primary),
+                const SizedBox(width: 10),
                 Text(AppStrings.setAsDeparture),
               ],
             ),
           ),
         if (onRemove != null)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _Action.remove,
             child: Row(
               children: [
-                Icon(Iconsax.trash, size: 18, color: AppColors.danger),
-                SizedBox(width: 10),
-                Text(AppStrings.remove,
-                    style: TextStyle(color: AppColors.danger)),
+                const Icon(Iconsax.trash, size: 18, color: AppColors.danger),
+                const SizedBox(width: 10),
+                Text(
+                  AppStrings.remove,
+                  style: const TextStyle(color: AppColors.danger),
+                ),
               ],
             ),
           ),

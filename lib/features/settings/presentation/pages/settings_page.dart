@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -14,7 +15,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.settings)),
+      appBar: AppBar(title: Text(AppStrings.settings)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
         children: [
@@ -41,14 +42,15 @@ class SettingsPage extends StatelessWidget {
             title: AppStrings.about,
             titleIcon: Iconsax.info_circle,
             child: Text(
-              'تطبيق ذكي لتحسين مسارات التوصيل والزيارات اليومية باستخدام '
-              'نموذج تحسين Vehicle Routing من Afdal، مع إمكانية محاكاة '
-              'المسار كاملاً بعد ظهور النتيجة.',
+              AppStrings.aboutDescription,
               style: AppTextStyles.bodyMd.copyWith(
                 color: AppColors.textSecondary,
               ),
             ),
           ),
+          const SizedBox(height: 14),
+
+          const _LanguageCard(),
           const SizedBox(height: 14),
 
           _WebsiteCard(onTap: () => _openWebsite(context)),
@@ -63,10 +65,43 @@ class SettingsPage extends StatelessWidget {
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('تعذر فتح الموقع: ${AppStrings.afdalWebsiteUrl}'),
+          content: Text(
+            AppStrings.websiteOpenFailed(AppStrings.afdalWebsiteUrl),
+          ),
         ),
       );
     }
+  }
+}
+
+class _LanguageCard extends StatelessWidget {
+  const _LanguageCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSectionCard(
+      title: AppStrings.language,
+      titleIcon: Iconsax.translate,
+      child: DropdownButtonFormField<String>(
+        initialValue: AppStrings.languageCode,
+        icon: const Icon(Iconsax.arrow_down_1, size: 18),
+        decoration: const InputDecoration(contentPadding: EdgeInsets.all(14)),
+        items: [
+          DropdownMenuItem(
+            value: 'en',
+            child: Text(AppStrings.languageEnglish),
+          ),
+          DropdownMenuItem(value: 'ar', child: Text(AppStrings.languageArabic)),
+          DropdownMenuItem(value: 'fr', child: Text(AppStrings.languageFrench)),
+        ],
+        onChanged: (code) async {
+          if (code == null) return;
+          AppStrings.setLocale(Locale(code));
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(AppStrings.localeStorageKey, code);
+        },
+      ),
+    );
   }
 }
 
@@ -94,7 +129,7 @@ class _WebsiteCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.14),
+                  color: AppColors.accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(

@@ -22,23 +22,20 @@ class RoutePointModel {
   });
 
   Map<String, dynamic> toJson() => {
-        'address': address,
-        'lat': lat,
-        'lon': lon,
-        'weight': weight,
-      };
+    'address': address,
+    'lat': lat,
+    'lon': lon,
+    'weight': weight,
+  };
 
   /// Defensive parser — the response payload is not fully spec'd
   /// in the Python sample. We accept multiple aliases that VRP
   /// services tend to use (`lon`/`lng`/`longitude`, etc.).
   factory RoutePointModel.fromJson(Map<String, dynamic> json) {
     final lat = (json['lat'] ?? json['latitude'] ?? 0).toDouble();
-    final lon = (json['lon'] ??
-            json['lng'] ??
-            json['long'] ??
-            json['longitude'] ??
-            0)
-        .toDouble();
+    final lon =
+        (json['lon'] ?? json['lng'] ?? json['long'] ?? json['longitude'] ?? 0)
+            .toDouble();
 
     final weightRaw = json['weight'] ?? json['load'] ?? 0;
     final weight = weightRaw is num ? weightRaw.toInt() : 0;

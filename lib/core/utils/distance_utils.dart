@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../constants/app_constants.dart';
 
 /// Geometry helpers used by the route planner.
 ///
@@ -19,9 +21,12 @@ class DistanceUtils {
     final lat1 = _deg2rad(a.latitude);
     final lat2 = _deg2rad(b.latitude);
 
-    final h = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) * math.cos(lat2) *
-            math.sin(dLon / 2) * math.sin(dLon / 2);
+    final h =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
 
     final c = 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
     return _earthRadiusKm * c;
@@ -37,9 +42,9 @@ class DistanceUtils {
     return total;
   }
 
-  /// LatLngBounds that wraps a list of points, with a small padding
-  /// applied by the camera caller.
-  static LatLngBounds boundsOf(List<LatLng> points) {
+  /// Coordinate bounds that wrap a list of points, with padding
+  /// applied by the map widget that consumes them.
+  static CoordinateBounds boundsOf(List<LatLng> points) {
     assert(points.isNotEmpty, 'cannot compute bounds for empty list');
 
     double minLat = points.first.latitude;
@@ -54,7 +59,8 @@ class DistanceUtils {
       maxLng = math.max(maxLng, p.longitude);
     }
 
-    // Avoid zero-area bounds (single point) — Google Maps complains.
+    // Avoid zero-area bounds (single point) so map camera fitting
+    // always has a visible rectangle to work with.
     if ((maxLat - minLat).abs() < 1e-6) {
       minLat -= 0.002;
       maxLat += 0.002;
@@ -64,42 +70,51 @@ class DistanceUtils {
       maxLng += 0.002;
     }
 
-    return LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
+    return CoordinateBounds(
+      southWest: LatLng(minLat, minLng),
+      northEast: LatLng(maxLat, maxLng),
     );
   }
 
   static double _deg2rad(double deg) => deg * (math.pi / 180.0);
 }
 
+class CoordinateBounds {
+  final LatLng southWest;
+  final LatLng northEast;
+
+  const CoordinateBounds({required this.southWest, required this.northEast});
+
+  List<LatLng> get corners => [southWest, northEast];
+}
+
 /// Friendly formatters for metric values shown to the user.
 class MetricFormat {
   MetricFormat._();
 
-  /// `12.4 كم` or `850 م`.
+  /// Formats kilometers in the active app language.
   static String distance(double km) {
     if (km.isNaN || km.isInfinite) return '--';
     if (km < 1) {
       final meters = (km * 1000).round();
-      return '$meters م';
+      return '$meters ${AppUnits.meter}';
     }
-    return '${km.toStringAsFixed(km < 10 ? 1 : 0)} كم';
+    return '${km.toStringAsFixed(km < 10 ? 1 : 0)} ${AppUnits.km}';
   }
 
-  /// `25 دقيقة` or `1 س 15 د`.
+  /// Formats minutes in the active app language.
   static String duration(double minutes) {
     if (minutes.isNaN || minutes.isInfinite) return '--';
-    if (minutes < 60) return '${minutes.round()} دقيقة';
+    if (minutes < 60) return '${minutes.round()} ${AppUnits.min}';
     final hours = (minutes / 60).floor();
     final remaining = (minutes - hours * 60).round();
-    if (remaining == 0) return '$hours ساعة';
-    return '$hours س $remaining د';
+    if (remaining == 0) return '$hours ${AppUnits.hour}';
+    return '$hours ${AppUnits.hour} $remaining ${AppUnits.min}';
   }
 
-  /// `5.4 لتر`.
+  /// Formats liters in the active app language.
   static String fuelLiters(double liters) {
     if (liters.isNaN || liters.isInfinite) return '--';
-    return '${liters.toStringAsFixed(1)} لتر';
+    return '${liters.toStringAsFixed(1)} ${AppUnits.liter}';
   }
 }

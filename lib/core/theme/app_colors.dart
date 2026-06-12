@@ -13,12 +13,12 @@ class AppColors {
   AppColors._();
 
   // ── Brand ─────────────────────────────────────────────────
-  static const Color primary = Color(0xFF2A4255);        // logo navy
+  static const Color primary = Color(0xFF2A4255); // logo navy
   static const Color primaryDark = Color(0xFF1A2D3D);
   static const Color primarySoft = Color(0xFFE7ECF0);
-  static const Color primaryGlass = Color(0xCC2A4255);   // for overlays
+  static const Color primaryGlass = Color(0xCC2A4255); // for overlays
 
-  static const Color accent = Color(0xFF5DBE5F);         // logo green
+  static const Color accent = Color(0xFF5DBE5F); // logo green
   static const Color accentDark = Color(0xFF45A347);
   static const Color accentSoft = Color(0xFFE2F4E3);
 
@@ -41,8 +41,8 @@ class AppColors {
   static const Color info = Color(0xFF3E7BC0);
 
   // ── Map route colors ─────────────────────────────────────
-  static const Color routeFull = Color(0xFF2A4255);   // navy (primary)
-  static const Color routeGo = Color(0xFF5DBE5F);     // green (accent)
+  static const Color routeFull = Color(0xFF2A4255); // navy (primary)
+  static const Color routeGo = Color(0xFF5DBE5F); // green (accent)
   static const Color routeReturn = Color(0xFFE5A12B); // warm amber
   static const Color routeShadow = Color(0x66E5E9EE);
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -16,31 +17,54 @@ class LaffehApp extends StatelessWidget {
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (_, __) {
-        return MaterialApp(
-          title: AppStrings.appName,
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
-          locale: const Locale('ar'),
-          supportedLocales: const [Locale('ar'), Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          builder: (context, child) {
-            return Directionality(
-              textDirection: TextDirection.rtl,
-              child: MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(textScaler: const TextScaler.linear(1.0)),
-                child: child ?? const SizedBox.shrink(),
+        return ValueListenableBuilder<Locale>(
+          valueListenable: AppStrings.localeNotifier,
+          builder: (_, locale, __) {
+            return MaterialApp(
+              onGenerateTitle: (_) => AppStrings.appName,
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light,
+              locale: locale,
+              supportedLocales: AppStrings.supportedLocales,
+              localeResolutionCallback: (_, __) {
+                final resolved = AppStrings.resolveLocale(locale);
+                AppStrings.setLocale(resolved);
+                return resolved;
+              },
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              builder: EasyLoading.init(
+                builder: (context, child) {
+                  return ScrollConfiguration(
+                    behavior: const _LaffehScrollBehavior(),
+                    child: MediaQuery(
+                      data: MediaQuery.of(context).copyWith(
+                        textScaler: MediaQuery.textScalerOf(
+                          context,
+                        ).clamp(minScaleFactor: 0.9, maxScaleFactor: 1.18),
+                      ),
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  );
+                },
               ),
+              home: const SplashPage(),
             );
           },
-          home: const SplashPage(),
         );
       },
     );
+  }
+}
+
+class _LaffehScrollBehavior extends MaterialScrollBehavior {
+  const _LaffehScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
   }
 }

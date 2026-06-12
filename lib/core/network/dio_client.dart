@@ -14,11 +14,14 @@ import '../config/env_config.dart';
 ///                       (carries the `X-API-Key` header by default).
 ///   * [osrmDio]      → talks to the public OSRM router
 ///                       (OpenStreetMap-based; no key).
+///   * [nominatimDio] → reverse-geocodes coordinates through OSM's
+///                       Nominatim-compatible API.
 class DioClient {
   DioClient._();
 
   static Dio? _aiRouteDio;
   static Dio? _osrmDio;
+  static Dio? _nominatimDio;
 
   static Dio get aiRouteDio {
     _aiRouteDio ??= _buildAiRouteDio();
@@ -28,6 +31,11 @@ class DioClient {
   static Dio get osrmDio {
     _osrmDio ??= _buildOsrmDio();
     return _osrmDio!;
+  }
+
+  static Dio get nominatimDio {
+    _nominatimDio ??= _buildNominatimDio();
+    return _nominatimDio!;
   }
 
   static Dio _buildAiRouteDio() {
@@ -68,8 +76,32 @@ class DioClient {
     return dio;
   }
 
+  static Dio _buildNominatimDio() {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: EnvConfig.nominatimBaseUrl,
+        connectTimeout: AppConfig.networkTimeout,
+        receiveTimeout: AppConfig.networkTimeout,
+        sendTimeout: AppConfig.networkTimeout,
+        headers: const {
+          'Accept': 'application/json',
+          'User-Agent': 'LaffehRoutePlanner/1.0 (https://www.afdal.tech/)',
+        },
+        responseType: ResponseType.json,
+      ),
+    );
+
+    _attachAdapter(dio);
+    if (kDebugMode) dio.interceptors.add(_logger());
+    return dio;
+  }
+
   static void _attachAdapter(Dio dio) {
-    final adapter = dio.httpClientAdapter as IOHttpClientAdapter;
+    if (kIsWeb) return;
+
+    final adapter = dio.httpClientAdapter;
+    if (adapter is! IOHttpClientAdapter) return;
+
     adapter.createHttpClient = () {
       final client = HttpClient()
         ..idleTimeout = const Duration(seconds: 10)
@@ -81,16 +113,17 @@ class DioClient {
   }
 
   static PrettyDioLogger _logger() => PrettyDioLogger(
-        requestHeader: true,
-        requestBody: true,
-        responseBody: true,
-        error: true,
-        compact: true,
-        maxWidth: 120,
-      );
+    requestHeader: true,
+    requestBody: true,
+    responseBody: true,
+    error: true,
+    compact: true,
+    maxWidth: 120,
+  );
 
   static void reset() {
     _aiRouteDio = null;
     _osrmDio = null;
+    _nominatimDio = null;
   }
 }

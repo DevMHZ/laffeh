@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Role of a point in the planned route.
 ///
@@ -74,6 +74,14 @@ class RoutePoint extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [id, latitude, longitude, label, address, weight, kind, sequence];
+  List<Object?> get props => [
+    id,
+    latitude,
+    longitude,
+    label,
+    address,
+    weight,
+    kind,
+    sequence,
+  ];
 }

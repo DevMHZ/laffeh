@@ -1,4 +1,5 @@
 import '../../../../core/config/app_config.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_result.dart';
 import '../entities/optimized_route.dart';
@@ -14,15 +15,11 @@ class OptimizeRouteUseCase {
     String routingMode = AppConfig.defaultRoutingMode,
   }) async {
     if (points.length < 2) {
-      return ApiFailure(
-        ValidationFailure('يرجى اختيار نقطتين على الأقل'),
-      );
+      return ApiFailure(ValidationFailure(AppStrings.errMinTwoPoints));
     }
     final depotCount = points.where((p) => p.isDepot).length;
     if (depotCount != 1) {
-      return ApiFailure(
-        ValidationFailure('يجب تحديد نقطة انطلاق واحدة فقط'),
-      );
+      return ApiFailure(ValidationFailure(AppStrings.errOneDepotRequired));
     }
     return _repository.optimize(points: points, routingMode: routingMode);
   }

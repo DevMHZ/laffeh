@@ -42,7 +42,11 @@ class RouteMetricsModel {
     }
 
     return RouteMetricsModel(
-      totalDistanceKm: readDouble(['total_distance', 'distance_km', 'distance']),
+      totalDistanceKm: readDouble([
+        'total_distance',
+        'distance_km',
+        'distance',
+      ]),
       estimatedDurationMinutes: readDouble([
         'total_duration_minutes',
         'estimated_time',
@@ -71,12 +75,12 @@ class RouteMetricsModel {
   }
 
   RouteMetrics toEntity() => RouteMetrics(
-        totalDistanceKm: totalDistanceKm,
-        estimatedDurationMinutes: estimatedDurationMinutes,
-        savedDistanceKm: savedDistanceKm,
-        savedDurationMinutes: savedDurationMinutes,
-        fuelLiters: fuelLiters,
-        vehiclesUsed: vehiclesUsed,
-        totalLoad: totalLoad,
-      );
+    totalDistanceKm: totalDistanceKm,
+    estimatedDurationMinutes: estimatedDurationMinutes,
+    savedDistanceKm: savedDistanceKm,
+    savedDurationMinutes: savedDurationMinutes,
+    fuelLiters: fuelLiters,
+    vehiclesUsed: vehiclesUsed,
+    totalLoad: totalLoad,
+  );
 }

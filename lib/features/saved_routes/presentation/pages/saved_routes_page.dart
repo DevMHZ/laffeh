@@ -36,7 +36,7 @@ class _SavedRoutesView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.savedRoutes),
+        title: Text(AppStrings.savedRoutes),
         actions: [
           BlocBuilder<SavedRoutesCubit, SavedRoutesState>(
             buildWhen: (a, b) => a.routes.length != b.routes.length,
@@ -58,17 +58,18 @@ class _SavedRoutesView extends StatelessWidget {
           }
           if (state.status == SavedRoutesStatus.failure) {
             return AppErrorView(
-              message: state.errorMessage ?? 'حدث خطأ',
+              message: state.errorMessage ?? AppStrings.errGeneric,
               onRetry: () => context.read<SavedRoutesCubit>().load(),
             );
           }
           if (state.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Center(
                 child: AppEmptyView(
                   icon: Iconsax.archive_book,
-                  message: '${AppStrings.savedRoutesEmpty}\n\n',
+                  message:
+                      '${AppStrings.savedRoutesEmpty}\n\n${AppStrings.savedRoutesEmptyHint}',
                 ),
               ),
             );
@@ -132,7 +133,7 @@ class _SavedRoutesView extends StatelessWidget {
     final ok = await AppDialog.confirm(
       context: context,
       title: AppStrings.clearAll,
-      message: 'سيتم حذف كل المسارات المحفوظة. هل أنت متأكد؟',
+      message: AppStrings.clearSavedRoutesConfirm,
       confirmLabel: AppStrings.clearAll,
       confirmIcon: Iconsax.trash,
       icon: Iconsax.warning_2,
@@ -168,7 +169,7 @@ Future<SaveBeforeClearChoice?> showSaveBeforeClearDialog(BuildContext context) {
     message: AppStrings.askKeepCurrentRoute,
     icon: Iconsax.save_2,
     tone: AppDialogTone.primary,
-    actions: const [
+    actions: [
       AppDialogAction(label: AppStrings.cancel, popWith: null),
       AppDialogAction(
         label: AppStrings.dontSave,

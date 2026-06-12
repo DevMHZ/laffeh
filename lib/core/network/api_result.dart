@@ -11,7 +11,8 @@ sealed class ApiResult<T> {
   bool get isSuccess => this is ApiSuccess<T>;
   bool get isFailure => this is ApiFailure<T>;
 
-  T? get dataOrNull => this is ApiSuccess<T> ? (this as ApiSuccess<T>).data : null;
+  T? get dataOrNull =>
+      this is ApiSuccess<T> ? (this as ApiSuccess<T>).data : null;
   Failure? get failureOrNull =>
       this is ApiFailure<T> ? (this as ApiFailure<T>).failure : null;
 

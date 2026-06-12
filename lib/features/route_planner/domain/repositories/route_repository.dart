@@ -8,7 +8,7 @@ import '../entities/route_point.dart';
 /// and is wired through GetIt in `core/di/service_locator.dart`.
 abstract class RouteRepository {
   /// Optimize a set of user-picked points and (when possible) fetch
-  /// driveable geometry from Google Directions for the polylines.
+  /// driveable geometry from OSRM for the polylines.
   ///
   /// [points] must include exactly one depot at index 0; the rest
   /// are delivery stops. The cubit guarantees this invariant.

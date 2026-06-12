@@ -36,7 +36,8 @@ class RouteSimulationSheet extends StatelessWidget {
         final finished = progress >= 1.0;
         final upcoming = _currentTarget(route, progress);
 
-        final remainingKm = (route.metrics.totalDistanceKm ?? 0) * (1 - progress);
+        final remainingKm =
+            (route.metrics.totalDistanceKm ?? 0) * (1 - progress);
         final remainingMin =
             (route.metrics.estimatedDurationMinutes ?? 0) * (1 - progress);
 
@@ -48,8 +49,10 @@ class RouteSimulationSheet extends StatelessWidget {
           actions: [
             IconButton(
               tooltip: AppStrings.exitSimulation,
-              icon: const Icon(Iconsax.close_circle,
-                  color: AppColors.textSecondary),
+              icon: const Icon(
+                Iconsax.close_circle,
+                color: AppColors.textSecondary,
+              ),
               onPressed: cubit.exitSimulation,
             ),
           ],
@@ -90,7 +93,7 @@ class RouteSimulationSheet extends StatelessWidget {
                 onReset: cubit.resetSimulation,
               ),
               const SizedBox(height: 16),
-              _SectionLabel(text: 'السرعة'),
+              _SectionLabel(text: AppStrings.speed),
               const SizedBox(height: 6),
               _SpeedSelector(
                 current: state.simulationSpeed,
@@ -127,11 +130,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(text, style: AppTextStyles.titleSm),
-      ],
-    );
+    return Row(children: [Text(text, style: AppTextStyles.titleSm)]);
   }
 }
 
@@ -197,7 +196,7 @@ class _Pill extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 18),
@@ -283,8 +282,9 @@ class _PrimaryControl extends StatelessWidget {
     final label = finished
         ? AppStrings.resumeSimulation
         : (playing ? AppStrings.pauseSimulation : AppStrings.resumeSimulation);
-    final icon =
-        finished ? Iconsax.play : (playing ? Iconsax.pause : Iconsax.play);
+    final icon = finished
+        ? Iconsax.play
+        : (playing ? Iconsax.pause : Iconsax.play);
     final action = playing ? onPause : onPlay;
 
     return Material(
@@ -441,7 +441,7 @@ class _SpeedSelector extends StatelessWidget {
     return _Segmented<double>(
       current: _quantize(current),
       onSelect: onSelect,
-      options: const [
+      options: [
         (value: 0.5, label: AppStrings.simSpeedHalfX, icon: null),
         (value: 1.0, label: AppStrings.simSpeed1x, icon: null),
         (value: 2.0, label: AppStrings.simSpeed2x, icon: null),
@@ -454,9 +454,7 @@ class _SpeedSelector extends StatelessWidget {
   /// pill highlight stays accurate even after float arithmetic drift.
   double _quantize(double v) {
     const stops = [0.5, 1.0, 2.0, 4.0];
-    return stops.reduce(
-      (a, b) => (v - a).abs() < (v - b).abs() ? a : b,
-    );
+    return stops.reduce((a, b) => (v - a).abs() < (v - b).abs() ? a : b);
   }
 }
 
@@ -471,7 +469,7 @@ class _CameraModeSelector extends StatelessWidget {
       current: current,
       onSelect: onSelect,
       height: 48,
-      options: const [
+      options: [
         (
           value: SimulationCameraMode.overview,
           label: AppStrings.cameraOverview,

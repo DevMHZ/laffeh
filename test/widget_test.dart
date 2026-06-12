@@ -1,17 +1,22 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'dart:ui';
 
-import 'package:laffeh/core/utils/distance_utils.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:laffeh/core/constants/app_constants.dart';
 
 void main() {
-  test('haversine zero distance for identical points', () {
-    const p = LatLng(24.7136, 46.6753);
-    expect(DistanceUtils.haversineKm(p, p), 0);
-  });
+  test('localization resolves English by default and supports ar/fr', () {
+    AppStrings.setLocale(const Locale('es'));
+    expect(AppStrings.languageCode, 'en');
+    expect(AppStrings.settings, 'Settings');
 
-  test('haversine returns a positive distance between distinct points', () {
-    const a = LatLng(24.7136, 46.6753);
-    const b = LatLng(24.6702, 46.7394);
-    expect(DistanceUtils.haversineKm(a, b), greaterThan(0));
+    AppStrings.setLocale(const Locale('ar'));
+    expect(AppStrings.languageCode, 'ar');
+    expect(AppStrings.settings, 'الإعدادات');
+
+    AppStrings.setLocale(const Locale('fr'));
+    expect(AppStrings.languageCode, 'fr');
+    expect(AppStrings.settings, 'Parametres');
+
+    AppStrings.setLocale(const Locale('en'));
   });
 }

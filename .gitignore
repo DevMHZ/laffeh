@@ -4,6 +4,11 @@
 *.pyc
 *.swp
 .DS_Store
+.env
+.env.*
+.env.local
+.env.*.local
+.codex-ui-screenshots/
 .atom/
 .build/
 .buildlog/
@@ -32,6 +37,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/coverage/
 
 # Symbolication related
 app.*.symbols
@@ -43,8 +49,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-# Environment files (contain API keys)
-.env
-.env.local
-.env.*.local

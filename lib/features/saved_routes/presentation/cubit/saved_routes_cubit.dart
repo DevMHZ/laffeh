@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../domain/entities/saved_route.dart';
 import '../../domain/repositories/saved_routes_repository.dart';
 import 'saved_routes_state.dart';
@@ -13,15 +14,14 @@ class SavedRoutesCubit extends Cubit<SavedRoutesState> {
     emit(state.copyWith(status: SavedRoutesStatus.loading, clearError: true));
     try {
       final list = await _repo.list();
-      emit(state.copyWith(
-        status: SavedRoutesStatus.ready,
-        routes: list,
-      ));
+      emit(state.copyWith(status: SavedRoutesStatus.ready, routes: list));
     } catch (e) {
-      emit(state.copyWith(
-        status: SavedRoutesStatus.failure,
-        errorMessage: 'تعذر تحميل المسارات المحفوظة',
-      ));
+      emit(
+        state.copyWith(
+          status: SavedRoutesStatus.failure,
+          errorMessage: AppStrings.errSavedRoutesLoad,
+        ),
+      );
     }
   }
 
@@ -30,16 +30,15 @@ class SavedRoutesCubit extends Cubit<SavedRoutesState> {
     try {
       final saved = await _repo.upsert(route);
       final list = await _repo.list();
-      emit(state.copyWith(
-        status: SavedRoutesStatus.ready,
-        routes: list,
-      ));
+      emit(state.copyWith(status: SavedRoutesStatus.ready, routes: list));
       return saved;
     } catch (e) {
-      emit(state.copyWith(
-        status: SavedRoutesStatus.failure,
-        errorMessage: 'تعذر حفظ المسار',
-      ));
+      emit(
+        state.copyWith(
+          status: SavedRoutesStatus.failure,
+          errorMessage: AppStrings.errSavedRouteSave,
+        ),
+      );
       return null;
     }
   }
@@ -50,11 +49,13 @@ class SavedRoutesCubit extends Cubit<SavedRoutesState> {
     final ok = await _repo.rename(id, newName);
     if (ok) {
       final list = await _repo.list();
-      emit(state.copyWith(
-        routes: list,
-        clearPending: true,
-        status: SavedRoutesStatus.ready,
-      ));
+      emit(
+        state.copyWith(
+          routes: list,
+          clearPending: true,
+          status: SavedRoutesStatus.ready,
+        ),
+      );
     } else {
       emit(state.copyWith(clearPending: true));
     }
@@ -64,19 +65,18 @@ class SavedRoutesCubit extends Cubit<SavedRoutesState> {
     emit(state.copyWith(pendingId: id));
     await _repo.delete(id);
     final list = await _repo.list();
-    emit(state.copyWith(
-      routes: list,
-      clearPending: true,
-      status: SavedRoutesStatus.ready,
-    ));
+    emit(
+      state.copyWith(
+        routes: list,
+        clearPending: true,
+        status: SavedRoutesStatus.ready,
+      ),
+    );
   }
 
   Future<void> clearAll() async {
     emit(state.copyWith(status: SavedRoutesStatus.mutating));
     await _repo.clearAll();
-    emit(state.copyWith(
-      status: SavedRoutesStatus.ready,
-      routes: const [],
-    ));
+    emit(state.copyWith(status: SavedRoutesStatus.ready, routes: const []));
   }
 }

@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
@@ -44,8 +44,6 @@ class RoutePlannerState extends Equatable {
   /// `optimizedFailure`.
   final String? errorMessage;
 
-  final bool missingMapsKey;
-
   // ── Simulation ──────────────────────────────────────────
   /// True while the simulation sheet is mounted (paused or playing).
   final bool simulationActive;
@@ -59,6 +57,22 @@ class RoutePlannerState extends Equatable {
 
   final SimulationCameraMode simulationCameraMode;
 
+  // ── Live navigation ─────────────────────────────────────
+  /// True while the driver is using the optimized route as a real
+  /// route with GPS updates.
+  final bool navigationActive;
+
+  /// 0..1 — approximate current position along [OptimizedRoute.fullPolyline].
+  final double navigationProgress;
+
+  /// Bearing reported by the device GPS, in degrees. May be null when
+  /// the platform cannot provide a stable heading.
+  final double? navigationHeading;
+
+  /// Current GPS speed in meters/second. May be null while stationary
+  /// or when the platform does not report it.
+  final double? navigationSpeedMps;
+
   const RoutePlannerState({
     this.status = RoutePlannerStatus.initial,
     this.points = const [],
@@ -67,12 +81,15 @@ class RoutePlannerState extends Equatable {
     this.optimizedRoute,
     this.displaySegment = RouteSegment.full,
     this.errorMessage,
-    this.missingMapsKey = false,
     this.simulationActive = false,
     this.simulationPlaying = false,
     this.simulationProgress = 0.0,
     this.simulationSpeed = 1.0,
     this.simulationCameraMode = SimulationCameraMode.follow,
+    this.navigationActive = false,
+    this.navigationProgress = 0.0,
+    this.navigationHeading,
+    this.navigationSpeedMps,
   });
 
   bool get hasOptimizedRoute => optimizedRoute != null;
@@ -89,48 +106,63 @@ class RoutePlannerState extends Equatable {
     OptimizedRoute? optimizedRoute,
     RouteSegment? displaySegment,
     String? errorMessage,
-    bool? missingMapsKey,
     bool? simulationActive,
     bool? simulationPlaying,
     double? simulationProgress,
     double? simulationSpeed,
     SimulationCameraMode? simulationCameraMode,
+    bool? navigationActive,
+    double? navigationProgress,
+    double? navigationHeading,
+    double? navigationSpeedMps,
     bool clearOptimizedRoute = false,
     bool clearError = false,
+    bool clearNavigationHeading = false,
+    bool clearNavigationSpeed = false,
   }) {
     return RoutePlannerState(
       status: status ?? this.status,
       points: points ?? this.points,
       userLocation: userLocation ?? this.userLocation,
       cameraTarget: cameraTarget ?? this.cameraTarget,
-      optimizedRoute:
-          clearOptimizedRoute ? null : (optimizedRoute ?? this.optimizedRoute),
+      optimizedRoute: clearOptimizedRoute
+          ? null
+          : (optimizedRoute ?? this.optimizedRoute),
       displaySegment: displaySegment ?? this.displaySegment,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-      missingMapsKey: missingMapsKey ?? this.missingMapsKey,
       simulationActive: simulationActive ?? this.simulationActive,
       simulationPlaying: simulationPlaying ?? this.simulationPlaying,
       simulationProgress: simulationProgress ?? this.simulationProgress,
       simulationSpeed: simulationSpeed ?? this.simulationSpeed,
-      simulationCameraMode:
-          simulationCameraMode ?? this.simulationCameraMode,
+      simulationCameraMode: simulationCameraMode ?? this.simulationCameraMode,
+      navigationActive: navigationActive ?? this.navigationActive,
+      navigationProgress: navigationProgress ?? this.navigationProgress,
+      navigationHeading: clearNavigationHeading
+          ? null
+          : (navigationHeading ?? this.navigationHeading),
+      navigationSpeedMps: clearNavigationSpeed
+          ? null
+          : (navigationSpeedMps ?? this.navigationSpeedMps),
     );
   }
 
   @override
   List<Object?> get props => [
-        status,
-        points,
-        userLocation,
-        cameraTarget,
-        optimizedRoute,
-        displaySegment,
-        errorMessage,
-        missingMapsKey,
-        simulationActive,
-        simulationPlaying,
-        simulationProgress,
-        simulationSpeed,
-        simulationCameraMode,
-      ];
+    status,
+    points,
+    userLocation,
+    cameraTarget,
+    optimizedRoute,
+    displaySegment,
+    errorMessage,
+    simulationActive,
+    simulationPlaying,
+    simulationProgress,
+    simulationSpeed,
+    simulationCameraMode,
+    navigationActive,
+    navigationProgress,
+    navigationHeading,
+    navigationSpeedMps,
+  ];
 }

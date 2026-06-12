@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/route_planner/data/datasources/ai_route_remote_datasource.dart';
+import '../../features/route_planner/data/datasources/osm_geocoding_datasource.dart';
 import '../../features/route_planner/data/datasources/osrm_routing_datasource.dart';
 import '../../features/route_planner/data/repositories/route_repository_impl.dart';
 import '../../features/route_planner/domain/repositories/route_repository.dart';
@@ -43,6 +44,11 @@ Future<void> setupServiceLocator() async {
   if (!sl.isRegistered<OsrmRoutingDataSource>()) {
     sl.registerLazySingleton<OsrmRoutingDataSource>(
       () => OsrmRoutingDataSource(DioClient.osrmDio),
+    );
+  }
+  if (!sl.isRegistered<OsmGeocodingDataSource>()) {
+    sl.registerLazySingleton<OsmGeocodingDataSource>(
+      () => OsmGeocodingDataSource(DioClient.nominatimDio),
     );
   }
 
@@ -88,6 +94,7 @@ Future<void> setupServiceLocator() async {
       () => RoutePlannerCubit(
         sl<OptimizeRouteUseCase>(),
         sl<SavedRoutesRepository>(),
+        sl<OsmGeocodingDataSource>(),
       ),
     );
   }

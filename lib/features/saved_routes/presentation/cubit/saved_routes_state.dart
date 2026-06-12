@@ -31,13 +31,12 @@ class SavedRoutesState extends Equatable {
     String? pendingId,
     bool clearError = false,
     bool clearPending = false,
-  }) =>
-      SavedRoutesState(
-        status: status ?? this.status,
-        routes: routes ?? this.routes,
-        errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-        pendingId: clearPending ? null : (pendingId ?? this.pendingId),
-      );
+  }) => SavedRoutesState(
+    status: status ?? this.status,
+    routes: routes ?? this.routes,
+    errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    pendingId: clearPending ? null : (pendingId ?? this.pendingId),
+  );
 
   @override
   List<Object?> get props => [status, routes, errorMessage, pendingId];

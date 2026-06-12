@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../models/saved_route_model.dart';
 
 /// Storage backend for the route history.
@@ -32,8 +33,12 @@ class SavedRoutesLocalDataSource {
           .map(SavedRouteModel.fromJson)
           .toList(); // growable by default
     } catch (e, st) {
-      developer.log('readAll() decode failed',
-          error: e, stackTrace: st, name: '💾 SavedRoutesDS');
+      developer.log(
+        'readAll() decode failed',
+        error: e,
+        stackTrace: st,
+        name: '💾 SavedRoutesDS',
+      );
       return <SavedRouteModel>[];
     }
   }
@@ -47,9 +52,7 @@ class SavedRoutesLocalDataSource {
       name: '💾 SavedRoutesDS',
     );
     if (!ok) {
-      throw const SharedPrefsWriteException(
-        'تعذر الكتابة إلى التخزين المحلي',
-      );
+      throw SharedPrefsWriteException(AppStrings.errLocalStorageWrite);
     }
   }
 

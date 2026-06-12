@@ -56,11 +56,12 @@ class OptimizedRouteModel {
       totalDistanceKm: (json['total_distance'] is num)
           ? (json['total_distance'] as num).toDouble()
           : 0,
-      totalLoad:
-          (json['total_load'] is num) ? (json['total_load'] as num).toDouble() : 0,
+      totalLoad: (json['total_load'] is num)
+          ? (json['total_load'] as num).toDouble()
+          : 0,
       stops: stops,
-      encodedPolyline: json['polyline']?.toString() ??
-          json['encoded_polyline']?.toString(),
+      encodedPolyline:
+          json['polyline']?.toString() ?? json['encoded_polyline']?.toString(),
     );
   }
 }

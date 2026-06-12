@@ -130,7 +130,7 @@ class _SplashPageState extends State<SplashPage>
               top: -120,
               right: -100,
               child: _GlowBlob(
-                color: AppColors.accent.withOpacity(0.18),
+                color: AppColors.accent.withValues(alpha: 0.18),
                 size: 320,
               ),
             ),
@@ -138,7 +138,7 @@ class _SplashPageState extends State<SplashPage>
               bottom: -100,
               left: -100,
               child: _GlowBlob(
-                color: AppColors.primary.withOpacity(0.35),
+                color: AppColors.primary.withValues(alpha: 0.35),
                 size: 260,
               ),
             ),
@@ -161,14 +161,15 @@ class _SplashPageState extends State<SplashPage>
                             const SizedBox(height: 28),
                             Text(
                               AppStrings.appName,
-                              style: AppTextStyles.display
-                                  .copyWith(color: AppColors.white),
+                              style: AppTextStyles.display.copyWith(
+                                color: AppColors.white,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Text(
                               AppStrings.appTagline,
                               style: AppTextStyles.bodyLg.copyWith(
-                                color: AppColors.white.withOpacity(0.78),
+                                color: AppColors.white.withValues(alpha: 0.78),
                               ),
                             ),
                           ],
@@ -183,15 +184,16 @@ class _SplashPageState extends State<SplashPage>
                           height: 30,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.8,
-                            valueColor:
-                                AlwaysStoppedAnimation(AppColors.accent),
+                            valueColor: AlwaysStoppedAnimation(
+                              AppColors.accent,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
                         Text(
                           AppStrings.initializing,
                           style: AppTextStyles.bodySm.copyWith(
-                            color: AppColors.white.withOpacity(0.65),
+                            color: AppColors.white.withValues(alpha: 0.65),
                             letterSpacing: 0.4,
                           ),
                         ),
@@ -222,7 +224,7 @@ class _GlowBlob extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(
-            colors: [color, color.withOpacity(0)],
+            colors: [color, color.withValues(alpha: 0)],
             stops: const [0.0, 1.0],
           ),
         ),

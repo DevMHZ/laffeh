@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
@@ -16,7 +17,10 @@ import 'route_metrics_card.dart';
 import 'route_point_tile.dart';
 
 class RouteSummarySheet extends StatelessWidget {
-  const RouteSummarySheet({super.key});
+  final VoidCallback? onOpenGoogleMaps;
+  final VoidCallback? onExportCsv;
+
+  const RouteSummarySheet({super.key, this.onOpenGoogleMaps, this.onExportCsv});
 
   @override
   Widget build(BuildContext context) {
@@ -32,19 +36,82 @@ class RouteSummarySheet extends StatelessWidget {
         final order = route.orderedPoints;
 
         return AppSheetContainer(
+          title: AppStrings.bestRouteTitle,
+          subtitle: AppStrings.routeReadyHint,
           contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               _MetricsGrid(route: route),
-              const SizedBox(height: 18),
-              _StartSimulationButton(onPressed: cubit.startSimulation),
+              const SizedBox(height: 14),
+              _RouteSegmentSelector(
+                current: state.displaySegment,
+                onChanged: cubit.showSegment,
+              ),
+              const SizedBox(height: 16),
+              _StartNavigationButton(onPressed: cubit.startNavigation),
+              const SizedBox(height: 10),
+              AppButton(
+                label: AppStrings.startSimulation,
+                icon: Iconsax.play_circle,
+                variant: AppButtonVariant.secondary,
+                height: 54,
+                radius: 16,
+                onPressed: cubit.startSimulation,
+              ),
+              const SizedBox(height: 10),
+              AppButton(
+                label: AppStrings.openInGoogleMaps,
+                icon: Iconsax.map_1,
+                variant: AppButtonVariant.outlined,
+                height: 54,
+                radius: 16,
+                onPressed: onOpenGoogleMaps,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: AppStrings.saveRouteAction,
+                      icon: Iconsax.save_2,
+                      variant: AppButtonVariant.secondary,
+                      height: 50,
+                      radius: 14,
+                      onPressed: () => _saveRoute(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: AppButton(
+                      label: AppStrings.exportCsv,
+                      icon: Iconsax.document_upload,
+                      variant: AppButtonVariant.ghost,
+                      height: 50,
+                      radius: 14,
+                      onPressed: onExportCsv,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              AppButton(
+                label: AppStrings.startNewRoute,
+                icon: Iconsax.refresh,
+                variant: AppButtonVariant.outlined,
+                height: 50,
+                radius: 14,
+                onPressed: () => _handleStartNew(context),
+              ),
               const SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
-                    child: Text('ترتيب اللفة', style: AppTextStyles.titleMd),
+                    child: Text(
+                      AppStrings.routeOrder,
+                      style: AppTextStyles.titleMd,
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -56,7 +123,7 @@ class RouteSummarySheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${order.length} نقطة',
+                      AppStrings.pointsCount(order.length),
                       style: AppTextStyles.bodySm.copyWith(
                         color: AppColors.primary,
                       ),
@@ -73,13 +140,6 @@ class RouteSummarySheet extends StatelessWidget {
                   isReturnPoint: isReturn,
                 );
               }),
-              const SizedBox(height: 14),
-              AppButton(
-                label: AppStrings.startNewRoute,
-                icon: Iconsax.refresh,
-                variant: AppButtonVariant.outlined,
-                onPressed: () => _handleStartNew(context),
-              ),
             ],
           ),
         );
@@ -106,15 +166,17 @@ class RouteSummarySheet extends StatelessWidget {
         final saved = await cubit.saveCurrentRouteToHistory(name);
         if (saved == null) {
           messenger.showSnackBar(
-            const SnackBar(content: Text('تعذر حفظ المسار')),
+            SnackBar(content: Text(AppStrings.errSaveRoute)),
           );
           return; // don't clear — let the user retry
         }
         messenger.showSnackBar(
-          const SnackBar(content: Text(AppStrings.routeSavedMsg)),
+          SnackBar(content: Text(AppStrings.routeSavedMsg)),
         );
       } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('تعذر حفظ المسار: $e')));
+        messenger.showSnackBar(
+          SnackBar(content: Text(AppStrings.routeSaveFailed(e))),
+        );
         return; // don't clear on failure
       }
     }
@@ -122,9 +184,131 @@ class RouteSummarySheet extends StatelessWidget {
     cubit.clearAll();
   }
 
+  Future<void> _saveRoute(BuildContext context) async {
+    final cubit = context.read<RoutePlannerCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+    final defaultName =
+        '${AppStrings.defaultRouteName} • ${_shortDate(DateTime.now())}';
+
+    final name = await showSaveRouteDialog(context, initialName: defaultName);
+    if (name == null) return;
+    if (!context.mounted) return;
+
+    try {
+      final saved = await cubit.saveCurrentRouteToHistory(name);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            saved == null ? AppStrings.errSaveRoute : AppStrings.routeSavedMsg,
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(AppStrings.routeSaveFailed(e))),
+      );
+    }
+  }
+
   String _shortDate(DateTime d) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${d.year}/${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
+  }
+}
+
+class _RouteSegmentSelector extends StatelessWidget {
+  final RouteSegment current;
+  final ValueChanged<RouteSegment> onChanged;
+
+  const _RouteSegmentSelector({required this.current, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [
+      (
+        segment: RouteSegment.full,
+        label: AppStrings.showFull,
+        icon: Iconsax.routing_2,
+        color: AppColors.primary,
+      ),
+      (
+        segment: RouteSegment.go,
+        label: AppStrings.showGo,
+        icon: Iconsax.routing,
+        color: AppColors.accent,
+      ),
+      (
+        segment: RouteSegment.returnLeg,
+        label: AppStrings.showReturn,
+        icon: Iconsax.refresh,
+        color: AppColors.warning,
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: options.map((option) {
+          final selected = option.segment == current;
+          final color = option.color;
+          return Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onChanged(option.segment);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 190),
+                curve: Curves.easeOutCubic,
+                height: 46,
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.surface : Colors.transparent,
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: selected
+                      ? const [
+                          BoxShadow(
+                            color: AppColors.shadowSoft,
+                            blurRadius: 12,
+                            offset: Offset(0, 5),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      option.icon,
+                      size: 17,
+                      color: selected ? color : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        option.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.titleSm.copyWith(
+                          color: selected ? color : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
 
@@ -164,12 +348,16 @@ class _MetricsGrid extends StatelessWidget {
   }
 }
 
-class _StartSimulationButton extends StatelessWidget {
+class _StartNavigationButton extends StatelessWidget {
   final VoidCallback onPressed;
-  const _StartSimulationButton({required this.onPressed});
+  const _StartNavigationButton({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
+    final arrowIcon = Directionality.of(context) == TextDirection.rtl
+        ? Icons.arrow_back_rounded
+        : Icons.arrow_forward_rounded;
+
     return Material(
       borderRadius: BorderRadius.circular(16),
       color: Colors.transparent,
@@ -186,7 +374,7 @@ class _StartSimulationButton extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.accent.withOpacity(0.30),
+                color: AppColors.accent.withValues(alpha: 0.30),
                 blurRadius: 14,
                 offset: const Offset(0, 6),
               ),
@@ -198,7 +386,7 @@ class _StartSimulationButton extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
@@ -214,22 +402,22 @@ class _StartSimulationButton extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      AppStrings.startSimulation,
+                      AppStrings.startNavigation,
                       style: AppTextStyles.titleLg.copyWith(
                         color: AppColors.white,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'شاهد مسارك من البداية للنهاية',
+                      AppStrings.navigationSubtitle,
                       style: AppTextStyles.bodySm.copyWith(
-                        color: Colors.white.withOpacity(0.82),
+                        color: Colors.white.withValues(alpha: 0.82),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Iconsax.arrow_left, color: AppColors.white, size: 22),
+              Icon(arrowIcon, color: AppColors.white, size: 22),
             ],
           ),
         ),
