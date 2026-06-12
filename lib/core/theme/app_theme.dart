@@ -37,13 +37,13 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       useMaterial3: true,
       visualDensity: VisualDensity.adaptivePlatformDensity,
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
+      // pageTransitionsTheme: const PageTransitionsTheme(
+      //   builders: {
+      //     TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      //     TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      //     TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+      //   },
+      // ),
 
       // iOS-style: no ripple, subtle highlight on press
       splashFactory: NoSplash.splashFactory,
@@ -76,7 +76,7 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
@@ -88,7 +88,7 @@ class AppTheme {
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: AppTextStyles.button,
         ),
@@ -97,10 +97,10 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.border, width: 0.5),
+          side: const BorderSide(color: AppColors.borderStrong, width: 0.8),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: AppTextStyles.titleMd.copyWith(color: AppColors.primary),
         ),
@@ -153,13 +153,13 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         showDragHandle: false,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
         ),
       ),
 
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.asphalt,
         contentTextStyle: AppTextStyles.bodyMd.copyWith(color: AppColors.white),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -168,7 +168,7 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
 
       progressIndicatorTheme: const ProgressIndicatorThemeData(

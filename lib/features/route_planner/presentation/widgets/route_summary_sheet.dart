@@ -25,9 +25,7 @@ class RouteSummarySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-      buildWhen: (a, b) =>
-          a.optimizedRoute != b.optimizedRoute ||
-          a.displaySegment != b.displaySegment,
+      buildWhen: (a, b) => a.optimizedRoute != b.optimizedRoute,
       builder: (context, state) {
         final route = state.optimizedRoute;
         if (route == null) return const SizedBox.shrink();
@@ -45,64 +43,46 @@ class RouteSummarySheet extends StatelessWidget {
             children: [
               _MetricsGrid(route: route),
               const SizedBox(height: 14),
-              _RouteSegmentSelector(
-                current: state.displaySegment,
-                onChanged: cubit.showSegment,
-              ),
-              const SizedBox(height: 16),
+
+              // Hierarchy: one hero action (drive), one secondary
+              // (preview), then everything else as compact tiles.
               _StartNavigationButton(onPressed: cubit.startNavigation),
               const SizedBox(height: 10),
               AppButton(
-                label: AppStrings.startSimulation,
+                label: AppStrings.previewRoute,
                 icon: Iconsax.play_circle,
                 variant: AppButtonVariant.secondary,
                 height: 54,
                 radius: 16,
                 onPressed: cubit.startSimulation,
               ),
-              const SizedBox(height: 10),
-              AppButton(
-                label: AppStrings.openInGoogleMaps,
-                icon: Iconsax.map_1,
-                variant: AppButtonVariant.outlined,
-                height: 54,
-                radius: 16,
-                onPressed: onOpenGoogleMaps,
-              ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    child: AppButton(
-                      label: AppStrings.saveRouteAction,
-                      icon: Iconsax.save_2,
-                      variant: AppButtonVariant.secondary,
-                      height: 50,
-                      radius: 14,
-                      onPressed: () => _saveRoute(context),
+                    child: _ActionTile(
+                      icon: Iconsax.map_1,
+                      label: AppStrings.googleMapsShort,
+                      onTap: onOpenGoogleMaps,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: AppButton(
-                      label: AppStrings.exportCsv,
+                    child: _ActionTile(
+                      icon: Iconsax.save_2,
+                      label: AppStrings.save,
+                      onTap: () => _saveRoute(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ActionTile(
                       icon: Iconsax.document_upload,
-                      variant: AppButtonVariant.ghost,
-                      height: 50,
-                      radius: 14,
-                      onPressed: onExportCsv,
+                      label: 'CSV',
+                      onTap: onExportCsv,
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              AppButton(
-                label: AppStrings.startNewRoute,
-                icon: Iconsax.refresh,
-                variant: AppButtonVariant.outlined,
-                height: 50,
-                radius: 14,
-                onPressed: () => _handleStartNew(context),
               ),
               const SizedBox(height: 18),
               Row(
@@ -140,6 +120,11 @@ class RouteSummarySheet extends StatelessWidget {
                   isReturnPoint: isReturn,
                 );
               }),
+              const SizedBox(height: 18),
+              // Destructive escape hatch, deliberately last and
+              // unmissably red: wipe this trip and plan a new one
+              // (asks to save first).
+              _StartFreshButton(onPressed: () => _handleStartNew(context)),
             ],
           ),
         );
@@ -216,97 +201,97 @@ class RouteSummarySheet extends StatelessWidget {
   }
 }
 
-class _RouteSegmentSelector extends StatelessWidget {
-  final RouteSegment current;
-  final ValueChanged<RouteSegment> onChanged;
-
-  const _RouteSegmentSelector({required this.current, required this.onChanged});
+/// Big red full-width "delete trip & start fresh" button. Destructive,
+/// so it sits alone at the bottom of the sheet where it can't be
+/// confused with the share/save tiles — and still asks to save first.
+class _StartFreshButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _StartFreshButton({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    final options = [
-      (
-        segment: RouteSegment.full,
-        label: AppStrings.showFull,
-        icon: Iconsax.routing_2,
-        color: AppColors.primary,
-      ),
-      (
-        segment: RouteSegment.go,
-        label: AppStrings.showGo,
-        icon: Iconsax.routing,
-        color: AppColors.accent,
-      ),
-      (
-        segment: RouteSegment.returnLeg,
-        label: AppStrings.showReturn,
-        icon: Iconsax.refresh,
-        color: AppColors.warning,
-      ),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+    return Material(
+      color: AppColors.danger.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: options.map((option) {
-          final selected = option.segment == current;
-          final color = option.color;
-          return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onChanged(option.segment);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 190),
-                curve: Curves.easeOutCubic,
-                height: 46,
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.surface : Colors.transparent,
-                  borderRadius: BorderRadius.circular(13),
-                  boxShadow: selected
-                      ? const [
-                          BoxShadow(
-                            color: AppColors.shadowSoft,
-                            blurRadius: 12,
-                            offset: Offset(0, 5),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      option.icon,
-                      size: 17,
-                      color: selected ? color : AppColors.textMuted,
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        option.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.titleSm.copyWith(
-                          color: selected ? color : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onPressed();
+        },
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.danger.withValues(alpha: 0.45),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Iconsax.trash, color: AppColors.danger, size: 20),
+              const SizedBox(width: 9),
+              Flexible(
+                child: Text(
+                  AppStrings.startFresh,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleMd.copyWith(
+                    color: AppColors.danger,
+                  ),
                 ),
               ),
-            ),
-          );
-        }).toList(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact icon + label tile for secondary actions (Maps / Save /
+/// CSV). One row instead of a tower of full-width buttons.
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _ActionTile({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 21, color: AppColors.textPrimary),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.mutedSm.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

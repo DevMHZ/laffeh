@@ -31,11 +31,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   Timer? _simTimer;
   StreamSubscription<Position>? _navSub;
 
-  /// Wall-clock time covered by one full simulation playback (at 1×).
-  /// 60s @ 1× reads as a calm "guided tour" — short enough to watch
-  /// without getting bored, slow enough that the eye can follow the
-  /// vehicle on the map. Speeds halve / double from here.
-  static const Duration _simBaseDuration = Duration(seconds: 60);
+  /// Wall-clock time covered by one full preview playback. There is
+  /// no user-facing speed control anymore — one good pace: 45s reads
+  /// as a calm guided tour that doesn't overstay its welcome.
+  static const Duration _simBaseDuration = Duration(seconds: 45);
 
   /// How often we tick. 60ms ≈ 16 FPS — smooth marker glide, cheap
   /// per emission.

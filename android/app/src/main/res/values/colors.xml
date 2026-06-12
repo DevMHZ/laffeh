@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Laffeh brand green — matches the logo background -->
+    <color name="laffeh_green">#8BCA7E</color>
+</resources>

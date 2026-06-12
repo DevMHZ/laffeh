@@ -261,15 +261,33 @@ class RouteMapViewState extends State<RouteMapView> {
       );
     }
 
+    // During playback the stop dots mirror the headline timeline:
+    // green ring = upcoming, orange = visiting now, green check = done.
+    final simTarget = state.simulationActive && state.optimizedRoute != null
+        ? _simTargetIndex(state.optimizedRoute!, state.simulationProgress)
+        : null;
+    final simFinished =
+        state.simulationActive && state.simulationProgress >= 1.0;
+
     var stopIndex = 0;
-    for (final p in state.points) {
+    for (var i = 0; i < state.points.length; i++) {
+      final p = state.points[i];
       final label = p.address?.isNotEmpty == true
           ? '${p.label}\n${p.address}'
           : p.label;
 
+      StopVisitState? visit;
+      if (simTarget != null && !p.isDepot) {
+        visit = simFinished || i < simTarget
+            ? StopVisitState.visited
+            : i == simTarget
+            ? StopVisitState.visiting
+            : StopVisitState.upcoming;
+      }
+
       final markerChild = p.isDepot
           ? MarkerFactory.depot(tooltip: label)
-          : MarkerFactory.stop(++stopIndex, tooltip: label);
+          : MarkerFactory.stop(++stopIndex, tooltip: label, visit: visit);
 
       markers.add(
         Marker(
@@ -307,6 +325,15 @@ class RouteMapViewState extends State<RouteMapView> {
     }
 
     return markers;
+  }
+
+  /// Index (into orderedPoints) of the stop the playback vehicle is
+  /// currently driving to — same math as the preview headline.
+  int _simTargetIndex(OptimizedRoute route, double progress) {
+    final count = route.orderedPoints.length;
+    if (count < 2) return 0;
+    final segments = count - 1;
+    return ((progress * segments).floor() + 1).clamp(1, count - 1);
   }
 
   List<Polyline> _buildPolylines(RoutePlannerState state) {

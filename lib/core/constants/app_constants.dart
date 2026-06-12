@@ -220,6 +220,31 @@ class AppStrings {
     }
   }
 
+  // Trip flow (step indicator / overlays)
+  static String get setDepartureHere => _t('setDepartureHere');
+  static String get addStopHere => _t('addStopHere');
+  static String get stepStops => _t('stepStops');
+  static String get stepRoute => _t('stepRoute');
+  static String get stepDrive => _t('stepDrive');
+  static String get previewRoute => _t('previewRoute');
+  static String get endTrip => _t('endTrip');
+  static String get moreActions => _t('moreActions');
+  static String get googleMapsShort => _t('googleMapsShort');
+  static String get newRouteShort => _t('newRouteShort');
+  static String get startFresh => _t('startFresh');
+  static String get replay => _t('replay');
+
+  static String stopNofM(int n, int m) {
+    switch (_languageCode) {
+      case 'ar':
+        return 'محطة $n من $m';
+      case 'fr':
+        return 'Arret $n sur $m';
+      default:
+        return 'Stop $n of $m';
+    }
+  }
+
   // Small labels
   static String get departureBadge => _t('departureBadge');
   static String get returnBadge => _t('returnBadge');
@@ -441,6 +466,18 @@ const Map<String, Map<String, String>> _copy = {
     'unitMin': 'min',
     'unitHour': 'h',
     'unitLiter': 'L',
+    'setDepartureHere': 'Set departure here',
+    'addStopHere': 'Add stop here',
+    'stepStops': 'Stops',
+    'stepRoute': 'Route',
+    'stepDrive': 'Drive',
+    'previewRoute': 'Preview trip',
+    'endTrip': 'End trip',
+    'moreActions': 'More',
+    'googleMapsShort': 'Maps',
+    'newRouteShort': 'New',
+    'startFresh': 'Delete trip & start fresh',
+    'replay': 'Replay',
   },
   'ar': {
     'appName': 'لفّة',
@@ -597,6 +634,18 @@ const Map<String, Map<String, String>> _copy = {
     'unitMin': 'دقيقة',
     'unitHour': 'س',
     'unitLiter': 'لتر',
+    'setDepartureHere': 'ثبّت الانطلاق هنا',
+    'addStopHere': 'أضف محطة هنا',
+    'stepStops': 'المحطات',
+    'stepRoute': 'المسار',
+    'stepDrive': 'القيادة',
+    'previewRoute': 'معاينة اللفة',
+    'endTrip': 'إنهاء الرحلة',
+    'moreActions': 'المزيد',
+    'googleMapsShort': 'الخرائط',
+    'newRouteShort': 'جديدة',
+    'startFresh': 'احذف اللفة وابدأ من جديد',
+    'replay': 'إعادة التشغيل',
   },
   'fr': {
     'appName': 'Laffeh',
@@ -761,5 +810,17 @@ const Map<String, Map<String, String>> _copy = {
     'unitMin': 'min',
     'unitHour': 'h',
     'unitLiter': 'L',
+    'setDepartureHere': 'Definir le depart ici',
+    'addStopHere': 'Ajouter un arret ici',
+    'stepStops': 'Arrets',
+    'stepRoute': 'Itineraire',
+    'stepDrive': 'Conduite',
+    'previewRoute': 'Apercu du trajet',
+    'endTrip': 'Terminer le trajet',
+    'moreActions': 'Plus',
+    'googleMapsShort': 'Maps',
+    'newRouteShort': 'Nouveau',
+    'startFresh': 'Supprimer le trajet et recommencer',
+    'replay': 'Rejouer',
   },
 };

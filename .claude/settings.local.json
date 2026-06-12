@@ -14,7 +14,20 @@
       "Bash(git --version)",
       "Bash(gh auth *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Skill(run)",
+      "Bash(sips -g pixelWidth -g pixelHeight laffaAppAnim.jpeg)",
+      "Bash(python3 -c ' *)",
+      "Bash(magick -version)",
+      "Bash(flutter test *)",
+      "Bash(python3)",
+      "Bash(sed -n 580,640p lib/core/constants/app_constants.dart)",
+      "Bash(sed -n 740,765p lib/core/constants/app_constants.dart)",
+      "Bash(sed -n 1,80p lib/features/route_planner/domain/entities/route_point.dart)",
+      "Bash(sed -n 1,80p lib/features/route_planner/domain/entities/optimized_route.dart)",
+      "Bash(sed -n 1,40p lib/features/route_planner/domain/entities/route_metrics.dart)",
+      "Bash(python3 -)",
+      "Bash(git reset *)"
     ]
   }
 }

@@ -45,17 +45,15 @@ class RoutePointsSheet extends StatelessWidget {
               ? '${AppStrings.pointsCount(state.points.length)} • ${AppStrings.dragToReorder}'
               : AppStrings.panToAddPoint,
           actions: [
-            _AddPointChip(onAddPoint: onAddPoint),
-            if (state.hasPoints)
-              IconButton(
-                tooltip: AppStrings.clearAll,
-                onPressed: () => _confirmClearAll(context, cubit),
-                icon: const Icon(
-                  Iconsax.trash,
-                  color: AppColors.danger,
-                  size: 22,
-                ),
-              ),
+            // Everything that is not "place a point on the map" lives
+            // in one labelled menu — the map pill owns point adding.
+            _MoreMenu(
+              hasPoints: state.hasPoints,
+              onPasteAddresses: onPasteAddresses,
+              onImportCsv: onImportCsv,
+              onExportCsv: onExportCsv,
+              onClearAll: () => _confirmClearAll(context, cubit),
+            ),
           ],
           contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
           child: Column(
@@ -73,10 +71,8 @@ class RoutePointsSheet extends StatelessWidget {
               if (!state.hasPoints) ...[
                 const SizedBox(height: 4),
                 _EmptyState(
-                  onAddPoint: onAddPoint,
                   onPasteAddresses: onPasteAddresses,
                   onImportCsv: onImportCsv,
-                  onExportCsv: onExportCsv,
                 ),
               ] else ...[
                 const SizedBox(height: 6),
@@ -180,42 +176,106 @@ class RoutePointsSheet extends StatelessWidget {
   }
 }
 
-class _AddPointChip extends StatelessWidget {
-  final VoidCallback? onAddPoint;
+/// Single "More" menu for bulk input/output: paste a list, CSV
+/// import/export, clear all. Keeps the sheet header to one obvious
+/// control.
+class _MoreMenu extends StatelessWidget {
+  final bool hasPoints;
+  final VoidCallback? onPasteAddresses;
+  final VoidCallback? onImportCsv;
+  final VoidCallback? onExportCsv;
+  final VoidCallback onClearAll;
 
-  const _AddPointChip({required this.onAddPoint});
+  const _MoreMenu({
+    required this.hasPoints,
+    required this.onPasteAddresses,
+    required this.onImportCsv,
+    required this.onExportCsv,
+    required this.onClearAll,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: onAddPoint != null ? AppColors.accent : AppColors.surfaceAlt,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onAddPoint?.call();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Iconsax.add,
-                size: 18,
-                color: onAddPoint != null ? AppColors.white : AppColors.textMuted,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                AppStrings.addPointHere,
-                style: AppTextStyles.white14w600.copyWith(
-                  color: onAddPoint != null ? AppColors.white : AppColors.textMuted,
-                ),
-              ),
-            ],
+    return PopupMenuButton<VoidCallback>(
+      tooltip: AppStrings.moreActions,
+      position: PopupMenuPosition.under,
+      onSelected: (action) {
+        HapticFeedback.selectionClick();
+        action();
+      },
+      itemBuilder: (context) => [
+        if (onPasteAddresses != null)
+          _menuItem(
+            Iconsax.document_copy,
+            AppStrings.pasteListAction,
+            onPasteAddresses!,
           ),
+        if (onImportCsv != null)
+          _menuItem(
+            Iconsax.document_download,
+            AppStrings.importCsv,
+            onImportCsv!,
+          ),
+        if (hasPoints && onExportCsv != null)
+          _menuItem(
+            Iconsax.document_upload,
+            AppStrings.exportCsv,
+            onExportCsv!,
+          ),
+        if (hasPoints)
+          _menuItem(
+            Iconsax.trash,
+            AppStrings.clearAll,
+            onClearAll,
+            color: AppColors.danger,
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(13),
         ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Iconsax.more_circle,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              AppStrings.moreActions,
+              style: AppTextStyles.titleSm.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<VoidCallback> _menuItem(
+    IconData icon,
+    String label,
+    VoidCallback action, {
+    Color? color,
+  }) {
+    return PopupMenuItem<VoidCallback>(
+      value: action,
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: color ?? AppColors.textSecondary),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: AppTextStyles.bodyMd.copyWith(
+              color: color ?? AppColors.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -290,17 +350,10 @@ class _MessageBanner extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  final VoidCallback? onAddPoint;
   final VoidCallback? onPasteAddresses;
   final VoidCallback? onImportCsv;
-  final VoidCallback? onExportCsv;
 
-  const _EmptyState({
-    this.onAddPoint,
-    this.onPasteAddresses,
-    this.onImportCsv,
-    this.onExportCsv,
-  });
+  const _EmptyState({this.onPasteAddresses, this.onImportCsv});
 
   @override
   Widget build(BuildContext context) {
@@ -308,22 +361,14 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Column(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primarySoft,
-              border: Border.all(color: AppColors.border),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Iconsax.location_add,
-              size: 30,
-              color: AppColors.primary,
-            ),
+          // Points up at the floating "Set departure here" pill on
+          // the map — that's the one way to place points now.
+          const Icon(
+            Iconsax.arrow_up_1,
+            size: 26,
+            color: AppColors.primary,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(AppStrings.startCreatingRoute, style: AppTextStyles.titleLg),
           const SizedBox(height: 2),
           Text(
@@ -331,35 +376,6 @@ class _EmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTextStyles.bodySm.copyWith(
               color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: Material(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onAddPoint?.call();
-                },
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Iconsax.add_circle, color: AppColors.white, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        AppStrings.addPointHere,
-                        style: AppTextStyles.button,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -380,52 +396,41 @@ class _EmptyState extends StatelessWidget {
             color: AppColors.info,
             label: AppStrings.optimizeHint,
           ),
-          if (_showQuickActions) ...[
+          if (onPasteAddresses != null || onImportCsv != null) ...[
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: AppButton(
-                    label: AppStrings.importCsv,
-                    icon: Iconsax.document_download,
-                    height: 44,
-                    radius: 12,
-                    variant: AppButtonVariant.ghost,
-                    onPressed: onImportCsv,
+                if (onPasteAddresses != null)
+                  Expanded(
+                    child: AppButton(
+                      label: AppStrings.pasteListAction,
+                      icon: Iconsax.document_copy,
+                      height: 44,
+                      radius: 12,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onPasteAddresses,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: AppButton(
-                    label: AppStrings.exportCsv,
-                    icon: Iconsax.document_upload,
-                    height: 44,
-                    radius: 12,
-                    variant: AppButtonVariant.ghost,
-                    onPressed: onExportCsv,
+                if (onPasteAddresses != null && onImportCsv != null)
+                  const SizedBox(width: 8),
+                if (onImportCsv != null)
+                  Expanded(
+                    child: AppButton(
+                      label: AppStrings.importCsv,
+                      icon: Iconsax.document_download,
+                      height: 44,
+                      radius: 12,
+                      variant: AppButtonVariant.ghost,
+                      onPressed: onImportCsv,
+                    ),
                   ),
-                ),
               ],
             ),
-            if (onPasteAddresses != null) ...[
-              const SizedBox(height: 6),
-              AppButton(
-                label: AppStrings.pasteListAction,
-                icon: Iconsax.document_copy,
-                height: 44,
-                radius: 12,
-                variant: AppButtonVariant.secondary,
-                onPressed: onPasteAddresses,
-              ),
-            ],
           ],
         ],
       ),
     );
   }
-
-  bool get _showQuickActions =>
-      onPasteAddresses != null || onImportCsv != null || onExportCsv != null;
 }
 
 class _HintRow extends StatelessWidget {

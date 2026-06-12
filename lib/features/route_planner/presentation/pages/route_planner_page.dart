@@ -29,21 +29,24 @@ import '../utils/route_csv_utils.dart';
 import '../widgets/center_pin_widget.dart';
 import '../widgets/map_action_button.dart';
 import '../widgets/route_map_view.dart';
-import '../widgets/route_navigation_sheet.dart';
+import '../widgets/route_navigation_overlay.dart';
 import '../widgets/route_points_sheet.dart';
-import '../widgets/route_simulation_sheet.dart';
+import '../widgets/route_simulation_overlay.dart';
 import '../widgets/route_summary_sheet.dart';
 
 /// Map-first route planner.
 ///
 /// Layout:
 ///   * Full-screen [RouteMapView] underneath.
-///   * Floating "Afdal" logo chip + settings on top.
-///   * Floating action buttons on the trailing edge.
-///   * Draggable bottom sheet that swaps between
-///     [RoutePointsSheet] (before optimization),
-///     [RouteSummarySheet] (after), and
-///     [RouteNavigationSheet] (while driving).
+///   * Top bar: saved routes / settings + a Stops→Route→Drive step
+///     indicator so the user always knows where they are in the trip.
+///   * A big floating "Add stop here" pill tied to the crosshair —
+///     the one obvious way to place points.
+///   * Draggable bottom sheet for [RoutePointsSheet] (before
+///     optimization) and [RouteSummarySheet] (after).
+///   * Full-screen overlays for trip preview
+///     ([RouteSimulationOverlay]) and drive mode
+///     ([RouteNavigationOverlay]) — the map stays the hero.
 class RoutePlannerPage extends StatelessWidget {
   const RoutePlannerPage({super.key});
 
@@ -98,11 +101,18 @@ class _RoutePlannerViewState extends State<_RoutePlannerView> {
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
+          // A Stack sizes itself to its largest NON-positioned child.
+          // During preview/drive every non-positioned child here is a
+          // SizedBox.shrink, which would collapse the Stack (and the
+          // Positioned.fill map with it) to 0×0 — a white screen.
+          // This expand keeps the Stack full-screen in every state.
+          const SizedBox.expand(),
           Positioned.fill(child: RouteMapView(key: _mapKey)),
           const _TopBar(),
           const _SideActions(),
-          const _CenterPin(),
+          _CenterPin(mapKey: _mapKey),
           _BottomSheetHost(mapKey: _mapKey),
+          const _TripOverlayHost(),
           const _LoadingOverlay(),
         ],
       ),
@@ -380,43 +390,163 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _Glass(
-                padding: EdgeInsets.zero,
-                radius: 22,
-                child: _TopIconButton(
-                  tooltip: AppStrings.savedRoutes,
-                  icon: Iconsax.archive_book,
-                  onPressed: () => _openSavedRoutes(context),
-                ),
+    return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+      buildWhen: (a, b) =>
+          a.simulationActive != b.simulationActive ||
+          a.navigationActive != b.navigationActive ||
+          a.optimizedRoute != b.optimizedRoute,
+      builder: (context, state) {
+        // The trip overlays own the top of the screen.
+        if (state.simulationActive || state.navigationActive) {
+          return const SizedBox.shrink();
+        }
+        return Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+              child: Row(
+                children: [
+                  _Glass(
+                    padding: EdgeInsets.zero,
+                    radius: 22,
+                    child: _TopIconButton(
+                      tooltip: AppStrings.savedRoutes,
+                      icon: Iconsax.archive_book,
+                      onPressed: () => _openSavedRoutes(context),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: _StepIndicator(
+                        step: state.hasOptimizedRoute ? 1 : 0,
+                      ),
+                    ),
+                  ),
+                  _Glass(
+                    padding: EdgeInsets.zero,
+                    radius: 22,
+                    child: _TopIconButton(
+                      tooltip: AppStrings.settings,
+                      icon: Iconsax.setting_2,
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-              _Glass(
-                padding: EdgeInsets.zero,
-                radius: 22,
-                child: _TopIconButton(
-                  tooltip: AppStrings.settings,
-                  icon: Iconsax.setting_2,
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+/// Slim Stops → Route → Drive progress chip. Always tells the user
+/// which phase of the trip they're in and what comes next.
+class _StepIndicator extends StatelessWidget {
+  /// 0 = adding stops, 1 = route ready, 2 = driving.
+  final int step;
+
+  const _StepIndicator({required this.step});
+
+  static List<String> get _labels => [
+    AppStrings.stepStops,
+    AppStrings.stepRoute,
+    AppStrings.stepDrive,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return _Glass(
+      radius: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < 3; i++) ...[
+            if (i > 0)
+              Container(
+                width: 14,
+                height: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: i <= step
+                      ? AppColors.primary
+                      : AppColors.borderStrong,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            _StepDot(
+              index: i,
+              label: _labels[i],
+              done: i < step,
+              active: i == step,
+            ),
+          ],
+        ],
       ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  final int index;
+  final String label;
+  final bool done;
+  final bool active;
+
+  const _StepDot({
+    required this.index,
+    required this.label,
+    required this.done,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dot = AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: done || active ? AppColors.primary : AppColors.surfaceDim,
+      ),
+      alignment: Alignment.center,
+      child: done
+          ? const Icon(Icons.check_rounded, size: 14, color: AppColors.white)
+          : Text(
+              '${index + 1}',
+              style: AppTextStyles.mutedSm.copyWith(
+                color: active ? AppColors.white : AppColors.textMuted,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+    );
+
+    // Only the active step shows its label — keeps the chip compact
+    // in all three languages.
+    if (!active) return dot;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        dot,
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: AppTextStyles.titleSm.copyWith(color: AppColors.textPrimary),
+        ),
+      ],
     );
   }
 }
@@ -490,10 +620,15 @@ class _Glass extends StatelessWidget {
   }
 }
 
-/// Fixed pin in the centre of the map. Visible only while editing.
-/// Navy when no depot yet, green after depot is placed.
+/// Fixed pin in the centre of the map plus the one obvious way to
+/// place a point: a big labelled pill right under the crosshair.
+/// Asphalt while the departure is missing, brand green afterwards —
+/// the pill text switches with it ("Set departure here" → "Add stop
+/// here"), so the next action is always spelled out.
 class _CenterPin extends StatelessWidget {
-  const _CenterPin();
+  final GlobalKey<RouteMapViewState> mapKey;
+
+  const _CenterPin({required this.mapKey});
 
   @override
   Widget build(BuildContext context) {
@@ -512,16 +647,136 @@ class _CenterPin extends StatelessWidget {
             !state.isOptimizing;
         if (!visible) return const SizedBox.shrink();
         final hasDepot = state.points.isNotEmpty;
-        final color = hasDepot ? AppColors.accent : AppColors.primary;
-        return Center(
-          child: IgnorePointer(
-            child: TweenAnimationBuilder<Color?>(
-              tween: ColorTween(end: color),
-              duration: const Duration(milliseconds: 400),
-              builder: (_, value, __) => CenterPinWidget(color: value ?? color),
+        final color = hasDepot ? AppColors.primary : AppColors.asphalt;
+
+        return Stack(
+          children: [
+            Center(
+              child: IgnorePointer(
+                child: TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: color),
+                  duration: const Duration(milliseconds: 400),
+                  builder: (_, value, __) =>
+                      CenterPinWidget(color: value ?? color),
+                ),
+              ),
+            ),
+            // The add pill, tied visually to the crosshair above it.
+            Align(
+              alignment: Alignment.center,
+              child: Transform.translate(
+                offset: const Offset(0, 64),
+                child: _AddHerePill(
+                  color: color,
+                  icon: hasDepot ? Iconsax.location_add : Iconsax.flag,
+                  label: hasDepot
+                      ? AppStrings.addStopHere
+                      : AppStrings.setDepartureHere,
+                  onTap: () {
+                    final mapState = mapKey.currentState;
+                    if (mapState == null) return;
+                    context.read<RoutePlannerCubit>().addPoint(
+                      mapState.mapCenter,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AddHerePill extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _AddHerePill({
+    required this.color,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(
+          color: AppColors.white.withValues(alpha: 0.85),
+          width: 1.6,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.40),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(99),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(99),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: AppColors.white, size: 19),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: AppTextStyles.titleMd.copyWith(
+                    color: AppColors.white,
+                  ),
+                ),
+              ],
             ),
           ),
-        );
+        ),
+      ),
+    );
+  }
+}
+
+/// Hosts the full-screen trip overlays (preview + drive). Lives above
+/// the bottom sheet in the stack; renders nothing while planning.
+class _TripOverlayHost extends StatelessWidget {
+  const _TripOverlayHost();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+      buildWhen: (a, b) =>
+          a.simulationActive != b.simulationActive ||
+          a.navigationActive != b.navigationActive,
+      builder: (context, state) {
+        if (state.navigationActive) {
+          return RouteNavigationOverlay(
+            onOpenGoogleMaps: () {
+              final route = context
+                  .read<RoutePlannerCubit>()
+                  .state
+                  .optimizedRoute;
+              if (route != null) _launchGoogleMaps(route.orderedPoints);
+            },
+          );
+        }
+        if (state.simulationActive) return const RouteSimulationOverlay();
+        return const SizedBox.shrink();
       },
     );
   }
@@ -595,18 +850,14 @@ class _BottomSheetHost extends StatelessWidget {
           a.navigationActive != b.navigationActive,
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
-        final showNavigation = state.navigationActive;
-        final showSimulation = state.simulationActive && !showNavigation;
-        final showSummary =
-            state.hasOptimizedRoute && !showSimulation && !showNavigation;
+        // Trip preview and drive mode use full-screen overlays
+        // (_TripOverlayHost) — no sheet at all.
+        if (state.simulationActive || state.navigationActive) {
+          return const SizedBox.shrink();
+        }
+        final showSummary = state.hasOptimizedRoute;
 
-        final key = showNavigation
-            ? 'navigation'
-            : showSimulation
-            ? 'sim'
-            : showSummary
-            ? 'summary'
-            : 'points';
+        final key = showSummary ? 'summary' : 'points';
 
         // ────────────────────────────────────────────────
         // Snap sizes are intentionally tight to content.
@@ -619,21 +870,7 @@ class _BottomSheetHost extends StatelessWidget {
         // the gap is rendered as the same surface color (no map
         // bleed-through).
         // ────────────────────────────────────────────────
-        final config = showNavigation
-            ? const _SheetConfig(
-                min: 0.20,
-                initial: 0.36,
-                max: 0.50,
-                snaps: [0.20, 0.36, 0.50],
-              )
-            : showSimulation
-            ? const _SheetConfig(
-                min: 0.22,
-                initial: 0.42,
-                max: 0.55,
-                snaps: [0.22, 0.42, 0.55],
-              )
-            : showSummary
+        final config = showSummary
             ? const _SheetConfig(
                 min: 0.28,
                 initial: 0.55,
@@ -679,11 +916,7 @@ class _BottomSheetHost extends StatelessWidget {
                     physics: const BouncingScrollPhysics(
                       parent: AlwaysScrollableScrollPhysics(),
                     ),
-                    child: showSimulation
-                        ? const RouteSimulationSheet()
-                        : showNavigation
-                        ? const RouteNavigationSheet()
-                        : showSummary
+                    child: showSummary
                         ? RouteSummarySheet(
                             onOpenGoogleMaps: () => _launchGoogleMaps(
                               state.optimizedRoute!.orderedPoints,
