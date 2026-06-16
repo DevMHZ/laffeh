@@ -72,7 +72,7 @@ class MarkerFactory {
       angle: bearing * math.pi / 180,
       child: const CustomPaint(
         size: Size(40, 40),
-        painter: _TopViewCarPainter(),
+        painter: TopViewCarPainter(),
       ),
     ),
   );
@@ -141,8 +141,10 @@ class MarkerFactory {
 /// Cute top-view car pointing "up" (north at bearing 0): rounded white
 /// body with an asphalt outline so it pops on any map style, blue
 /// windshield, orange headlights, and motion lines behind the tail.
-class _TopViewCarPainter extends CustomPainter {
-  const _TopViewCarPainter();
+/// Top-view car (points up at bearing 0). Reused by the simulation
+/// scrubber as the scrub playhead.
+class TopViewCarPainter extends CustomPainter {
+  const TopViewCarPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -241,7 +243,7 @@ class _TopViewCarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_TopViewCarPainter oldDelegate) => false;
+  bool shouldRepaint(TopViewCarPainter oldDelegate) => false;
 }
 
 class _DotMarker extends StatelessWidget {

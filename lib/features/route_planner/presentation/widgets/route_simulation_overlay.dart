@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +9,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
+import '../../../../core/utils/marker_factory.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
@@ -160,7 +163,14 @@ class RouteSimulationOverlay extends StatelessWidget {
                         ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: _TripProgressBar(progress: progress),
+                          child: _TripScrubber(
+                            progress: progress,
+                            stops: _stopFractions(route),
+                            totalMinutes:
+                                (route.metrics.estimatedDurationMinutes ?? 0)
+                                    .toDouble(),
+                            onSeek: cubit.seekSimulation,
+                          ),
                         ),
                         const SizedBox(width: 14),
                         _PlayPauseButton(
@@ -201,36 +211,184 @@ class RouteSimulationOverlay extends StatelessWidget {
 
   int _stopCount(OptimizedRoute route) =>
       route.orderedPoints.where((p) => !p.isDepot).length;
+
+  /// Even-spaced fractions for the interior stops, matching how [_targetIndex]
+  /// maps progress to "stop N of M" — so a scrubber tick lines up with each
+  /// stop transition in the headline.
+  List<double> _stopFractions(OptimizedRoute route) {
+    final count = route.orderedPoints.length;
+    if (count < 3) return const [];
+    final segments = count - 1;
+    return [for (var i = 1; i < count - 1; i++) i / segments];
+  }
 }
 
-class _TripProgressBar extends StatelessWidget {
+/// A video-player-style trip scrubber: a track with the elapsed portion filled,
+/// little ticks at each stop, and a draggable playhead shaped like the preview
+/// car. Drag (or tap) anywhere to scrub the trip — pauses playback so the user
+/// can park on a stretch and replay it.
+class _TripScrubber extends StatefulWidget {
   final double progress;
-  const _TripProgressBar({required this.progress});
+  final List<double> stops;
+  final double totalMinutes;
+  final ValueChanged<double> onSeek;
+
+  const _TripScrubber({
+    required this.progress,
+    required this.stops,
+    required this.totalMinutes,
+    required this.onSeek,
+  });
+
+  @override
+  State<_TripScrubber> createState() => _TripScrubberState();
+}
+
+class _TripScrubberState extends State<_TripScrubber> {
+  bool _dragging = false;
+
+  static const double _trackHeight = 34;
+  static const double _carSize = 30;
+
+  String _fmt(double minutes) {
+    if (minutes <= 0) return '--:--';
+    final total = (minutes * 60).round();
+    return '${total ~/ 60}:${(total % 60).toString().padLeft(2, '0')}';
+  }
+
+  void _seekTo(double dx, double width) {
+    if (width <= 0) return;
+    widget.onSeek((dx / width).clamp(0.0, 1.0));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final p = widget.progress.clamp(0.0, 1.0);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(99),
-          child: SizedBox(
-            height: 12,
-            child: LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              backgroundColor: AppColors.surfaceDim,
-              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_fmt(widget.totalMinutes * p), style: AppTextStyles.mutedSm),
+              Text(_fmt(widget.totalMinutes), style: AppTextStyles.mutedSm),
+            ],
           ),
         ),
-        const SizedBox(height: 5),
-        Text(
-          '${(progress * 100).round()}%',
-          style: AppTextStyles.mutedSm,
+        const SizedBox(height: 3),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) {
+                HapticFeedback.selectionClick();
+                _seekTo(d.localPosition.dx, w);
+              },
+              onHorizontalDragStart: (d) {
+                setState(() => _dragging = true);
+                _seekTo(d.localPosition.dx, w);
+              },
+              onHorizontalDragUpdate: (d) => _seekTo(d.localPosition.dx, w),
+              onHorizontalDragEnd: (_) {
+                HapticFeedback.selectionClick();
+                setState(() => _dragging = false);
+              },
+              child: SizedBox(
+                height: _trackHeight,
+                width: w,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _ScrubberTrackPainter(
+                          progress: p,
+                          stops: widget.stops,
+                        ),
+                      ),
+                    ),
+                    // The car playhead rides the track at the current position.
+                    Positioned(
+                      left: (p * w) - _carSize / 2,
+                      top: (_trackHeight - _carSize) / 2,
+                      child: AnimatedScale(
+                        scale: _dragging ? 1.18 : 1,
+                        duration: const Duration(milliseconds: 140),
+                        curve: Curves.easeOut,
+                        child: Transform.rotate(
+                          angle: math.pi / 2, // nose points along travel (right)
+                          child: const SizedBox(
+                            width: _carSize,
+                            height: _carSize,
+                            child: CustomPaint(painter: TopViewCarPainter()),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
   }
+}
+
+class _ScrubberTrackPainter extends CustomPainter {
+  final double progress;
+  final List<double> stops;
+
+  _ScrubberTrackPainter({required this.progress, required this.stops});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cy = size.height / 2;
+    const h = 7.0;
+    final r = const Radius.circular(99);
+
+    // Unplayed track.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, cy - h / 2, size.width, h),
+        r,
+      ),
+      Paint()..color = AppColors.surfaceDim,
+    );
+
+    // Played portion.
+    final px = (progress.clamp(0.0, 1.0)) * size.width;
+    if (px > 0) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(0, cy - h / 2, px, h), r),
+        Paint()..color = AppColors.primary,
+      );
+    }
+
+    // Stop ticks.
+    for (final f in stops) {
+      final x = f * size.width;
+      final passed = f <= progress;
+      canvas.drawCircle(
+        Offset(x, cy),
+        3.4,
+        Paint()..color = AppColors.white,
+      );
+      canvas.drawCircle(
+        Offset(x, cy),
+        2.2,
+        Paint()..color = passed ? AppColors.primaryDark : AppColors.borderStrong,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ScrubberTrackPainter old) =>
+      old.progress != progress || old.stops != stops;
 }
 
 class _PlayPauseButton extends StatelessWidget {

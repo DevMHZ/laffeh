@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Laffeh launch splash: brand green with the road-logo centered -->
+<!-- Laffeh launch splash: brand green with the road scene anchored to the top
+     (the long road tail entering from the top-right), matching the in-app
+     loader's first frame. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/laffeh_green" />
 
     <item>
         <bitmap
-            android:gravity="center"
+            android:gravity="top|center_horizontal"
             android:src="@mipmap/launch_image" />
     </item>
 </layer-list>

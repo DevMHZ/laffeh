@@ -146,6 +146,7 @@ class AppStrings {
   static String get cameraOverview => _t('cameraOverview');
   static String get cameraFollow => _t('cameraFollow');
   static String get cameraChase => _t('cameraChase');
+  static String get recenter => _t('recenter');
   static String get headedTo => _t('headedTo');
   static String get departingFrom => _t('departingFrom');
   static String get arrived => _t('arrived');
@@ -417,6 +418,7 @@ const Map<String, Map<String, String>> _copy = {
     'cameraMode': 'Camera mode',
     'cameraOverview': 'Overview',
     'cameraFollow': 'Follow',
+    'recenter': 'Recenter',
     'cameraChase': 'Cinematic',
     'headedTo': 'Heading to',
     'departingFrom': 'Departing from',
@@ -609,6 +611,7 @@ const Map<String, Map<String, String>> _copy = {
     'cameraMode': 'وضع الكاميرا',
     'cameraOverview': 'بانورامي',
     'cameraFollow': 'متابعة',
+    'recenter': 'إعادة التوسيط',
     'cameraChase': 'سينمائي',
     'headedTo': 'متجه إلى',
     'departingFrom': 'الانطلاق من',
@@ -804,6 +807,7 @@ const Map<String, Map<String, String>> _copy = {
     'cameraMode': 'Mode camera',
     'cameraOverview': 'Vue globale',
     'cameraFollow': 'Suivi',
+    'recenter': 'Recentrer',
     'cameraChase': 'Cinematique',
     'headedTo': 'Direction',
     'departingFrom': 'Depart de',

@@ -687,12 +687,19 @@ class _CenterPin extends StatelessWidget {
         final color = hasDepot ? AppColors.primary : AppColors.asphalt;
 
         return Center(
-          child: IgnorePointer(
-            child: TweenAnimationBuilder<Color?>(
-              tween: ColorTween(end: color),
-              duration: const Duration(milliseconds: 400),
-              builder: (_, value, __) =>
-                  CenterPinWidget(color: value ?? color),
+          // Raised above the geometric centre so it clears the bottom sheet
+          // and sits in the driver's line of sight. [RouteMapViewState.mapCenter]
+          // projects this same raised point, so the dropped point lands exactly
+          // under the reticle.
+          child: Transform.translate(
+            offset: const Offset(0, -kMapAimRaise),
+            child: IgnorePointer(
+              child: TweenAnimationBuilder<Color?>(
+                tween: ColorTween(end: color),
+                duration: const Duration(milliseconds: 400),
+                builder: (_, value, __) =>
+                    CenterPinWidget(color: value ?? color),
+              ),
             ),
           ),
         );

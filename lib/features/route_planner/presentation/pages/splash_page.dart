@@ -10,6 +10,7 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../onboarding/presentation/pages/onboarding_page.dart';
+import '../widgets/laffa_road_loader.dart';
 import 'route_planner_page.dart';
 
 /// Edge-to-edge brand splash.
@@ -19,11 +20,13 @@ import 'route_planner_page.dart';
 /// Android `launch_background` use the same color + logo image).
 ///
 /// The show, in order:
-///   1. The road-logo "breathes" in place and a shine sweeps across it.
-///   2. App name + tagline rise in.
-///   3. A little car drives along an asphalt road at the bottom,
-///      popping up a blue / red / orange pin as it passes each stop —
-///      a miniature of what the app actually does.
+///   1. The road-logo fills the top of the screen (its road starting at the
+///      very top edge) and a top-down car drives the whole winding road,
+///      popping up a blue / red / orange pin at each stop and trailing exhaust —
+///      see [LaffaRoadLoader].
+///   2. App name + tagline rise in beneath it.
+///   3. A second little car drives a straight asphalt road lower down,
+///      popping its own pins — the original brand flourish, kept.
 ///   4. Pin-colored dots bounce as the loading indicator.
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -51,6 +54,9 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     systemNavigationBarDividerColor: Colors.transparent,
   );
 
+  /// The window both cars share, so they begin and end in lock-step.
+  static const Duration _showDuration = Duration(milliseconds: 3800);
+
   @override
   void initState() {
     super.initState();
@@ -58,9 +64,11 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(_splashOverlay);
 
+    // Shared show window: the road-logo car and the bottom-strip car both run
+    // over this exact span so they start and finish together.
     _intro = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: _showDuration,
     )..forward();
     _loop = AnimationController(
       vsync: this,
@@ -76,7 +84,9 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
       end: Offset.zero,
     ).animate(_fadeIn);
 
-    Timer(const Duration(milliseconds: 2900), _go);
+    // Both cars finish at _showDuration; give the pins a beat to settle, then
+    // hand off.
+    Timer(_showDuration + const Duration(milliseconds: 450), _go);
   }
 
   void _go() {
@@ -131,109 +141,95 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
         backgroundColor: AppColors.leaf,
         // Flat logo green on purpose: the logo image carries the same
         // background, so it floats seamlessly with no visible edges.
-        body: Stack(
-          fit: StackFit.expand,
+        body: Column(
           children: [
-            SafeArea(
-              child: Column(
-                children: [
-                  const Spacer(flex: 3),
+            // The road-logo scene, flush against the very top edge so its
+            // road begins at the top of the phone screen — edge-to-edge,
+            // running up behind the status bar. A top-down car drives the
+            // whole winding road and pops the three pins as it passes.
+            const LaffaRoadLoader(
+              driveDuration: _showDuration,
+            ),
 
-                  // Logo: breathes gently. No overlays on top of it —
-                  // its background must stay identical to the page so
-                  // the rectangle edge never shows.
-                  AnimatedBuilder(
-                    animation: _loop,
-                    builder: (context, _) {
-                      final breath =
-                          1.0 + 0.012 * math.sin(_loop.value * 2 * math.pi);
-                      return Transform.scale(
-                        scale: breath,
-                        child: Image.asset(
-                          'assets/laffeh_logo.png',
-                          width: math.min(
-                            MediaQuery.sizeOf(context).width * 0.72,
-                            320,
-                          ),
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
+            // Everything below sits in the remaining space, bottom-safe.
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    const Spacer(flex: 2),
 
-                  // Name + tagline rise in.
-                  FadeTransition(
-                    opacity: _fadeIn,
-                    child: SlideTransition(
-                      position: _slideIn,
-                      child: Column(
-                        children: [
-                          Text(
-                            AppStrings.appName,
-                            style: AppTextStyles.display.copyWith(
-                              color: AppColors.white,
-                              shadows: [
-                                Shadow(
-                                  color: AppColors.asphaltDark.withValues(
-                                    alpha: 0.22,
+                    // Name + tagline rise in.
+                    FadeTransition(
+                      opacity: _fadeIn,
+                      child: SlideTransition(
+                        position: _slideIn,
+                        child: Column(
+                          children: [
+                            Text(
+                              AppStrings.appName,
+                              style: AppTextStyles.display.copyWith(
+                                color: AppColors.white,
+                                shadows: [
+                                  Shadow(
+                                    color: AppColors.asphaltDark.withValues(
+                                      alpha: 0.22,
+                                    ),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
                                   ),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            AppStrings.appTagline,
-                            style: AppTextStyles.bodyLg.copyWith(
-                              color: AppColors.white.withValues(alpha: 0.92),
+                            const SizedBox(height: 6),
+                            Text(
+                              AppStrings.appTagline,
+                              style: AppTextStyles.bodyLg.copyWith(
+                                color: AppColors.white.withValues(alpha: 0.92),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const Spacer(flex: 2),
-
-                  // The little delivery run: car drives, pins pop up.
-                  SizedBox(
-                    height: 110,
-                    width: double.infinity,
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([_intro, _loop]),
-                      builder: (_, __) => CustomPaint(
-                        painter: _RoadTripPainter(
-                          trip: const Interval(
-                            0.18,
-                            0.95,
-                            curve: Curves.easeInOutCubic,
-                          ).transform(_intro.value),
-                          dashPhase: _loop.value,
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 26),
 
-                  // Loading dots in the three pin colors.
-                  AnimatedBuilder(
-                    animation: _loop,
-                    builder: (_, __) => _PinDots(phase: _loop.value),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    AppStrings.initializing,
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.white.withValues(alpha: 0.85),
-                      letterSpacing: 0.4,
+                    const Spacer(flex: 2),
+
+                    // The original brand flourish, kept: a little car drives
+                    // a straight road, popping its own pins.
+                    SizedBox(
+                      height: 110,
+                      width: double.infinity,
+                      child: AnimatedBuilder(
+                        animation: Listenable.merge([_intro, _loop]),
+                        builder: (_, __) => CustomPaint(
+                          painter: _RoadTripPainter(
+                            // Full window so it travels in lock-step with the
+                            // road-logo car above (both start and end together).
+                            trip: Curves.easeInOutCubic.transform(_intro.value),
+                            dashPhase: _loop.value,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                ],
+                    const SizedBox(height: 22),
+
+                    // Loading dots in the three pin colors.
+                    AnimatedBuilder(
+                      animation: _loop,
+                      builder: (_, __) => _PinDots(phase: _loop.value),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      AppStrings.initializing,
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.white.withValues(alpha: 0.85),
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+                ),
               ),
             ),
           ],

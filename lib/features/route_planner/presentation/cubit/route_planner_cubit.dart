@@ -670,6 +670,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     emit(state.copyWith(simulationPlaying: false, simulationProgress: 0.0));
   }
 
+  /// Scrub to an arbitrary point in the trip (video-style). Pauses playback so
+  /// the playhead stays where the user dropped it; they hit play to run from
+  /// there (handy for replaying a stretch of the route).
+  void seekSimulation(double progress) {
+    if (!state.simulationActive) return;
+    _cancelSimTimer();
+    emit(
+      state.copyWith(
+        simulationProgress: progress.clamp(0.0, 1.0),
+        simulationPlaying: false,
+      ),
+    );
+  }
+
   void exitSimulation() {
     _cancelSimTimer();
     emit(

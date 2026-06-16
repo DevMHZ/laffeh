@@ -49,3 +49,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Xcode SwiftPM resolution (generated)
+**/xcshareddata/swiftpm/
