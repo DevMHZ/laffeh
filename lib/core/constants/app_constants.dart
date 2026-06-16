@@ -16,6 +16,7 @@ class AppStrings {
   static const _supportedCodes = {'en', 'ar', 'fr'};
   static const afdalWebsiteUrl = 'https://www.afdal.tech/';
   static const localeStorageKey = 'laffeh.language_code';
+  static const onboardingDoneKey = 'laffeh.onboarding_done';
   static final ValueNotifier<Locale> localeNotifier = ValueNotifier(
     const Locale('en'),
   );
@@ -95,6 +96,7 @@ class AppStrings {
       _t('errLocationPermissionDenied');
   static String get errLocationServiceDisabled =>
       _t('errLocationServiceDisabled');
+  static String get enableLocationCta => _t('enableLocationCta');
   static String get errInvalidResponse => _t('errInvalidResponse');
   static String get errEmptyOptimizedRoute => _t('errEmptyOptimizedRoute');
   static String get errTimeout => _t('errTimeout');
@@ -296,6 +298,26 @@ class AppStrings {
         return 'Could not open website: $url';
     }
   }
+
+  // Onboarding (first-run)
+  static String get onbSkip => _t('onbSkip');
+  static String get onbNext => _t('onbNext');
+  static String get onbBack => _t('onbBack');
+  static String get onbGetStarted => _t('onbGetStarted');
+  static String get onbWelcomeTitle => _t('onbWelcomeTitle');
+  static String get onbWelcomeBody => _t('onbWelcomeBody');
+  static String get onbLanguageLabel => _t('onbLanguageLabel');
+  static String get onbPlanTitle => _t('onbPlanTitle');
+  static String get onbPlanBody => _t('onbPlanBody');
+  static String get onbImportTitle => _t('onbImportTitle');
+  static String get onbImportBody => _t('onbImportBody');
+  static String get onbImportWhatsappTag => _t('onbImportWhatsappTag');
+  static String get onbImportCsvTag => _t('onbImportCsvTag');
+  static String get onbShareToLaffeh => _t('onbShareToLaffeh');
+  static String get onbLocationTitle => _t('onbLocationTitle');
+  static String get onbLocationBody => _t('onbLocationBody');
+  static String get onbAllowLocation => _t('onbAllowLocation');
+  static String get onbMaybeLater => _t('onbMaybeLater');
 }
 
 /// Unit suffix helpers.
@@ -355,6 +377,7 @@ const Map<String, Map<String, String>> _copy = {
         'Location permission was denied. Please allow access in device settings.',
     'errLocationServiceDisabled':
         'Location service is disabled. Please enable GPS and try again.',
+    'enableLocationCta': 'Enable location',
     'errInvalidResponse': 'Invalid response from the server',
     'errEmptyOptimizedRoute': 'The model did not return an optimized route',
     'errTimeout': 'The server connection timed out',
@@ -478,6 +501,28 @@ const Map<String, Map<String, String>> _copy = {
     'newRouteShort': 'New',
     'startFresh': 'Delete trip & start fresh',
     'replay': 'Replay',
+    'onbSkip': 'Skip',
+    'onbNext': 'Next',
+    'onbBack': 'Back',
+    'onbGetStarted': 'Get started',
+    'onbWelcomeTitle': 'Welcome to Laffeh',
+    'onbWelcomeBody':
+        'Plan the smartest route through all your stops — in seconds.',
+    'onbLanguageLabel': 'Choose your language',
+    'onbPlanTitle': 'Drop stops, get the best order',
+    'onbPlanBody':
+        'Move the map and tap to add each stop. Laffeh reorders them into the fastest route automatically.',
+    'onbImportTitle': 'Add stops from WhatsApp',
+    'onbImportBody':
+        'Share a location to Laffeh and it lands right on your route — no typing. A CSV import or a pasted list works too.',
+    'onbImportWhatsappTag': 'WhatsApp',
+    'onbImportCsvTag': 'CSV & paste',
+    'onbShareToLaffeh': 'Open with Laffeh',
+    'onbLocationTitle': 'Find your starting point',
+    'onbLocationBody':
+        'Allow location so Laffeh can set your departure and guide you while you drive.',
+    'onbAllowLocation': 'Allow location',
+    'onbMaybeLater': 'Maybe later',
   },
   'ar': {
     'appName': 'لفّة',
@@ -524,6 +569,7 @@ const Map<String, Map<String, String>> _copy = {
         'تم رفض إذن الموقع. الرجاء السماح بالوصول من إعدادات الجهاز.',
     'errLocationServiceDisabled':
         'خدمة الموقع غير مفعّلة. يرجى تفعيل GPS وإعادة المحاولة.',
+    'enableLocationCta': 'تفعيل الموقع',
     'errInvalidResponse': 'استجابة غير صالحة من الخادم',
     'errEmptyOptimizedRoute': 'لم يُرجِع النموذج أي مسار مُحسَّن',
     'errTimeout': 'انتهت مهلة الاتصال بالخادم',
@@ -646,6 +692,27 @@ const Map<String, Map<String, String>> _copy = {
     'newRouteShort': 'جديدة',
     'startFresh': 'احذف اللفة وابدأ من جديد',
     'replay': 'إعادة التشغيل',
+    'onbSkip': 'تخطّي',
+    'onbNext': 'التالي',
+    'onbBack': 'السابق',
+    'onbGetStarted': 'لنبدأ',
+    'onbWelcomeTitle': 'أهلاً بك في لفّة',
+    'onbWelcomeBody': 'خطّط أذكى مسار يمرّ بكل نقاطك — خلال ثوانٍ.',
+    'onbLanguageLabel': 'اختر لغتك',
+    'onbPlanTitle': 'أضف نقاطك واحصل على أفضل ترتيب',
+    'onbPlanBody':
+        'حرّك الخريطة واضغط لإضافة كل نقطة، ولفّة ترتّبها تلقائياً في أسرع مسار.',
+    'onbImportTitle': 'أضف نقاطاً من واتساب مباشرة',
+    'onbImportBody':
+        'شارك موقعاً إلى لفّة ليظهر مباشرة على مسارك دون كتابة. ويمكنك أيضاً استيراد ملف CSV أو لصق قائمة عناوين.',
+    'onbImportWhatsappTag': 'واتساب',
+    'onbImportCsvTag': 'CSV ولصق',
+    'onbShareToLaffeh': 'فتح بواسطة لفّة',
+    'onbLocationTitle': 'حدّد نقطة انطلاقك',
+    'onbLocationBody':
+        'اسمح بالوصول إلى الموقع ليحدّد لفّة نقطة انطلاقك ويرشدك أثناء القيادة.',
+    'onbAllowLocation': 'السماح بالموقع',
+    'onbMaybeLater': 'لاحقاً',
   },
   'fr': {
     'appName': 'Laffeh',
@@ -694,6 +761,7 @@ const Map<String, Map<String, String>> _copy = {
         'L\'autorisation de localisation a ete refusee. Veuillez l\'activer dans les reglages.',
     'errLocationServiceDisabled':
         'Le service de localisation est desactive. Activez le GPS puis reessayez.',
+    'enableLocationCta': 'Activer la localisation',
     'errInvalidResponse': 'Reponse invalide du serveur',
     'errEmptyOptimizedRoute':
         'Le modele n\'a renvoye aucun itineraire optimise',
@@ -822,5 +890,27 @@ const Map<String, Map<String, String>> _copy = {
     'newRouteShort': 'Nouveau',
     'startFresh': 'Supprimer le trajet et recommencer',
     'replay': 'Rejouer',
+    'onbSkip': 'Passer',
+    'onbNext': 'Suivant',
+    'onbBack': 'Retour',
+    'onbGetStarted': 'Commencer',
+    'onbWelcomeTitle': 'Bienvenue sur Laffeh',
+    'onbWelcomeBody':
+        'Planifiez le meilleur itineraire passant par tous vos arrets — en quelques secondes.',
+    'onbLanguageLabel': 'Choisissez votre langue',
+    'onbPlanTitle': 'Ajoutez des arrets, obtenez le meilleur ordre',
+    'onbPlanBody':
+        'Deplacez la carte et touchez pour ajouter chaque arret. Laffeh les remet automatiquement dans le trajet le plus rapide.',
+    'onbImportTitle': 'Ajoutez des arrets depuis WhatsApp',
+    'onbImportBody':
+        'Partagez une position vers Laffeh et elle apparait sur votre itineraire, sans saisie. Importer un CSV ou coller une liste fonctionne aussi.',
+    'onbImportWhatsappTag': 'WhatsApp',
+    'onbImportCsvTag': 'CSV et liste',
+    'onbShareToLaffeh': 'Ouvrir avec Laffeh',
+    'onbLocationTitle': 'Trouvez votre point de depart',
+    'onbLocationBody':
+        'Autorisez la localisation pour que Laffeh definisse votre depart et vous guide pendant la conduite.',
+    'onbAllowLocation': 'Autoriser la localisation',
+    'onbMaybeLater': 'Plus tard',
   },
 };

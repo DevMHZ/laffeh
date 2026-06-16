@@ -23,6 +23,11 @@ class AppSheetContainer extends StatelessWidget {
   final EdgeInsets contentPadding;
   final bool showDragHandle;
 
+  /// Gap between the title/subtitle header and the body. Defaults to a
+  /// comfortable 12; sheets whose body sits tight under the subtitle
+  /// (e.g. the route summary) can pass a smaller value.
+  final double headerSpacing;
+
   const AppSheetContainer({
     super.key,
     this.title,
@@ -31,6 +36,7 @@ class AppSheetContainer extends StatelessWidget {
     this.actions = const [],
     this.contentPadding = const EdgeInsets.fromLTRB(20, 6, 20, 18),
     this.showDragHandle = true,
+    this.headerSpacing = 12,
   });
 
   @override
@@ -88,7 +94,7 @@ class AppSheetContainer extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: headerSpacing),
         ],
         Padding(padding: effectivePadding, child: child),
       ],

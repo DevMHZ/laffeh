@@ -39,6 +39,12 @@ class RoutePointsSheet extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
 
+        // Location-blocked warnings get a one-tap "Enable location"
+        // action; other warnings (e.g. min-two-points) don't.
+        final isLocationIssue =
+            state.errorMessage == AppStrings.errLocationServiceDisabled ||
+            state.errorMessage == AppStrings.errLocationPermissionDenied;
+
         return AppSheetContainer(
           title: AppStrings.routePointsTitle,
           subtitle: state.hasPoints
@@ -65,6 +71,13 @@ class RoutePointsSheet extends StatelessWidget {
                   icon: Iconsax.info_circle,
                   color: AppColors.warning,
                   message: state.errorMessage!,
+                  actionLabel: isLocationIssue
+                      ? AppStrings.enableLocationCta
+                      : null,
+                  actionIcon: Iconsax.location,
+                  onAction: isLocationIssue
+                      ? cubit.resolveLocationAccess
+                      : null,
                 ),
                 const SizedBox(height: 10),
               ],
@@ -314,14 +327,25 @@ class _MessageBanner extends StatelessWidget {
   final Color color;
   final String message;
 
+  /// Optional call-to-action (e.g. "Enable location") rendered as a
+  /// button under the message — turns a dead-end warning into a one-tap
+  /// fix.
+  final String? actionLabel;
+  final IconData? actionIcon;
+  final VoidCallback? onAction;
+
   const _MessageBanner({
     required this.icon,
     required this.color,
     required this.message,
+    this.actionLabel,
+    this.actionIcon,
+    this.onAction,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasAction = onAction != null && actionLabel != null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -330,19 +354,65 @@ class _MessageBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.26)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: AppTextStyles.bodySm.copyWith(
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (hasAction) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: Material(
                 color: color,
-                fontWeight: FontWeight.w700,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onAction!();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          actionIcon ?? Iconsax.location,
+                          color: AppColors.white,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          actionLabel!,
+                          style: AppTextStyles.titleSm.copyWith(
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

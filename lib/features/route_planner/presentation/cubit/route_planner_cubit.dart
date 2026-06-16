@@ -100,6 +100,19 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     }
   }
 
+  /// Backs the "Enable location" button shown on the location error
+  /// banner. Sends the user to the right place to grant access (OS
+  /// location settings / permission prompt / app settings) and, if that
+  /// succeeds, retries the location fetch so the error clears itself.
+  Future<void> resolveLocationAccess() async {
+    try {
+      final granted = await LocationUtils.resolveAccess();
+      if (granted) await initialize();
+    } catch (e) {
+      developer.log('resolveLocationAccess() failed', error: e);
+    }
+  }
+
   // ── Point management ──────────────────────────────────────
 
   Future<void> addPoint(LatLng position) async {

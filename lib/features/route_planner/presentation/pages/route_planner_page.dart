@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -70,6 +71,12 @@ class _RoutePlannerViewState extends State<_RoutePlannerView> {
   final GlobalKey<RouteMapViewState> _mapKey = GlobalKey<RouteMapViewState>();
   StreamSubscription<String>? _shareSub;
 
+  /// Live height of the bottom sheet as a 0..1 fraction of the screen,
+  /// fed by [DraggableScrollableNotification]. The floating "add point"
+  /// pill reads this so it can hover just above the sheet's top edge at
+  /// any drag height instead of being clipped behind it.
+  final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0.42);
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +86,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView> {
   @override
   void dispose() {
     _shareSub?.cancel();
+    _sheetExtent.dispose();
     super.dispose();
   }
 
@@ -110,8 +118,19 @@ class _RoutePlannerViewState extends State<_RoutePlannerView> {
           Positioned.fill(child: RouteMapView(key: _mapKey)),
           const _TopBar(),
           const _SideActions(),
-          _CenterPin(mapKey: _mapKey),
-          _BottomSheetHost(mapKey: _mapKey),
+          const _CenterPin(),
+          // The sheet reports its live drag height so the add pill above
+          // can track it. `return false` lets the notification keep
+          // bubbling — we only peek at it.
+          NotificationListener<DraggableScrollableNotification>(
+            onNotification: (n) {
+              _sheetExtent.value = n.extent;
+              return false;
+            },
+            child: _BottomSheetHost(mapKey: _mapKey),
+          ),
+          // Painted after the sheet so it floats above it, never clipped.
+          _AddHereButton(mapKey: _mapKey, sheetExtent: _sheetExtent),
           const _TripOverlayHost(),
           const _LoadingOverlay(),
         ],
@@ -394,7 +413,8 @@ class _TopBar extends StatelessWidget {
       buildWhen: (a, b) =>
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
-          a.optimizedRoute != b.optimizedRoute,
+          a.optimizedRoute != b.optimizedRoute ||
+          a.points.isEmpty != b.points.isEmpty,
       builder: (context, state) {
         // The trip overlays own the top of the screen.
         if (state.simulationActive || state.navigationActive) {
@@ -421,8 +441,25 @@ class _TopBar extends StatelessWidget {
                   ),
                   Expanded(
                     child: Center(
-                      child: _StepIndicator(
-                        step: state.hasOptimizedRoute ? 1 : 0,
+                      // The stepper is meaningless on the empty first
+                      // screen, so it stays hidden until the first point
+                      // lands, then pops in. Different child runtimeTypes
+                      // drive the show/hide animation; a Stops→Route
+                      // change updates in place (the dots animate
+                      // themselves).
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 280),
+                        switchInCurve: Curves.easeOutBack,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: ScaleTransition(scale: anim, child: child),
+                        ),
+                        child: (state.hasPoints || state.hasOptimizedRoute)
+                            ? _StepIndicator(
+                                step: state.hasOptimizedRoute ? 1 : 0,
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ),
                   ),
@@ -451,8 +488,9 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// Slim Stops → Route → Drive progress chip. Always tells the user
-/// which phase of the trip they're in and what comes next.
+/// Slim Stops → Route → Drive progress chip. Appears once the first
+/// point is placed (the empty first screen stays clean) and tells the
+/// user which phase of the trip they're in and what comes next.
 class _StepIndicator extends StatelessWidget {
   /// 0 = adding stops, 1 = route ready, 2 = driving.
   final int step;
@@ -620,15 +658,14 @@ class _Glass extends StatelessWidget {
   }
 }
 
-/// Fixed pin in the centre of the map plus the one obvious way to
-/// place a point: a big labelled pill right under the crosshair.
-/// Asphalt while the departure is missing, brand green afterwards —
-/// the pill text switches with it ("Set departure here" → "Add stop
-/// here"), so the next action is always spelled out.
+/// Fixed crosshair pin in the centre of the map — it marks exactly
+/// where a tapped/added point will land, so it must stay dead-centre.
+/// Asphalt while the departure is missing, brand green afterwards. The
+/// labelled "add point" pill that pairs with it lives in
+/// [_AddHereButton], floating just above the bottom sheet so it's never
+/// clipped.
 class _CenterPin extends StatelessWidget {
-  final GlobalKey<RouteMapViewState> mapKey;
-
-  const _CenterPin({required this.mapKey});
+  const _CenterPin();
 
   @override
   Widget build(BuildContext context) {
@@ -649,40 +686,80 @@ class _CenterPin extends StatelessWidget {
         final hasDepot = state.points.isNotEmpty;
         final color = hasDepot ? AppColors.primary : AppColors.asphalt;
 
-        return Stack(
-          children: [
-            Center(
-              child: IgnorePointer(
-                child: TweenAnimationBuilder<Color?>(
-                  tween: ColorTween(end: color),
-                  duration: const Duration(milliseconds: 400),
-                  builder: (_, value, __) =>
-                      CenterPinWidget(color: value ?? color),
-                ),
-              ),
+        return Center(
+          child: IgnorePointer(
+            child: TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: color),
+              duration: const Duration(milliseconds: 400),
+              builder: (_, value, __) =>
+                  CenterPinWidget(color: value ?? color),
             ),
-            // The add pill, tied visually to the crosshair above it.
-            Align(
-              alignment: Alignment.center,
-              child: Transform.translate(
-                offset: const Offset(0, 64),
-                child: _AddHerePill(
-                  color: color,
-                  icon: hasDepot ? Iconsax.location_add : Iconsax.flag,
-                  label: hasDepot
-                      ? AppStrings.addStopHere
-                      : AppStrings.setDepartureHere,
-                  onTap: () {
-                    final mapState = mapKey.currentState;
-                    if (mapState == null) return;
-                    context.read<RoutePlannerCubit>().addPoint(
-                      mapState.mapCenter,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The one obvious way to drop a point: a big labelled pill that floats
+/// just above the bottom sheet and tracks its drag height ([sheetExtent]),
+/// so it's never clipped behind the sheet. Tapping it adds a point at the
+/// map centre marked by [_CenterPin]'s crosshair. Asphalt until the
+/// departure is set, brand green after — the label switches with it
+/// ("Set departure here" → "Add stop here").
+class _AddHereButton extends StatelessWidget {
+  final GlobalKey<RouteMapViewState> mapKey;
+  final ValueListenable<double> sheetExtent;
+
+  const _AddHereButton({required this.mapKey, required this.sheetExtent});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+      buildWhen: (a, b) =>
+          a.simulationActive != b.simulationActive ||
+          a.navigationActive != b.navigationActive ||
+          a.optimizedRoute != b.optimizedRoute ||
+          a.status != b.status ||
+          a.points.isEmpty != b.points.isEmpty,
+      builder: (context, state) {
+        final visible =
+            !state.simulationActive &&
+            !state.navigationActive &&
+            !state.hasOptimizedRoute &&
+            !state.isOptimizing;
+        if (!visible) return const SizedBox.shrink();
+
+        final hasDepot = state.points.isNotEmpty;
+        final color = hasDepot ? AppColors.primary : AppColors.asphalt;
+        final screenH = MediaQuery.sizeOf(context).height;
+
+        return ValueListenableBuilder<double>(
+          valueListenable: sheetExtent,
+          // The pill itself only rebuilds when the cubit state changes;
+          // dragging the sheet just repositions this cached child.
+          child: _AddHerePill(
+            color: color,
+            icon: hasDepot ? Iconsax.location_add : Iconsax.flag,
+            label: hasDepot
+                ? AppStrings.addStopHere
+                : AppStrings.setDepartureHere,
+            onTap: () {
+              final mapState = mapKey.currentState;
+              if (mapState == null) return;
+              context.read<RoutePlannerCubit>().addPoint(mapState.mapCenter);
+            },
+          ),
+          builder: (context, extent, child) {
+            return Positioned(
+              left: 0,
+              right: 0,
+              // 12px above the sheet's top edge, wherever the user has
+              // dragged it.
+              bottom: screenH * extent + 12,
+              child: Center(child: child),
+            );
+          },
         );
       },
     );

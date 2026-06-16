@@ -3,10 +3,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../onboarding/presentation/pages/onboarding_page.dart';
 import 'route_planner_page.dart';
 
 /// Edge-to-edge brand splash.
@@ -78,10 +81,17 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
 
   void _go() {
     if (!mounted) return;
+    // First launch goes through onboarding; afterwards straight to the
+    // planner. The flag is written when onboarding finishes.
+    final prefs = sl<SharedPreferences>();
+    final seenOnboarding = prefs.getBool(AppStrings.onboardingDoneKey) ?? false;
+    final Widget next = seenOnboarding
+        ? const RoutePlannerPage()
+        : const OnboardingPage();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 480),
-        pageBuilder: (_, __, ___) => const RoutePlannerPage(),
+        pageBuilder: (_, __, ___) => next,
         transitionsBuilder: (_, anim, __, child) {
           final fade = CurvedAnimation(parent: anim, curve: Curves.easeOut);
           return FadeTransition(

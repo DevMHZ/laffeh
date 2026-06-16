@@ -36,6 +36,9 @@ class RouteSummarySheet extends StatelessWidget {
         return AppSheetContainer(
           title: AppStrings.bestRouteTitle,
           subtitle: AppStrings.routeReadyHint,
+          // Metrics sit right under the subtitle — no need for the full
+          // header gap here.
+          headerSpacing: 6,
           contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
