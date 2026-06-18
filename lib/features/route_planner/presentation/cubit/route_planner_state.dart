@@ -65,6 +65,12 @@ class RoutePlannerState extends Equatable {
   /// 0..1 — approximate current position along [OptimizedRoute.fullPolyline].
   final double navigationProgress;
 
+  /// Index into [OptimizedRoute.orderedPoints] of the stop the driver is
+  /// currently heading towards. Starts at 1 (first stop after the depot)
+  /// and advances each time the driver marks a stop as done or GPS
+  /// auto-detects arrival within 150 m.
+  final int navigationStopIndex;
+
   /// Bearing reported by the device GPS, in degrees. May be null when
   /// the platform cannot provide a stable heading.
   final double? navigationHeading;
@@ -88,6 +94,7 @@ class RoutePlannerState extends Equatable {
     this.simulationCameraMode = SimulationCameraMode.follow,
     this.navigationActive = false,
     this.navigationProgress = 0.0,
+    this.navigationStopIndex = 1,
     this.navigationHeading,
     this.navigationSpeedMps,
   });
@@ -113,6 +120,7 @@ class RoutePlannerState extends Equatable {
     SimulationCameraMode? simulationCameraMode,
     bool? navigationActive,
     double? navigationProgress,
+    int? navigationStopIndex,
     double? navigationHeading,
     double? navigationSpeedMps,
     bool clearOptimizedRoute = false,
@@ -137,6 +145,7 @@ class RoutePlannerState extends Equatable {
       simulationCameraMode: simulationCameraMode ?? this.simulationCameraMode,
       navigationActive: navigationActive ?? this.navigationActive,
       navigationProgress: navigationProgress ?? this.navigationProgress,
+      navigationStopIndex: navigationStopIndex ?? this.navigationStopIndex,
       navigationHeading: clearNavigationHeading
           ? null
           : (navigationHeading ?? this.navigationHeading),
@@ -162,6 +171,7 @@ class RoutePlannerState extends Equatable {
     simulationCameraMode,
     navigationActive,
     navigationProgress,
+    navigationStopIndex,
     navigationHeading,
     navigationSpeedMps,
   ];

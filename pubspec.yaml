@@ -48,7 +48,7 @@ dependencies:
   receive_sharing_intent: ^1.8.1
 
   # Maps & Location
-  flutter_map: ^8.3.0
+  maplibre_gl: ^0.26.1
   latlong2: ^0.9.1
   geolocator: ^11.0.0
   permission_handler: ^11.3.1

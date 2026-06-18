@@ -153,6 +153,9 @@ class AppStrings {
   static String get progress => _t('progress');
   static String get remainingDistance => _t('remainingDistance');
   static String get remainingTime => _t('remainingTime');
+  static String get focusMode => _t('focusMode');
+  static String get exitFocus => _t('exitFocus');
+  static String get remainingShort => _t('remainingShort');
   static String get simulationSubtitle => _t('simulationSubtitle');
 
   // Saved routes
@@ -249,6 +252,7 @@ class AppStrings {
   }
 
   // Small labels
+  static String get arrivedHere => _t('arrivedHere');
   static String get departureBadge => _t('departureBadge');
   static String get returnBadge => _t('returnBadge');
   static String get routeOrder => _t('routeOrder');
@@ -426,6 +430,9 @@ const Map<String, Map<String, String>> _copy = {
     'progress': 'Progress',
     'remainingDistance': 'Remaining distance',
     'remainingTime': 'Remaining time',
+    'focusMode': 'Focus',
+    'exitFocus': 'Exit focus',
+    'remainingShort': 'left',
     'simulationSubtitle': 'Watch your route from start to finish',
     'savedRoutes': 'My routes',
     'savedRoutesEmpty': 'No saved routes yet',
@@ -503,6 +510,7 @@ const Map<String, Map<String, String>> _copy = {
     'newRouteShort': 'New',
     'startFresh': 'Delete trip & start fresh',
     'replay': 'Replay',
+    'arrivedHere': 'Arrived',
     'onbSkip': 'Skip',
     'onbNext': 'Next',
     'onbBack': 'Back',
@@ -619,6 +627,9 @@ const Map<String, Map<String, String>> _copy = {
     'progress': 'التقدّم',
     'remainingDistance': 'المسافة المتبقية',
     'remainingTime': 'الوقت المتبقي',
+    'focusMode': 'تركيز',
+    'exitFocus': 'خروج من التركيز',
+    'remainingShort': 'متبقّي',
     'simulationSubtitle': 'شاهد مسارك من البداية للنهاية',
     'savedRoutes': 'مساراتي',
     'savedRoutesEmpty': 'لا توجد مسارات محفوظة بعد',
@@ -695,6 +706,7 @@ const Map<String, Map<String, String>> _copy = {
     'newRouteShort': 'جديدة',
     'startFresh': 'احذف اللفة وابدأ من جديد',
     'replay': 'إعادة التشغيل',
+    'arrivedHere': 'تم الوصول',
     'onbSkip': 'تخطّي',
     'onbNext': 'التالي',
     'onbBack': 'السابق',
@@ -815,6 +827,9 @@ const Map<String, Map<String, String>> _copy = {
     'progress': 'Progression',
     'remainingDistance': 'Distance restante',
     'remainingTime': 'Temps restant',
+    'focusMode': 'Focus',
+    'exitFocus': 'Quitter',
+    'remainingShort': 'restant',
     'simulationSubtitle': 'Visualisez votre trajet du debut a la fin',
     'savedRoutes': 'Mes trajets',
     'savedRoutesEmpty': 'Aucun trajet enregistre',
@@ -894,6 +909,7 @@ const Map<String, Map<String, String>> _copy = {
     'newRouteShort': 'Nouveau',
     'startFresh': 'Supprimer le trajet et recommencer',
     'replay': 'Rejouer',
+    'arrivedHere': 'Arrive',
     'onbSkip': 'Passer',
     'onbNext': 'Suivant',
     'onbBack': 'Retour',

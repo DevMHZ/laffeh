@@ -213,12 +213,7 @@ void main() {
     await tester.pumpWidget(
       _harness(
         state,
-        RoutePointsSheet(
-          onAddPoint: () {},
-          onPasteAddresses: () {},
-          onImportCsv: () {},
-          onExportCsv: () {},
-        ),
+        RoutePointsSheet(onPasteAddresses: () {}, onImportCsv: () {}),
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));

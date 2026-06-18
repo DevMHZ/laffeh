@@ -22,19 +22,8 @@ class EnvConfig {
   static String get aiRouteApiKey =>
       _read('AI_ROUTE_API_KEY', fallback: 'test-key-001');
 
-  static String get mapboxAccessToken => _read('MAPBOX_ACCESS_TOKEN');
-
-  static String get tileUrlTemplate {
-    final token = mapboxAccessToken;
-    if (token.isNotEmpty) {
-      return 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=$token';
-    }
-    return _read(
-      'OSM_TILE_URL_TEMPLATE',
-      fallback:
-          'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-    );
-  }
+  static String get mapStyleUrl =>
+      _read('MAP_STYLE_URL', fallback: 'https://tiles.openfreemap.org/styles/liberty');
 
   static String get nominatimBaseUrl => _read(
     'NOMINATIM_BASE_URL',

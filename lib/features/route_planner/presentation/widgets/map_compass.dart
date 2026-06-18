@@ -1,87 +1,60 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
-/// A small compass ("boussole") that fades in whenever the map is turned away
-/// from north — like Google Maps. Its red needle always points to true north;
-/// tapping it spins the map back to north-up. During navigation / chase the
-/// tap also asks the map to *hold* north via [onResetNorth], so it sticks
-/// instead of snapping back to the heading.
+/// A small compass that fades in whenever the map is turned away from north.
+/// Its red needle always points to true north; tapping it snaps the map back
+/// to north-up. [bearing] is a [ValueNotifier] updated by the map widget on
+/// every camera move; [onTap] is called so the host can animate the camera
+/// back to north and lock it (e.g. during navigation).
 class MapCompass extends StatefulWidget {
-  final MapController controller;
+  final ValueNotifier<double> bearing;
+  final VoidCallback onTap;
 
-  /// Called on tap so the host can hold north-up in auto-rotating modes.
-  final VoidCallback onResetNorth;
-
-  const MapCompass({
-    super.key,
-    required this.controller,
-    required this.onResetNorth,
-  });
+  const MapCompass({super.key, required this.bearing, required this.onTap});
 
   @override
   State<MapCompass> createState() => _MapCompassState();
 }
 
-class _MapCompassState extends State<MapCompass>
-    with SingleTickerProviderStateMixin {
-  StreamSubscription<MapEvent>? _sub;
-  late final AnimationController _spin;
-
-  /// Current map rotation in degrees (updated from map events).
+class _MapCompassState extends State<MapCompass> {
   double _rotation = 0;
 
   @override
   void initState() {
     super.initState();
-    _spin = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    // Don't read `controller.camera` here — it isn't available until the map
-    // is laid out. Map events fill it in.
-    _sub = widget.controller.mapEventStream.listen((_) {
-      final r = widget.controller.camera.rotation;
-      if (r != _rotation && mounted) setState(() => _rotation = r);
-    });
+    widget.bearing.addListener(_onBearingChanged);
+  }
+
+  @override
+  void didUpdateWidget(MapCompass old) {
+    super.didUpdateWidget(old);
+    if (old.bearing != widget.bearing) {
+      old.bearing.removeListener(_onBearingChanged);
+      widget.bearing.addListener(_onBearingChanged);
+    }
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
-    _spin.dispose();
+    widget.bearing.removeListener(_onBearingChanged);
     super.dispose();
   }
 
-  /// Normalised to (-180, 180].
+  void _onBearingChanged() {
+    final r = widget.bearing.value;
+    if (r != _rotation && mounted) setState(() => _rotation = r);
+  }
+
   double get _normalized {
     var r = _rotation % 360;
     if (r > 180) r -= 360;
     if (r < -180) r += 360;
     return r;
-  }
-
-  void _resetNorth() {
-    HapticFeedback.selectionClick();
-    widget.onResetNorth();
-
-    final start = _normalized;
-    _spin.stop();
-    final anim = Tween<double>(begin: start, end: 0).animate(
-      CurvedAnimation(parent: _spin, curve: Curves.easeInOutCubic),
-    );
-    void tick() => widget.controller.rotate(anim.value);
-    anim.addListener(tick);
-    _spin.forward(from: 0).whenComplete(() {
-      anim.removeListener(tick);
-      widget.controller.rotate(0);
-    });
   }
 
   @override
@@ -107,13 +80,15 @@ class _MapCompassState extends State<MapCompass>
                 shadowColor: AppColors.shadow,
                 child: InkWell(
                   customBorder: const CircleBorder(),
-                  onTap: _resetNorth,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    widget.onTap();
+                  },
                   child: SizedBox(
                     width: 46,
                     height: 46,
                     child: Center(
                       child: Transform.rotate(
-                        // Counter-rotate so the red needle holds true north.
                         angle: -r * math.pi / 180,
                         child: CustomPaint(
                           size: const Size(26, 26),
@@ -144,8 +119,8 @@ class _CompassRosePainter extends CustomPainter {
       ..lineTo(c.dx + r * 0.32, c.dy)
       ..close();
 
-    canvas.drawPath(needle(1), Paint()..color = AppColors.danger); // north
-    canvas.drawPath(needle(-1), Paint()..color = AppColors.textMuted); // south
+    canvas.drawPath(needle(1), Paint()..color = AppColors.danger);
+    canvas.drawPath(needle(-1), Paint()..color = AppColors.textMuted);
 
     canvas.drawCircle(c, r * 0.15, Paint()..color = AppColors.white);
     canvas.drawCircle(

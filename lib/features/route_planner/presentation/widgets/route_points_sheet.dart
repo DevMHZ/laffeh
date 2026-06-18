@@ -18,16 +18,8 @@ import 'route_point_tile.dart';
 class RoutePointsSheet extends StatelessWidget {
   final VoidCallback? onPasteAddresses;
   final VoidCallback? onImportCsv;
-  final VoidCallback? onExportCsv;
-  final VoidCallback? onAddPoint;
 
-  const RoutePointsSheet({
-    super.key,
-    this.onPasteAddresses,
-    this.onImportCsv,
-    this.onExportCsv,
-    this.onAddPoint,
-  });
+  const RoutePointsSheet({super.key, this.onPasteAddresses, this.onImportCsv});
 
   @override
   Widget build(BuildContext context) {
@@ -50,17 +42,6 @@ class RoutePointsSheet extends StatelessWidget {
           subtitle: state.hasPoints
               ? '${AppStrings.pointsCount(state.points.length)} • ${AppStrings.dragToReorder}'
               : AppStrings.panToAddPoint,
-          actions: [
-            // Everything that is not "place a point on the map" lives
-            // in one labelled menu — the map pill owns point adding.
-            _MoreMenu(
-              hasPoints: state.hasPoints,
-              onPasteAddresses: onPasteAddresses,
-              onImportCsv: onImportCsv,
-              onExportCsv: onExportCsv,
-              onClearAll: () => _confirmClearAll(context, cubit),
-            ),
-          ],
           contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -169,128 +150,6 @@ class RoutePointsSheet extends StatelessWidget {
     if (newLabel != null && newLabel.isNotEmpty) {
       cubit.renamePoint(p.id, newLabel);
     }
-  }
-
-  Future<void> _confirmClearAll(
-    BuildContext context,
-    RoutePlannerCubit cubit,
-  ) async {
-    final ok = await AppDialog.confirm(
-      context: context,
-      title: AppStrings.clearAll,
-      message: AppStrings.clearRouteConfirm,
-      confirmLabel: AppStrings.clearAll,
-      confirmIcon: Iconsax.trash,
-      icon: Iconsax.warning_2,
-      tone: AppDialogTone.danger,
-      destructive: true,
-    );
-    if (ok == true) cubit.clearAll();
-  }
-}
-
-/// Single "More" menu for bulk input/output: paste a list, CSV
-/// import/export, clear all. Keeps the sheet header to one obvious
-/// control.
-class _MoreMenu extends StatelessWidget {
-  final bool hasPoints;
-  final VoidCallback? onPasteAddresses;
-  final VoidCallback? onImportCsv;
-  final VoidCallback? onExportCsv;
-  final VoidCallback onClearAll;
-
-  const _MoreMenu({
-    required this.hasPoints,
-    required this.onPasteAddresses,
-    required this.onImportCsv,
-    required this.onExportCsv,
-    required this.onClearAll,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<VoidCallback>(
-      tooltip: AppStrings.moreActions,
-      position: PopupMenuPosition.under,
-      onSelected: (action) {
-        HapticFeedback.selectionClick();
-        action();
-      },
-      itemBuilder: (context) => [
-        if (onPasteAddresses != null)
-          _menuItem(
-            Iconsax.document_copy,
-            AppStrings.pasteListAction,
-            onPasteAddresses!,
-          ),
-        if (onImportCsv != null)
-          _menuItem(
-            Iconsax.document_download,
-            AppStrings.importCsv,
-            onImportCsv!,
-          ),
-        if (hasPoints && onExportCsv != null)
-          _menuItem(
-            Iconsax.document_upload,
-            AppStrings.exportCsv,
-            onExportCsv!,
-          ),
-        if (hasPoints)
-          _menuItem(
-            Iconsax.trash,
-            AppStrings.clearAll,
-            onClearAll,
-            color: AppColors.danger,
-          ),
-      ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Iconsax.more_circle,
-              size: 18,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              AppStrings.moreActions,
-              style: AppTextStyles.titleSm.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  PopupMenuItem<VoidCallback> _menuItem(
-    IconData icon,
-    String label,
-    VoidCallback action, {
-    Color? color,
-  }) {
-    return PopupMenuItem<VoidCallback>(
-      value: action,
-      child: Row(
-        children: [
-          Icon(icon, size: 19, color: color ?? AppColors.textSecondary),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: color ?? AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

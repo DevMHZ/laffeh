@@ -28,7 +28,6 @@ import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../utils/route_csv_utils.dart';
 import '../widgets/center_pin_widget.dart';
-import '../widgets/map_action_button.dart';
 import '../widgets/route_map_view.dart';
 import '../widgets/route_navigation_overlay.dart';
 import '../widgets/route_points_sheet.dart';
@@ -117,7 +116,6 @@ class _RoutePlannerViewState extends State<_RoutePlannerView> {
           const SizedBox.expand(),
           Positioned.fill(child: RouteMapView(key: _mapKey)),
           const _TopBar(),
-          const _SideActions(),
           const _CenterPin(),
           // The sheet reports its live drag height so the add pill above
           // can track it. `return false` lets the notification keep
@@ -127,7 +125,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView> {
               _sheetExtent.value = n.extent;
               return false;
             },
-            child: _BottomSheetHost(mapKey: _mapKey),
+            child: const _BottomSheetHost(),
           ),
           // Painted after the sheet so it floats above it, never clipped.
           _AddHereButton(mapKey: _mapKey, sheetExtent: _sheetExtent),
@@ -715,7 +713,7 @@ class _CenterPin extends StatelessWidget {
 /// departure is set, brand green after — the label switches with it
 /// ("Set departure here" → "Add stop here").
 class _AddHereButton extends StatelessWidget {
-  final GlobalKey<RouteMapViewState> mapKey;
+  final GlobalKey<RouteMapViewState> mapKey; 
   final ValueListenable<double> sheetExtent;
 
   const _AddHereButton({required this.mapKey, required this.sheetExtent});
@@ -740,29 +738,35 @@ class _AddHereButton extends StatelessWidget {
         final hasDepot = state.points.isNotEmpty;
         final color = hasDepot ? AppColors.primary : AppColors.asphalt;
         final screenH = MediaQuery.sizeOf(context).height;
+        final cubit = context.read<RoutePlannerCubit>();
 
         return ValueListenableBuilder<double>(
           valueListenable: sheetExtent,
-          // The pill itself only rebuilds when the cubit state changes;
+          // The row only rebuilds when cubit state changes;
           // dragging the sheet just repositions this cached child.
-          child: _AddHerePill(
-            color: color,
-            icon: hasDepot ? Iconsax.location_add : Iconsax.flag,
-            label: hasDepot
-                ? AppStrings.addStopHere
-                : AppStrings.setDepartureHere,
-            onTap: () {
-              final mapState = mapKey.currentState;
-              if (mapState == null) return;
-              context.read<RoutePlannerCubit>().addPoint(mapState.mapCenter);
-            },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AddHerePill(
+                color: color,
+                icon: hasDepot ? Iconsax.location_add : Iconsax.flag,
+                label: hasDepot
+                    ? AppStrings.addStopHere
+                    : AppStrings.setDepartureHere,
+                onTap: () {
+                  final mapState = mapKey.currentState;
+                  if (mapState == null) return;
+                  cubit.addPoint(mapState.mapCenter);
+                },
+              ),
+              const SizedBox(width: 10),
+              _GpsCircleButton(onTap: cubit.initialize),
+            ],
           ),
           builder: (context, extent, child) {
             return Positioned(
               left: 0,
               right: 0,
-              // 12px above the sheet's top edge, wherever the user has
-              // dragged it.
               bottom: screenH * extent + 12,
               child: Center(child: child),
             );
@@ -866,62 +870,35 @@ class _TripOverlayHost extends StatelessWidget {
   }
 }
 
-class _SideActions extends StatelessWidget {
-  const _SideActions();
+class _GpsCircleButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _GpsCircleButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-      buildWhen: (a, b) =>
-          a.status != b.status ||
-          a.simulationActive != b.simulationActive ||
-          a.navigationActive != b.navigationActive ||
-          a.optimizedRoute != b.optimizedRoute,
-      builder: (context, state) {
-        if (state.simulationActive || state.navigationActive) {
-          return const SizedBox.shrink();
-        }
-        final cubit = context.read<RoutePlannerCubit>();
-
-        return AnimatedPositionedDirectional(
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          bottom: _railBottom(context, state),
-          end: 14,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: Column(
-              key: ValueKey('gps-${state.hasOptimizedRoute}'),
-              children: [
-                MapActionButton(
-                  icon: Iconsax.gps,
-                  tooltip: AppStrings.yourLocation,
-                  onPressed: cubit.initialize,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    return Material(
+      color: AppColors.surface,
+      shape: const CircleBorder(),
+      elevation: 4,
+      shadowColor: AppColors.shadow,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: const SizedBox(
+          width: 46,
+          height: 46,
+          child: Icon(Iconsax.gps, color: AppColors.primary, size: 22),
+        ),
+      ),
     );
-  }
-
-  double _railBottom(BuildContext context, RoutePlannerState state) {
-    final height = MediaQuery.sizeOf(context).height;
-    final topSafe = MediaQuery.paddingOf(context).top;
-    final sheetFraction = state.hasOptimizedRoute ? 0.55 : 0.42;
-    final railAllowance = state.hasOptimizedRoute ? 142.0 : 250.0;
-    final maxBottom = height - topSafe - railAllowance;
-    return (height * sheetFraction + 16).clamp(232.0, maxBottom);
   }
 }
 
 class _BottomSheetHost extends StatelessWidget {
-  final GlobalKey<RouteMapViewState> mapKey;
-
-  const _BottomSheetHost({required this.mapKey});
+  const _BottomSheetHost();
 
   @override
   Widget build(BuildContext context) {
@@ -1009,20 +986,9 @@ class _BottomSheetHost extends StatelessWidget {
                                 _exportCsv(context, _csvPointsForState(state)),
                           )
                         : RoutePointsSheet(
-                            onAddPoint: () {
-                              final mapState = mapKey.currentState;
-                              if (mapState == null) return;
-                              cubit.addPoint(mapState.mapCenter);
-                            },
                             onPasteAddresses: () =>
                                 _showPasteAddressesDialog(context, cubit),
                             onImportCsv: () => _importCsv(context, cubit),
-                            onExportCsv: state.hasPoints
-                                ? () => _exportCsv(
-                                    context,
-                                    _csvPointsForState(state),
-                                  )
-                                : null,
                           ),
                   ),
                 ),

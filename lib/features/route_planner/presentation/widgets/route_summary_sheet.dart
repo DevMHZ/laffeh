@@ -13,7 +13,6 @@ import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
-import 'route_metrics_card.dart';
 import 'route_point_tile.dart';
 
 class RouteSummarySheet extends StatelessWidget {
@@ -34,42 +33,50 @@ class RouteSummarySheet extends StatelessWidget {
         final order = route.orderedPoints;
 
         return AppSheetContainer(
-          title: AppStrings.bestRouteTitle,
-          subtitle: AppStrings.routeReadyHint,
-          // Metrics sit right under the subtitle — no need for the full
-          // header gap here.
-          headerSpacing: 6,
-          contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _MetricsGrid(route: route),
-              const SizedBox(height: 14),
-
-              // Hierarchy: one hero action (drive), one secondary
-              // (preview), then everything else as compact tiles.
-              _StartNavigationButton(onPressed: cubit.startNavigation),
-              const SizedBox(height: 10),
-              AppButton(
-                label: AppStrings.previewRoute,
-                icon: Iconsax.play_circle,
-                variant: AppButtonVariant.secondary,
-                height: 54,
-                radius: 16,
-                onPressed: cubit.startSimulation,
-              ),
+              // ── Compact inline metrics ──────────────────────────────
+              _InlineMetrics(route: route),
               const SizedBox(height: 12),
+
+              // ── Primary: start the trip ─────────────────────────────
+              _StartNavigationButton(onPressed: cubit.startNavigation),
+              const SizedBox(height: 8),
+
+              // ── Secondary: preview / open in external maps ──────────
               Row(
                 children: [
                   Expanded(
-                    child: _ActionTile(
-                      icon: Iconsax.map_1,
-                      label: AppStrings.googleMapsShort,
-                      onTap: onOpenGoogleMaps,
+                    child: AppButton(
+                      label: AppStrings.previewRoute,
+                      icon: Iconsax.play_circle,
+                      variant: AppButtonVariant.secondary,
+                      height: 50,
+                      radius: 14,
+                      onPressed: cubit.startSimulation,
                     ),
                   ),
                   const SizedBox(width: 8),
+                  Expanded(
+                    child: AppButton(
+                      label: AppStrings.googleMapsShort,
+                      icon: Iconsax.map_1,
+                      variant: AppButtonVariant.secondary,
+                      height: 50,
+                      radius: 14,
+                      onPressed: onOpenGoogleMaps,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // ── Tertiary: save / export ─────────────────────────────
+              Row(
+                children: [
                   Expanded(
                     child: _ActionTile(
                       icon: Iconsax.save_2,
@@ -87,7 +94,9 @@ class RouteSummarySheet extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
+
+              // ── Route sequence ──────────────────────────────────────
               Row(
                 children: [
                   Expanded(
@@ -114,20 +123,22 @@ class RouteSummarySheet extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               ...order.asMap().entries.map((e) {
-                final isReturn = e.key == order.length - 1 && e.value.isDepot;
+                final isReturn =
+                    e.key == order.length - 1 && e.value.isDepot;
                 return RoutePointTile(
                   point: e.value,
                   index: e.key,
                   isReturnPoint: isReturn,
                 );
               }),
-              const SizedBox(height: 18),
-              // Destructive escape hatch, deliberately last and
-              // unmissably red: wipe this trip and plan a new one
-              // (asks to save first).
-              _StartFreshButton(onPressed: () => _handleStartNew(context)),
+              const SizedBox(height: 14),
+
+              // ── Destructive escape hatch ────────────────────────────
+              _StartFreshButton(
+                onPressed: () => _handleStartNew(context),
+              ),
             ],
           ),
         );
@@ -140,14 +151,14 @@ class RouteSummarySheet extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
 
     final choice = await showSaveBeforeClearDialog(context);
-    if (choice == null) return; // user cancelled
+    if (choice == null) return;
     if (!context.mounted) return;
 
     if (choice == SaveBeforeClearChoice.save) {
       final defaultName =
           '${AppStrings.defaultRouteName} • ${_shortDate(DateTime.now())}';
       final name = await showSaveRouteDialog(context, initialName: defaultName);
-      if (name == null) return; // user cancelled save → keep current route
+      if (name == null) return;
       if (!context.mounted) return;
 
       try {
@@ -156,7 +167,7 @@ class RouteSummarySheet extends StatelessWidget {
           messenger.showSnackBar(
             SnackBar(content: Text(AppStrings.errSaveRoute)),
           );
-          return; // don't clear — let the user retry
+          return;
         }
         messenger.showSnackBar(
           SnackBar(content: Text(AppStrings.routeSavedMsg)),
@@ -165,7 +176,7 @@ class RouteSummarySheet extends StatelessWidget {
         messenger.showSnackBar(
           SnackBar(content: Text(AppStrings.routeSaveFailed(e))),
         );
-        return; // don't clear on failure
+        return;
       }
     }
 
@@ -187,7 +198,9 @@ class RouteSummarySheet extends StatelessWidget {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            saved == null ? AppStrings.errSaveRoute : AppStrings.routeSavedMsg,
+            saved == null
+                ? AppStrings.errSaveRoute
+                : AppStrings.routeSavedMsg,
           ),
         ),
       );
@@ -204,9 +217,96 @@ class RouteSummarySheet extends StatelessWidget {
   }
 }
 
-/// Big red full-width "delete trip & start fresh" button. Destructive,
-/// so it sits alone at the bottom of the sheet where it can't be
-/// confused with the share/save tiles — and still asks to save first.
+// ─────────────────────────────────────────────────────────────────────────────
+// Compact metrics row — replaces the old GridView card layout.
+// One thin bar with icon + value + label for each metric, separated by a line.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InlineMetrics extends StatelessWidget {
+  final OptimizedRoute route;
+  const _InlineMetrics({required this.route});
+
+  @override
+  Widget build(BuildContext context) {
+    final m = route.metrics;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _MetricItem(
+              icon: Iconsax.timer_1,
+              label: AppStrings.estimatedTime,
+              value: m.estimatedDurationMinutes == null
+                  ? AppStrings.unavailable
+                  : MetricFormat.duration(m.estimatedDurationMinutes!),
+              color: AppColors.primary,
+            ),
+          ),
+          Container(width: 1, height: 32, color: AppColors.border),
+          Expanded(
+            child: _MetricItem(
+              icon: Iconsax.routing,
+              label: AppStrings.totalDistance,
+              value: m.totalDistanceKm == null
+                  ? AppStrings.unavailable
+                  : MetricFormat.distance(m.totalDistanceKm!),
+              color: AppColors.info,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MetricItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+        const SizedBox(width: 9),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(value, style: AppTextStyles.titleMd),
+            Text(label, style: AppTextStyles.mutedSm),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _StartFreshButton extends StatelessWidget {
   final VoidCallback onPressed;
   const _StartFreshButton({required this.onPressed});
@@ -223,7 +323,7 @@ class _StartFreshButton extends StatelessWidget {
           onPressed();
         },
         child: Container(
-          height: 56,
+          height: 52,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
@@ -234,7 +334,7 @@ class _StartFreshButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Iconsax.trash, color: AppColors.danger, size: 20),
+              const Icon(Iconsax.trash, color: AppColors.danger, size: 19),
               const SizedBox(width: 9),
               Flexible(
                 child: Text(
@@ -254,8 +354,7 @@ class _StartFreshButton extends StatelessWidget {
   }
 }
 
-/// Compact icon + label tile for secondary actions (Maps / Save /
-/// CSV). One row instead of a tower of full-width buttons.
+/// Compact icon + label tile for tertiary actions (Save / CSV).
 class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -296,42 +395,6 @@ class _ActionTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _MetricsGrid extends StatelessWidget {
-  final OptimizedRoute route;
-  const _MetricsGrid({required this.route});
-
-  @override
-  Widget build(BuildContext context) {
-    final m = route.metrics;
-    return GridView.count(
-      crossAxisCount: 2,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.55,
-      children: [
-        RouteMetricsCard(
-          icon: Iconsax.timer_1,
-          label: AppStrings.estimatedTime,
-          value: m.estimatedDurationMinutes == null
-              ? null
-              : MetricFormat.duration(m.estimatedDurationMinutes!),
-          color: AppColors.primary,
-        ),
-        RouteMetricsCard(
-          icon: Iconsax.routing,
-          label: AppStrings.totalDistance,
-          value: m.totalDistanceKm == null
-              ? null
-              : MetricFormat.distance(m.totalDistanceKm!),
-          color: AppColors.info,
-        ),
-      ],
     );
   }
 }

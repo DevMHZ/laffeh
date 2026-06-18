@@ -134,15 +134,19 @@ class RouteRepositoryImpl implements RouteRepository {
     for (final s in responseStops) {
       RoutePoint? matched;
 
-      // Skip the depot entries (start/end). They are recognisable
-      // by either equal address with depot label or coordinates.
+      // Skip the depot entries (start/end). Recognisable by:
+      //   • The literal "DEPOT" address the Afdal VRP API uses.
+      //   • Coordinate proximity (~30 m — API snaps to nearest road so
+      //     the returned lat/lon can differ by up to ~20 m from the pin).
+      //   • Exact address match (fallback for other VRP backends).
       final isDepotLike =
-          _isSameCoord(s.lat, s.lon, depot.latitude, depot.longitude) ||
+          s.address.trim().toUpperCase() == 'DEPOT' ||
+          _isSameCoordLoose(s.lat, s.lon, depot.latitude, depot.longitude) ||
           (s.address.trim() == (depot.address ?? '').trim() &&
               s.address.isNotEmpty);
       if (isDepotLike) continue;
 
-      // 1) match by address (case-insensitive)
+      // 1) match by address (case-insensitive, both sides non-empty)
       final addrIdx = remaining.indexWhere(
         (r) =>
             (r.address?.toLowerCase() ?? '') == s.address.toLowerCase() &&
@@ -151,37 +155,76 @@ class RouteRepositoryImpl implements RouteRepository {
       if (addrIdx >= 0) {
         matched = remaining.removeAt(addrIdx);
       } else {
-        // 2) match by proximity
-        final coordIdx = remaining.indexWhere(
-          (r) => _isSameCoord(s.lat, s.lon, r.latitude, r.longitude),
+        // 2) label-as-address match: when a stop had no address its label
+        //    was sent as the address field and is echoed back by the API.
+        final labelIdx = remaining.indexWhere(
+          (r) =>
+              (r.address == null || r.address!.isEmpty) &&
+              r.label.toLowerCase() == s.address.toLowerCase() &&
+              s.address.isNotEmpty,
         );
-        if (coordIdx >= 0) {
-          matched = remaining.removeAt(coordIdx);
+        if (labelIdx >= 0) {
+          matched = remaining.removeAt(labelIdx);
+        } else {
+          // 3) match by proximity (~10 m)
+          final coordIdx = remaining.indexWhere(
+            (r) => _isSameCoord(s.lat, s.lon, r.latitude, r.longitude),
+          );
+          if (coordIdx >= 0) matched = remaining.removeAt(coordIdx);
         }
       }
 
       if (matched != null) {
-        result.add(matched.copyWith(sequence: result.length + 1));
+        // Relabel by optimised position so dot number == caption label.
+        result.add(matched.copyWith(
+          label: AppStrings.stopLabel(result.length + 1),
+          sequence: result.length + 1,
+        ));
       } else if (s.lat != 0 && s.lon != 0) {
-        // The API returned an address we don't recognise; still surface it.
-        result.add(
-          RoutePoint(
-            id: 'srv_${result.length}',
-            latitude: s.lat,
-            longitude: s.lon,
+        // No label/address/coord match. Try a loose proximity scan (≤500 m)
+        // to catch API lat/lon rounding before creating a ghost entry — this
+        // prevents the original user stop from being appended as a duplicate.
+        int looseIdx = -1;
+        double looseDistMin = double.infinity;
+        for (var i = 0; i < remaining.length; i++) {
+          final d = DistanceUtils.haversineKm(
+            LatLng(s.lat, s.lon),
+            remaining[i].latLng,
+          );
+          if (d < looseDistMin) {
+            looseDistMin = d;
+            looseIdx = i;
+          }
+        }
+        if (looseIdx >= 0 && looseDistMin < 0.5) {
+          result.add(remaining.removeAt(looseIdx).copyWith(
             label: AppStrings.stopLabel(result.length + 1),
-            address: s.address,
-            weight: s.weight,
-            kind: RoutePointKind.stop,
             sequence: result.length + 1,
-          ),
-        );
+          ));
+        } else {
+          // Truly unrecognised stop from the API — surface it as-is.
+          result.add(
+            RoutePoint(
+              id: 'srv_${result.length}',
+              latitude: s.lat,
+              longitude: s.lon,
+              label: AppStrings.stopLabel(result.length + 1),
+              address: s.address,
+              weight: s.weight,
+              kind: RoutePointKind.stop,
+              sequence: result.length + 1,
+            ),
+          );
+        }
       }
     }
 
     // Append any stops the API didn't return (safety net).
     for (final r in remaining) {
-      result.add(r.copyWith(sequence: result.length + 1));
+      result.add(r.copyWith(
+        label: AppStrings.stopLabel(result.length + 1),
+        sequence: result.length + 1,
+      ));
     }
 
     return [
@@ -192,8 +235,14 @@ class RouteRepositoryImpl implements RouteRepository {
   }
 
   bool _isSameCoord(double a1, double a2, double b1, double b2) {
-    // ~10m tolerance.
+    // ~10 m tolerance.
     return (a1 - b1).abs() < 1e-4 && (a2 - b2).abs() < 1e-4;
+  }
+
+  bool _isSameCoordLoose(double a1, double a2, double b1, double b2) {
+    // ~30 m tolerance — used for depot detection when the VRP API snaps
+    // the depot pin to the nearest road and returns rounded coordinates.
+    return (a1 - b1).abs() < 3e-4 && (a2 - b2).abs() < 3e-4;
   }
 
   Future<_PolylineBundle> _buildPolylines(

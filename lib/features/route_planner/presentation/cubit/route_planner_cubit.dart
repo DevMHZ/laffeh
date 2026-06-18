@@ -3,6 +3,8 @@ import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -12,6 +14,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/utils/link_parser.dart';
+import '../../../../core/utils/polyline_utils.dart';
 import '../../../../core/utils/location_utils.dart';
 import '../../../saved_routes/domain/entities/saved_route.dart';
 import '../../../saved_routes/domain/repositories/saved_routes_repository.dart';
@@ -447,12 +450,18 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
     try {
       final loc = await LocationUtils.getCurrentLatLng();
+      // Point the camera at the first stop so the driver immediately sees
+      // where they need to go, not just their current GPS position.
+      final firstStop = route.orderedPoints.length > 1
+          ? route.orderedPoints[1].latLng
+          : loc;
       emit(
         state.copyWith(
           userLocation: loc,
-          cameraTarget: loc,
+          cameraTarget: firstStop,
           navigationActive: true,
-          navigationProgress: _progressAlongPath(route.fullPolyline, loc),
+          navigationProgress: 0.0,
+          navigationStopIndex: 1,
           clearNavigationHeading: true,
           clearNavigationSpeed: true,
           simulationActive: false,
@@ -500,8 +509,58 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       state.copyWith(
         navigationActive: false,
         navigationProgress: 0.0,
+        navigationStopIndex: 1,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
+      ),
+    );
+  }
+
+  /// Driver taps "Arrived" — mark the current target stop as done and
+  /// advance to the next one. When the last stop (return depot) is marked
+  /// done the trip ends automatically.
+  void markCurrentStopDone() {
+    final route = state.optimizedRoute;
+    if (route == null || !state.navigationActive) return;
+    final next = state.navigationStopIndex + 1;
+    if (next >= route.orderedPoints.length) {
+      HapticFeedback.heavyImpact();
+      stopNavigation();
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    emit(state.copyWith(navigationStopIndex: next));
+  }
+
+  /// Advances the debug driver 100 m forward along the planned polyline.
+  ///
+  /// Tap once → single step.  Hold (long-press) → the UI fires this
+  /// repeatedly.  When the simulated position enters the 150 m arrival
+  /// radius of the current target stop the stop is auto-marked done,
+  /// exactly as the real GPS logic would do it.
+  ///
+  /// DEBUG ONLY — no-op in release builds.  Remove this method (and the
+  /// corresponding UI widget) before publishing the app.
+  void debugStepForward() {
+    if (!kDebugMode) return;
+    final route = state.optimizedRoute;
+    if (route == null || !state.navigationActive) return;
+
+    const stepKm = 0.10; // 100 m per tap
+    final totalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
+    if (totalKm <= 0) return;
+
+    final newProgress =
+        (state.navigationProgress + stepKm / totalKm).clamp(0.0, 1.0);
+    final sample = PolylineUtils.sampleAt(route.fullPolyline, newProgress);
+    if (sample == null) return;
+    final loc = sample.point;
+
+    emit(
+      state.copyWith(
+        userLocation: loc,
+        cameraTarget: loc,
+        navigationProgress: newProgress,
       ),
     );
   }
@@ -521,12 +580,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final speed = position.speed.isFinite && position.speed >= 0
         ? position.speed
         : null;
+    final progress = _progressAlongPath(route.fullPolyline, loc);
 
     emit(
       state.copyWith(
         userLocation: loc,
         cameraTarget: loc,
-        navigationProgress: _progressAlongPath(route.fullPolyline, loc),
+        navigationProgress: progress,
         navigationHeading: heading,
         navigationSpeedMps: speed,
       ),

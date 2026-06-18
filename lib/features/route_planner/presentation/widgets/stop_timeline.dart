@@ -260,24 +260,21 @@ class _TimelineItem extends StatelessWidget {
                             : null,
                       ),
                       alignment: Alignment.center,
-                      child: done
-                          ? const Icon(
-                              Icons.check_rounded,
-                              size: 18,
-                              color: AppColors.white,
-                            )
-                          : label != null
+                      // Depot entries show their icon (flag / repeat).
+                      // Regular stops always show their number — green
+                      // fill communicates "done", no checkmark overlay.
+                      child: label != null
                           ? Icon(
                               label,
                               size: 15,
-                              color: active
+                              color: (done || active)
                                   ? AppColors.white
                                   : AppColors.primary,
                             )
                           : Text(
                               '$number',
                               style: AppTextStyles.titleSm.copyWith(
-                                color: active
+                                color: (done || active)
                                     ? AppColors.white
                                     : AppColors.primary,
                               ),

@@ -18,7 +18,7 @@ class AppConfig {
 
   /// AI search budget. The Afdal VRP API spends up to this many
   /// seconds looking for the best route.
-  static const int defaultTimeLimitSeconds = 15;
+  static const int defaultTimeLimitSeconds = 4;
 
   /// Max working time per driver (minutes).
   static const int defaultMaxVehicleTimeMinutes = 480;
