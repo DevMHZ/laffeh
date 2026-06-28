@@ -71,7 +71,9 @@ class _MapCompassState extends State<MapCompass> {
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutBack,
           child: ClipOval(
-            child: BackdropFilter(
+            // Shares one backdrop blur pass with the other map chrome via the
+            // screen's [BackdropGroup] (graceful standalone fallback otherwise).
+            child: BackdropFilter.grouped(
               filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
               child: Material(
                 color: AppColors.white.withValues(alpha: 0.92),

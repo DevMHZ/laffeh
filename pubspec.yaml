@@ -72,6 +72,7 @@ flutter:
     - assets/afdalLogo.png
     - assets/laffeh_logo.png
     - assets/laffeh_road.png
+    - assets/whatsapp.svg
     - assets/animations/
 
   fonts:

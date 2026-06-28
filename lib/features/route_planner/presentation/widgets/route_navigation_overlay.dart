@@ -32,14 +32,48 @@ class RouteNavigationOverlay extends StatefulWidget {
   const RouteNavigationOverlay({super.key, this.onOpenGoogleMaps});
 
   @override
-  State<RouteNavigationOverlay> createState() =>
-      _RouteNavigationOverlayState();
+  State<RouteNavigationOverlay> createState() => _RouteNavigationOverlayState();
 }
 
 class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
+  /// Portrait-only — the app's default everywhere outside focus mode.
+  static const _portraitOnly = <DeviceOrientation>[
+    DeviceOrientation.portraitUp,
+  ];
+
+  /// All orientations — focus mode lets the driver turn a mounted phone
+  /// sideways for a wide map. Rotation stays the user's choice; we only
+  /// permit it, never force it.
+  static const _allOrientations = <DeviceOrientation>[
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ];
+
   /// When true the HUD collapses to an eyes-on-road minimum: only the slim
   /// next-stop banner and an exit control remain, so the map fills the screen.
   bool _focusMode = false;
+
+  /// Enters/leaves focus mode and unlocks/relocks landscape with it. Leaving
+  /// focus forces the device back to portrait even if held sideways.
+  void _setFocusMode(bool enabled) {
+    if (_focusMode == enabled) return;
+    setState(() => _focusMode = enabled);
+    SystemChrome.setPreferredOrientations(
+      enabled ? _allOrientations : _portraitOnly,
+    );
+  }
+
+  @override
+  void dispose() {
+    // Navigation can end while focus mode is still on (arrival auto-ends the
+    // trip, or End Trip is tapped). Always restore the portrait lock so the
+    // rest of the app is never left rotatable.
+    if (_focusMode) {
+      SystemChrome.setPreferredOrientations(_portraitOnly);
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,11 +100,47 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         const finished = false;
 
         final loc = state.userLocation;
-        final distanceToTarget =
-            loc == null ? null : DistanceUtils.haversineKm(loc, target.latLng);
+        final distanceToTarget = loc == null
+            ? null
+            : DistanceUtils.haversineKm(loc, target.latLng);
         final remainingKm =
             (route.metrics.totalDistanceKm ?? 0) *
             (1 - state.navigationProgress);
+
+        // Landscape only happens inside focus mode (the app is portrait-locked
+        // otherwise). A full-width banner across a wide screen would bury the
+        // map, so we cap it and pin it to the leading edge — Maps/Waze style.
+        final isLandscape =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+
+        // Landscape gets a wholly different shape: a super-thin vertical rail
+        // hugging the leading edge, vertically centred — icons and numbers
+        // only, no labels — so it takes almost no width and never sits in the
+        // driver's line of sight. Landscape only ever happens in focus mode.
+        if (isLandscape) {
+          return Positioned.fill(
+            child: SafeArea(
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: _LandscapeHudRail(
+                    isReturn: isReturn,
+                    subtitle: isReturn
+                        ? AppStrings.endTrip
+                        : '${AppStrings.nextStop} · '
+                              '${AppStrings.stopNofM(_stopNumber(route, targetIndex), _stopCount(route))}',
+                    label: target.label,
+                    address: target.address,
+                    distanceToTarget: distanceToTarget,
+                    remainingKm: remainingKm,
+                    onExitFocus: () => _setFocusMode(false),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
 
         return Positioned.fill(
           child: Column(
@@ -86,35 +156,33 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: AppColors.asphalt.withValues(alpha: 0.97),
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: const [
                             BoxShadow(
                               color: AppColors.shadow,
-                              blurRadius: 28,
-                              offset: Offset(0, 12),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
                             ),
                           ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
+                          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
                           child: Row(
                             children: [
                               // Icon badge.
                               Container(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
-                                  isReturn
-                                      ? Iconsax.repeat
-                                      : Iconsax.location,
+                                  isReturn ? Iconsax.repeat : Iconsax.location,
                                   color: AppColors.white,
-                                  size: 26,
+                                  size: 18,
                                 ),
                               ),
-                              const SizedBox(width: 14),
+                              const SizedBox(width: 10),
                               // Stop info.
                               Expanded(
                                 child: Column(
@@ -135,7 +203,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                                       target.label,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: AppTextStyles.h2.copyWith(
+                                      style: AppTextStyles.h3.copyWith(
                                         color: AppColors.white,
                                       ),
                                     ),
@@ -156,34 +224,35 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               // Live distance to target.
                               if (distanceToTarget != null)
                                 Text(
                                   MetricFormat.distance(distanceToTarget),
-                                  style: AppTextStyles.h2.copyWith(
+                                  style: AppTextStyles.h3.copyWith(
                                     color: AppColors.white,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 2),
                             ],
                           ),
                         ),
                       ),
                       if (!_focusMode) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         // Timeline strip.
                         GlassPanel(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
-                            vertical: 6,
+                            vertical: 4,
                           ),
-                          radius: 18,
+                          radius: 14,
                           child: StopTimeline(
                             points: route.orderedPoints,
                             currentTarget: targetIndex,
                             finished: finished,
+                            compact: true,
                           ),
                         ),
                       ],
@@ -198,15 +267,15 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                   child: _focusMode
                       ? _FocusExitBar(
                           remaining: MetricFormat.distance(remainingKm),
-                          onExit: () => setState(() => _focusMode = false),
+                          onExit: () => _setFocusMode(false),
                         )
                       : GlassPanel(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                          radius: 26,
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                          radius: 20,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -215,27 +284,26 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                                 children: [
                                   const Icon(
                                     Iconsax.routing,
-                                    size: 16,
+                                    size: 15,
                                     color: AppColors.textSecondary,
                                   ),
-                                  const SizedBox(width: 7),
+                                  const SizedBox(width: 6),
                                   Text(
                                     MetricFormat.distance(remainingKm),
                                     style: AppTextStyles.titleSm,
                                   ),
-                                  const SizedBox(width: 5),
+                                  const SizedBox(width: 4),
                                   Text(
                                     AppStrings.remainingShort,
                                     style: AppTextStyles.mutedSm,
                                   ),
                                   const Spacer(),
                                   _FocusToggleButton(
-                                    onTap: () =>
-                                        setState(() => _focusMode = true),
+                                    onTap: () => _setFocusMode(true),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
 
                               // Primary action: "Arrived" at every stop. At the
                               // return depot it becomes "End Trip" — the driver
@@ -256,7 +324,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                                       : cubit.markCurrentStopDone,
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
 
                               // Secondary actions.
                               Row(
@@ -275,8 +343,9 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                                     child: _BigAction(
                                       icon: Iconsax.close_circle,
                                       label: AppStrings.endTrip,
-                                      background: AppColors.danger
-                                          .withValues(alpha: 0.10),
+                                      background: AppColors.danger.withValues(
+                                        alpha: 0.10,
+                                      ),
                                       foreground: AppColors.danger,
                                       onTap: cubit.stopNavigation,
                                     ),
@@ -287,7 +356,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                               // ── DEBUG ONLY — visible drive-test stepper,
                               // compiled out of release builds via [kDebugMode].
                               if (kDebugMode && !finished) ...[
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 6),
                                 _DebugStepButton(
                                   onStep: cubit.debugStepForward,
                                 ),
@@ -319,6 +388,206 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
 
   int _stopCount(OptimizedRoute route) =>
       route.orderedPoints.where((p) => !p.isDepot).length;
+}
+
+/// Super-thin landscape rail for focus mode.
+///
+/// A single narrow vertical strip on the leading edge — icons and numbers
+/// stacked, no text labels — so it occupies almost no width and stays clear
+/// of the driver's view. Shows: next-stop distance (the big number), remaining
+/// trip distance, and an icon-only exit back to portrait.
+///
+/// Tapping the next-stop badge expands the rail to reveal the stop name (and
+/// "Next stop · N of M" heading); tapping again collapses it. The expand state
+/// is local — width animates so the map is uncovered again the moment it closes.
+class _LandscapeHudRail extends StatefulWidget {
+  final bool isReturn;
+  final String subtitle;
+  final String label;
+  final String? address;
+  final double? distanceToTarget;
+  final double remainingKm;
+  final VoidCallback onExitFocus;
+
+  const _LandscapeHudRail({
+    required this.isReturn,
+    required this.subtitle,
+    required this.label,
+    required this.address,
+    required this.distanceToTarget,
+    required this.remainingKm,
+    required this.onExitFocus,
+  });
+
+  @override
+  State<_LandscapeHudRail> createState() => _LandscapeHudRailState();
+}
+
+class _LandscapeHudRailState extends State<_LandscapeHudRail> {
+  bool _expanded = false;
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final white70 = AppColors.white.withValues(alpha: 0.70);
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: _expanded ? 200 : 58),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.asphalt.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(_expanded ? 22 : 28),
+            boxShadow: const [
+              BoxShadow(
+                color: AppColors.shadow,
+                blurRadius: 16,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: _expanded ? 12 : 6,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Next-stop badge — tap to reveal/hide the stop name.
+                GestureDetector(
+                  onTap: _toggle,
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Icon(
+                          widget.isReturn ? Iconsax.repeat : Iconsax.location,
+                          color: AppColors.white,
+                          size: 15,
+                        ),
+                      ),
+                      // Tiny chevron hints the badge is tappable.
+                      const SizedBox(height: 2),
+                      Icon(
+                        _expanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 14,
+                        color: white70,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Stop name + heading — only when expanded.
+                if (_expanded) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.subtitle,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.mutedSm.copyWith(color: white70),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                  // Textual address, mirroring the portrait banner.
+                  if (widget.address != null && widget.address!.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.address!,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.white.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ],
+                ],
+
+                // Live distance to the target — the big number.
+                if (widget.distanceToTarget != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    MetricFormat.distance(widget.distanceToTarget!),
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.titleMd.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: AppColors.white.withValues(alpha: 0.15),
+                ),
+                const SizedBox(height: 10),
+                // Remaining trip distance.
+                Icon(Iconsax.routing, size: 13, color: white70),
+                const SizedBox(height: 4),
+                Text(
+                  MetricFormat.distance(widget.remainingKm),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: white70,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Exit focus → snaps back to portrait.
+                Align(
+                  child: Material(
+                    color: AppColors.white.withValues(alpha: 0.10),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        widget.onExitFocus();
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.all(9),
+                        child: Icon(
+                          Icons.fullscreen_exit_rounded,
+                          size: 18,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Debug step button — visible only in debug builds.
@@ -373,24 +642,24 @@ class _DebugStepButtonState extends State<_DebugStepButton> {
             widget.onStep();
           },
           child: SizedBox(
-            height: 58,
+            height: 44,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
                   Icons.arrow_forward_rounded,
                   color: Colors.white,
-                  size: 22,
+                  size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'تقدم خطوة',
-                  style: AppTextStyles.titleMd.copyWith(color: Colors.white),
+                  style: AppTextStyles.titleSm.copyWith(color: Colors.white),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Text(
                   'اضغط مطوّلاً للسير',
-                  style: AppTextStyles.bodySm.copyWith(
+                  style: AppTextStyles.mutedSm.copyWith(
                     color: Colors.white.withValues(alpha: 0.60),
                   ),
                 ),
@@ -432,8 +701,7 @@ class _FocusToggleButton extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 AppStrings.focusMode,
-                style:
-                    AppTextStyles.titleSm.copyWith(color: AppColors.primary),
+                style: AppTextStyles.titleSm.copyWith(color: AppColors.primary),
               ),
             ],
           ),
@@ -471,8 +739,7 @@ class _FocusExitBar extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   remaining,
-                  style:
-                      AppTextStyles.titleSm.copyWith(color: AppColors.white),
+                  style: AppTextStyles.titleSm.copyWith(color: AppColors.white),
                 ),
                 Container(
                   width: 1,
@@ -488,8 +755,7 @@ class _FocusExitBar extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   AppStrings.exitFocus,
-                  style:
-                      AppTextStyles.titleSm.copyWith(color: AppColors.white),
+                  style: AppTextStyles.titleSm.copyWith(color: AppColors.white),
                 ),
               ],
             ),
@@ -529,11 +795,11 @@ class _BigAction extends StatelessWidget {
                 onTap!();
               },
         child: SizedBox(
-          height: 58,
+          height: 46,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: foreground, size: 22),
+              Icon(icon, color: foreground, size: 18),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(

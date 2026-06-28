@@ -59,11 +59,15 @@ class StopTimeline extends StatefulWidget {
   /// When true the whole trip is done — every dot renders as visited.
   final bool finished;
 
+  /// Tighter sizing for the drive HUD, where vertical space is scarce.
+  final bool compact;
+
   const StopTimeline({
     super.key,
     required this.points,
     required this.currentTarget,
     this.finished = false,
+    this.compact = false,
   });
 
   @override
@@ -75,7 +79,7 @@ class _StopTimelineState extends State<StopTimeline>
   late final AnimationController _pulse;
   final ScrollController _scroll = ScrollController();
 
-  static const double _itemExtent = 64;
+  double get _itemExtent => widget.compact ? 48 : 56;
 
   @override
   void initState() {
@@ -116,7 +120,7 @@ class _StopTimelineState extends State<StopTimeline>
   Widget build(BuildContext context) {
     final points = widget.points;
     return SizedBox(
-      height: 78,
+      height: widget.compact ? 46 : 58,
       child: ListView.builder(
         controller: _scroll,
         scrollDirection: Axis.horizontal,
@@ -140,6 +144,7 @@ class _StopTimelineState extends State<StopTimeline>
             done: done,
             active: active,
             pulse: _pulse,
+            compact: widget.compact,
             drawLeftLine: i > 0,
             drawRightLine: i < points.length - 1,
             leftDone: widget.finished || i <= widget.currentTarget,
@@ -171,6 +176,7 @@ class _TimelineItem extends StatelessWidget {
   final bool drawRightLine;
   final bool leftDone;
   final bool rightDone;
+  final bool compact;
 
   const _TimelineItem({
     required this.label,
@@ -183,6 +189,7 @@ class _TimelineItem extends StatelessWidget {
     required this.drawRightLine,
     required this.leftDone,
     required this.rightDone,
+    required this.compact,
   });
 
   @override
@@ -193,11 +200,13 @@ class _TimelineItem extends StatelessWidget {
         ? AppColors.pinOrange
         : AppColors.borderStrong;
 
+    final dot = compact ? 22.0 : 27.0;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: 40,
+          height: compact ? 26 : 32,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -234,8 +243,8 @@ class _TimelineItem extends StatelessWidget {
                   return Transform.scale(
                     scale: scale,
                     child: Container(
-                      width: 32,
-                      height: 32,
+                      width: dot,
+                      height: dot,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: done || active ? color : AppColors.surface,
@@ -266,7 +275,7 @@ class _TimelineItem extends StatelessWidget {
                       child: label != null
                           ? Icon(
                               label,
-                              size: 15,
+                              size: compact ? 11 : 13,
                               color: (done || active)
                                   ? AppColors.white
                                   : AppColors.primary,
@@ -274,6 +283,7 @@ class _TimelineItem extends StatelessWidget {
                           : Text(
                               '$number',
                               style: AppTextStyles.titleSm.copyWith(
+                                fontSize: compact ? 11 : 12,
                                 color: (done || active)
                                     ? AppColors.white
                                     : AppColors.primary,
@@ -286,7 +296,7 @@ class _TimelineItem extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: compact ? 2 : 3),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: Text(
@@ -295,6 +305,7 @@ class _TimelineItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: AppTextStyles.mutedSm.copyWith(
+              fontSize: compact ? 9 : 10,
               color: active ? AppColors.textPrimary : AppColors.textMuted,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
             ),

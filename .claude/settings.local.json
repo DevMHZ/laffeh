@@ -75,7 +75,8 @@
       "Bash(flutter run *)",
       "Bash(pkill -f \"flutter_tools\")",
       "Bash(pkill -f \"laffeh\")",
-      "Bash(screencapture -x /tmp/laffeh_screenshot.png)"
+      "Bash(screencapture -x /tmp/laffeh_screenshot.png)",
+      "Bash(grep -E \"\\\\.dart$\")"
     ]
   }
 }

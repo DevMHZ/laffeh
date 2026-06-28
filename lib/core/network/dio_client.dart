@@ -5,8 +5,8 @@ import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
-import '../config/app_config.dart';
 import '../config/env_config.dart';
+import '../config/network_config.dart';
 
 /// Two named Dio instances:
 ///
@@ -42,9 +42,9 @@ class DioClient {
     final dio = Dio(
       BaseOptions(
         baseUrl: EnvConfig.aiRouteBaseUrl,
-        connectTimeout: AppConfig.networkTimeout,
-        receiveTimeout: AppConfig.networkTimeout,
-        sendTimeout: AppConfig.networkTimeout,
+        connectTimeout: NetworkConfig.timeout,
+        receiveTimeout: NetworkConfig.timeout,
+        sendTimeout: NetworkConfig.timeout,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -63,9 +63,9 @@ class DioClient {
     final dio = Dio(
       BaseOptions(
         baseUrl: 'https://router.project-osrm.org',
-        connectTimeout: AppConfig.networkTimeout,
-        receiveTimeout: AppConfig.networkTimeout,
-        sendTimeout: AppConfig.networkTimeout,
+        connectTimeout: NetworkConfig.timeout,
+        receiveTimeout: NetworkConfig.timeout,
+        sendTimeout: NetworkConfig.timeout,
         headers: const {'Accept': 'application/json'},
         responseType: ResponseType.json,
       ),
@@ -80,9 +80,9 @@ class DioClient {
     final dio = Dio(
       BaseOptions(
         baseUrl: EnvConfig.nominatimBaseUrl,
-        connectTimeout: AppConfig.networkTimeout,
-        receiveTimeout: AppConfig.networkTimeout,
-        sendTimeout: AppConfig.networkTimeout,
+        connectTimeout: NetworkConfig.timeout,
+        receiveTimeout: NetworkConfig.timeout,
+        sendTimeout: NetworkConfig.timeout,
         headers: const {
           'Accept': 'application/json',
           'User-Agent': 'LaffehRoutePlanner/1.0 (https://www.afdal.tech/)',

@@ -25,14 +25,24 @@ class RoutePoint extends Equatable {
   /// Optional human address. Set after reverse-geocoding.
   final String? address;
 
-  /// Default payload weight for VRP. Most users won't care; we
-  /// use a sane default from [AppConfig].
+  /// Default payload weight for VRP, defaulted from `RoutingConfig`.
   final int weight;
 
   final RoutePointKind kind;
 
   /// Server-assigned index after optimization (null beforehand).
   final int? sequence;
+
+  /// Whether the user flagged this as an *optional* stop — one that the
+  /// optimizer may include or skip. Optional points can be toggled
+  /// [active]/inactive without being deleted. Depots are never optional.
+  final bool optional;
+
+  /// Whether this point currently participates in routing / optimization.
+  /// Always true for mandatory stops and the depot. An optional point that
+  /// the user deactivated has `active == false`, so it stays in the list
+  /// (and on the map, dimmed) but is excluded from the optimize request.
+  final bool active;
 
   const RoutePoint({
     required this.id,
@@ -43,11 +53,20 @@ class RoutePoint extends Equatable {
     required this.kind,
     this.address,
     this.sequence,
+    this.optional = false,
+    this.active = true,
   });
 
   LatLng get latLng => LatLng(latitude, longitude);
 
   bool get isDepot => kind == RoutePointKind.depot;
+
+  /// True when this point should be sent to the optimizer: every mandatory
+  /// point, plus optional points the user left active.
+  bool get isRoutable => !optional || active;
+
+  /// True for an optional point the user has switched off.
+  bool get isDeactivated => optional && !active;
 
   RoutePoint copyWith({
     String? id,
@@ -58,6 +77,8 @@ class RoutePoint extends Equatable {
     int? weight,
     RoutePointKind? kind,
     int? sequence,
+    bool? optional,
+    bool? active,
     bool clearSequence = false,
     bool clearAddress = false,
   }) {
@@ -70,6 +91,8 @@ class RoutePoint extends Equatable {
       weight: weight ?? this.weight,
       kind: kind ?? this.kind,
       sequence: clearSequence ? null : (sequence ?? this.sequence),
+      optional: optional ?? this.optional,
+      active: active ?? this.active,
     );
   }
 
@@ -83,5 +106,7 @@ class RoutePoint extends Equatable {
     weight,
     kind,
     sequence,
+    optional,
+    active,
   ];
 }

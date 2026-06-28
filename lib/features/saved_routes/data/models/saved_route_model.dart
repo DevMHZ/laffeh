@@ -126,6 +126,8 @@ class PointDto {
   final int weight;
   final String kind; // 'depot' | 'stop'
   final int? sequence;
+  final bool optional;
+  final bool active;
 
   const PointDto({
     required this.id,
@@ -136,6 +138,8 @@ class PointDto {
     required this.weight,
     required this.kind,
     required this.sequence,
+    this.optional = false,
+    this.active = true,
   });
 
   factory PointDto.fromEntity(RoutePoint p) => PointDto(
@@ -147,6 +151,8 @@ class PointDto {
     weight: p.weight,
     kind: p.isDepot ? 'depot' : 'stop',
     sequence: p.sequence,
+    optional: p.optional,
+    active: p.active,
   );
 
   RoutePoint toEntity() => RoutePoint(
@@ -158,6 +164,8 @@ class PointDto {
     weight: weight,
     kind: kind == 'depot' ? RoutePointKind.depot : RoutePointKind.stop,
     sequence: sequence,
+    optional: optional,
+    active: active,
   );
 
   Map<String, dynamic> toJson() => {
@@ -169,6 +177,8 @@ class PointDto {
     'weight': weight,
     'kind': kind,
     'sequence': sequence,
+    'optional': optional,
+    'active': active,
   };
 
   factory PointDto.fromJson(Map<String, dynamic> j) => PointDto(
@@ -180,6 +190,9 @@ class PointDto {
     weight: (j['weight'] is num) ? (j['weight'] as num).toInt() : 0,
     kind: j['kind']?.toString() ?? 'stop',
     sequence: (j['sequence'] is num) ? (j['sequence'] as num).toInt() : null,
+    // Legacy drafts/saved routes predate these flags — default sensibly.
+    optional: j['optional'] == true,
+    active: j['active'] == null ? true : j['active'] == true,
   );
 }
 

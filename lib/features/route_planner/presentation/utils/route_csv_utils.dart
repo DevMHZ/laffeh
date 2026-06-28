@@ -10,6 +10,8 @@ class RouteCsvUtils {
     'sequence',
     'label',
     'kind',
+    'optional',
+    'active',
     'latitude',
     'longitude',
     'address',
@@ -24,15 +26,25 @@ class RouteCsvUtils {
         return [
           p.sequence ?? entry.key,
           p.label,
-          p.isDepot ? 'depot' : 'stop',
+          p.isDepot
+              ? 'depot'
+              : p.optional
+              ? 'optional'
+              : 'stop',
+          p.optional ? 'yes' : 'no',
+          p.active ? 'yes' : 'no',
           p.latitude,
           p.longitude,
+          // Empty fields are written as an empty cell, never "null".
           p.address ?? '',
           p.weight,
         ];
       }),
     ];
-    return const CsvEncoder().convert(rows);
+    // addBom embeds a UTF-8 BOM so Excel / Numbers render Arabic
+    // correctly instead of mojibake (#5). \r\n line endings keep Excel
+    // happy too.
+    return const CsvEncoder(addBom: true).convert(rows);
   }
 
   /// Converts a CSV into importable lines accepted by
@@ -44,7 +56,10 @@ class RouteCsvUtils {
   /// - Headerless rows where the first two columns are coordinates.
   /// - Headerless rows where the first column is an address.
   static List<String> decodeImportLines(String source) {
-    final rows = const CsvDecoder().convert(source);
+    // Strip a leading UTF-8 BOM (present on files we exported, and on
+    // many spreadsheets) so the first header cell parses cleanly.
+    final clean = source.startsWith('\u{FEFF}') ? source.substring(1) : source;
+    final rows = const CsvDecoder().convert(clean);
     if (rows.isEmpty) return const [];
 
     final header = _headerMap(rows.first);

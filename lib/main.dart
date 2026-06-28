@@ -7,12 +7,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/constants/app_constants.dart';
 import 'core/di/service_locator.dart';
+import 'core/utils/debug_log.dart';
 import 'core/utils/share_intent_handler.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+ 
+  await SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.portraitUp,
+  ]);
 
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  DebugLog.banner('laffeh startup');
+
   await initializeDateFormatting();
 
   try {
@@ -30,5 +36,5 @@ Future<void> main() async {
 
   ShareIntentHandler.init();
 
-  runApp(const LaffehApp());
+  runApp(const LaffahApp());
 }

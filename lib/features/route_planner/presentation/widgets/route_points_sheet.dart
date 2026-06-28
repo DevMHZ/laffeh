@@ -7,19 +7,33 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
-import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_dialog.dart';
+import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'optimize_route_button.dart';
-import 'route_point_tile.dart';
+import 'point_actions_sheet.dart';
+
+part 'route_points_sheet_widgets.dart';
 
 class RoutePointsSheet extends StatelessWidget {
-  final VoidCallback? onPasteAddresses;
-  final VoidCallback? onImportCsv;
+  /// Drops a point at the map crosshair. This is the primary "place a
+  /// point" action — docked at the top of the sheet (instead of floating
+  /// over the map) so the map stays as clear as possible.
+  final VoidCallback? onAddHere;
 
-  const RoutePointsSheet({super.key, this.onPasteAddresses, this.onImportCsv});
+  /// Opens the paste-or-import-CSV chooser (the two bulk paths combined).
+  final VoidCallback? onShowImport;
+
+  /// Opens WhatsApp so the user can share a location back to Laffah.
+  final VoidCallback? onOpenWhatsapp;
+
+  const RoutePointsSheet({
+    super.key,
+    this.onAddHere,
+    this.onShowImport,
+    this.onOpenWhatsapp,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +41,9 @@ class RoutePointsSheet extends StatelessWidget {
       buildWhen: (a, b) =>
           a.points != b.points ||
           a.status != b.status ||
-          a.errorMessage != b.errorMessage,
+          a.errorMessage != b.errorMessage ||
+          a.isOffline != b.isOffline ||
+          a.draftRestored != b.draftRestored,
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
 
@@ -37,15 +53,41 @@ class RoutePointsSheet extends StatelessWidget {
             state.errorMessage == AppStrings.errLocationServiceDisabled ||
             state.errorMessage == AppStrings.errLocationPermissionDenied;
 
+        // No title / count header: the add controls below make the
+        // sheet's purpose obvious and the empty state has its own hint,
+        // so dropping the title row (and the big empty gutter beside it)
+        // hands that vertical space back to the map. Only the drag handle
+        // stays.
         return AppSheetContainer(
-          title: AppStrings.routePointsTitle,
-          subtitle: state.hasPoints
-              ? '${AppStrings.pointsCount(state.points.length)} • ${AppStrings.dragToReorder}'
-              : AppStrings.panToAddPoint,
-          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+          contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ── All "add" paths in one compact row ───────────────────
+              //    Paste · ADD STOP HERE (emphasised, centre) · CSV. One row
+              //    keeps the map as tall as possible. (Returning to the
+              //    user's location is an on-map control, not a sheet button.)
+              if (onAddHere != null ||
+                  onShowImport != null ||
+                  onOpenWhatsapp != null) ...[
+                _AddControlsRow(
+                  hasDepot: state.hasPoints,
+                  onAddHere: onAddHere,
+                  onShowImport: onShowImport,
+                  onOpenWhatsapp: onOpenWhatsapp,
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              // Offline first — it explains why a sync/optimize may wait.
+              if (state.isOffline) ...[
+                const _OfflineBanner(),
+                const SizedBox(height: 10),
+              ] else if (state.draftRestored && state.hasPoints) ...[
+                const _DraftRestoredHint(),
+                const SizedBox(height: 10),
+              ],
+
               if (state.errorMessage != null &&
                   state.status != RoutePlannerStatus.optimizedFailure) ...[
                 _MessageBanner(
@@ -62,60 +104,41 @@ class RoutePointsSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
               ],
-              if (!state.hasPoints) ...[
-                const SizedBox(height: 4),
-                _EmptyState(
-                  onPasteAddresses: onPasteAddresses,
-                  onImportCsv: onImportCsv,
+
+              // Compact grid — points laid out a couple per row to keep the
+              // sheet small. Tapping a cell opens its full address + actions
+              // (rename / move / optional / delete) through the shared
+              // showPointActions sheet. Ordering is owned by the optimizer
+              // (#6), so cells aren't reorderable. (The empty state lives in
+              // the screen-level AddOptionsHost, so the sheet always has at
+              // least one point here.)
+              const SizedBox(height: 6),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                itemCount: state.points.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisExtent: 54,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
                 ),
-              ] else ...[
-                const SizedBox(height: 6),
-                ReorderableListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  buildDefaultDragHandles: false,
-                  itemCount: state.points.length,
-                  onReorder: cubit.reorderPoint,
-                  proxyDecorator: (child, _, animation) {
-                    return AnimatedBuilder(
-                      animation: animation,
-                      builder: (_, child) {
-                        final t = Curves.easeOutCubic.transform(
-                          animation.value,
-                        );
-                        return Transform.scale(
-                          scale: 1 + (0.025 * t),
-                          child: Material(
-                            color: Colors.transparent,
-                            elevation: 10 * t,
-                            shadowColor: AppColors.shadow,
-                            borderRadius: BorderRadius.circular(18),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: child,
-                    );
-                  },
-                  itemBuilder: (context, index) {
-                    final p = state.points[index];
-                    return ReorderableDelayedDragStartListener(
-                      key: ValueKey(p.id),
-                      index: index,
-                      child: RoutePointTile(
-                        point: p,
-                        index: index,
-                        onRename: () => _renamePrompt(context, p),
-                        onRemove: () => cubit.removePoint(p.id),
-                        onSetAsDeparture: () => cubit.setAsDeparture(p.id),
-                      ),
-                    );
-                  },
-                ),
-              ],
+                itemBuilder: (context, i) {
+                  final p = state.points[i];
+                  return _PointGridCell(
+                    key: ValueKey(p.id),
+                    point: p,
+                    index: i + 1,
+                    onTap: () => showPointActions(context, p),
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+
               if (state.errorMessage != null &&
                   state.status == RoutePlannerStatus.optimizedFailure) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: 10),
                 _MessageBanner(
                   icon: Iconsax.info_circle,
                   color: AppColors.danger,
@@ -123,13 +146,20 @@ class RoutePointsSheet extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 14),
-              _ReadinessBanner(pointsCount: state.points.length),
+              _ReadinessBanner(pointsCount: state.routableCount),
               const SizedBox(height: 10),
               OptimizeRouteButton(
                 onPressed: cubit.optimize,
                 enabled: state.canOptimize,
                 loading: state.isOptimizing,
               ),
+
+              // Destructive escape hatch — only once there's something to
+              // clear, kept visually below the primary "optimise" CTA.
+              if (state.hasPoints) ...[
+                const SizedBox(height: 10),
+                _ClearAllButton(onPressed: () => confirmClearAll(context)),
+              ],
             ],
           ),
         );
@@ -137,263 +167,4 @@ class RoutePointsSheet extends StatelessWidget {
     );
   }
 
-  Future<void> _renamePrompt(BuildContext context, RoutePoint p) async {
-    final cubit = context.read<RoutePlannerCubit>();
-    final newLabel = await AppDialog.input(
-      context: context,
-      title: AppStrings.rename,
-      hint: AppStrings.rename,
-      initialValue: p.label,
-      icon: Iconsax.edit,
-      tone: AppDialogTone.primary,
-    );
-    if (newLabel != null && newLabel.isNotEmpty) {
-      cubit.renamePoint(p.id, newLabel);
-    }
-  }
-}
-
-class _ReadinessBanner extends StatelessWidget {
-  final int pointsCount;
-
-  const _ReadinessBanner({required this.pointsCount});
-
-  @override
-  Widget build(BuildContext context) {
-    final ready = pointsCount >= 2;
-    final color = ready
-        ? AppColors.success
-        : pointsCount == 0
-        ? AppColors.primary
-        : AppColors.warning;
-    final message = ready
-        ? AppStrings.readyToOptimize
-        : pointsCount == 0
-        ? AppStrings.setDepartureFirst
-        : AppStrings.addOneStopToOptimize;
-    final icon = ready
-        ? Iconsax.tick_circle
-        : pointsCount == 0
-        ? Iconsax.flag
-        : Iconsax.location_add;
-
-    return _MessageBanner(icon: icon, color: color, message: message);
-  }
-}
-
-class _MessageBanner extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String message;
-
-  /// Optional call-to-action (e.g. "Enable location") rendered as a
-  /// button under the message — turns a dead-end warning into a one-tap
-  /// fix.
-  final String? actionLabel;
-  final IconData? actionIcon;
-  final VoidCallback? onAction;
-
-  const _MessageBanner({
-    required this.icon,
-    required this.color,
-    required this.message,
-    this.actionLabel,
-    this.actionIcon,
-    this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasAction = onAction != null && actionLabel != null;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.26)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  message,
-                  style: AppTextStyles.bodySm.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (hasAction) ...[
-            const SizedBox(height: 10),
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: Material(
-                color: color,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onAction!();
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 9,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          actionIcon ?? Iconsax.location,
-                          color: AppColors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          actionLabel!,
-                          style: AppTextStyles.titleSm.copyWith(
-                            color: AppColors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final VoidCallback? onPasteAddresses;
-  final VoidCallback? onImportCsv;
-
-  const _EmptyState({this.onPasteAddresses, this.onImportCsv});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: Column(
-        children: [
-          // Points up at the floating "Set departure here" pill on
-          // the map — that's the one way to place points now.
-          const Icon(
-            Iconsax.arrow_up_1,
-            size: 26,
-            color: AppColors.primary,
-          ),
-          const SizedBox(height: 8),
-          Text(AppStrings.startCreatingRoute, style: AppTextStyles.titleLg),
-          const SizedBox(height: 2),
-          Text(
-            AppStrings.noPointsYet,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.bodySm.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          _HintRow(
-            icon: Iconsax.flag,
-            color: AppColors.primary,
-            label: AppStrings.addDepartureHint,
-          ),
-          const SizedBox(height: 4),
-          _HintRow(
-            icon: Iconsax.location_tick,
-            color: AppColors.accent,
-            label: AppStrings.addStopsHint,
-          ),
-          const SizedBox(height: 4),
-          _HintRow(
-            icon: Iconsax.routing_2,
-            color: AppColors.info,
-            label: AppStrings.optimizeHint,
-          ),
-          if (onPasteAddresses != null || onImportCsv != null) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (onPasteAddresses != null)
-                  Expanded(
-                    child: AppButton(
-                      label: AppStrings.pasteListAction,
-                      icon: Iconsax.document_copy,
-                      height: 44,
-                      radius: 12,
-                      variant: AppButtonVariant.secondary,
-                      onPressed: onPasteAddresses,
-                    ),
-                  ),
-                if (onPasteAddresses != null && onImportCsv != null)
-                  const SizedBox(width: 8),
-                if (onImportCsv != null)
-                  Expanded(
-                    child: AppButton(
-                      label: AppStrings.importCsv,
-                      icon: Iconsax.document_download,
-                      height: 44,
-                      radius: 12,
-                      variant: AppButtonVariant.ghost,
-                      onPressed: onImportCsv,
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _HintRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  const _HintRow({
-    required this.icon,
-    required this.color,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: color, size: 16),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }

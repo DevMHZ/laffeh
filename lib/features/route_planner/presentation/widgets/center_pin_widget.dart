@@ -46,10 +46,14 @@ class _CenterPinWidgetState extends State<CenterPinWidget>
     return SizedBox(
       width: CenterPinWidget.size,
       height: CenterPinWidget.size,
-      child: AnimatedBuilder(
-        animation: _pulse,
-        builder: (_, __) => CustomPaint(
-          painter: _CrosshairPainter(color: widget.color, pulse: _pulse.value),
+      // Isolated so the perpetual pulse repaints only this reticle and never
+      // invalidates the map chrome layered around it.
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _pulse,
+          builder: (_, __) => CustomPaint(
+            painter: _CrosshairPainter(color: widget.color, pulse: _pulse.value),
+          ),
         ),
       ),
     );

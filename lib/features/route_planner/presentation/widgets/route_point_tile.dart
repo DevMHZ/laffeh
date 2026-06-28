@@ -8,12 +8,24 @@ import '../../domain/entities/route_point.dart';
 
 /// Compact card representation of a [RoutePoint] used inside
 /// the bottom sheet list.
+///
+/// Ordering is owned by the optimizer, so there is no drag handle and
+/// no "set as departure" — points are managed through the overflow menu
+/// (rename, move on map, mark optional, activate/deactivate, delete).
 class RoutePointTile extends StatelessWidget {
   final RoutePoint point;
   final int index;
   final VoidCallback? onRemove;
   final VoidCallback? onRename;
-  final VoidCallback? onSetAsDeparture;
+
+  /// Toggle this point between mandatory and optional (#8).
+  final VoidCallback? onToggleOptional;
+
+  /// Activate / deactivate an optional point (#8).
+  final VoidCallback? onToggleActive;
+
+  /// Enter "move on map" mode for this point (#9).
+  final VoidCallback? onMoveOnMap;
 
   /// True for the last item in the post-optimization view, so we
   /// can render it as the "return" point in a special style.
@@ -25,36 +37,59 @@ class RoutePointTile extends StatelessWidget {
     required this.index,
     this.onRemove,
     this.onRename,
-    this.onSetAsDeparture,
+    this.onToggleOptional,
+    this.onToggleActive,
+    this.onMoveOnMap,
     this.isReturnPoint = false,
   });
+
+  bool get _hasMenu =>
+      onRename != null ||
+      onRemove != null ||
+      onToggleOptional != null ||
+      onToggleActive != null ||
+      onMoveOnMap != null;
 
   @override
   Widget build(BuildContext context) {
     final bool depot = point.isDepot && !isReturnPoint;
+    final bool dimmed = point.isDeactivated;
+
     final color = depot
         ? AppColors.primary
         : isReturnPoint
         ? AppColors.accent
+        : point.optional
+        ? AppColors.optional
         : AppColors.info;
 
     final badge = depot
         ? Iconsax.flag
         : isReturnPoint
         ? Iconsax.home_2
+        : point.optional
+        ? Iconsax.star_1
         : Iconsax.location;
 
-    return Container(
+    final tile = Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.white.withValues(alpha: 0.72)),
+        border: Border.all(
+          color: point.optional && !dimmed
+              ? AppColors.optional.withValues(alpha: 0.35)
+              : AppColors.white.withValues(alpha: 0.72),
+        ),
       ),
       child: Row(
         children: [
-          _Leading(color: color, icon: badge, index: index + 1),
+          _Leading(
+            color: dimmed ? AppColors.optionalOff : color,
+            icon: badge,
+            index: index + 1,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -83,6 +118,14 @@ class RoutePointTile extends StatelessWidget {
                         label: AppStrings.returnBadge,
                         color: AppColors.accent,
                       ),
+                    ] else if (point.optional) ...[
+                      const SizedBox(width: 6),
+                      _MiniBadge(
+                        label: dimmed
+                            ? AppStrings.deactivatedBadge
+                            : AppStrings.optionalBadge,
+                        color: dimmed ? AppColors.optionalOff : AppColors.optional,
+                      ),
                     ],
                   ],
                 ),
@@ -97,25 +140,22 @@ class RoutePointTile extends StatelessWidget {
               ],
             ),
           ),
-          if (onRename != null || onRemove != null || onSetAsDeparture != null)
-            const Padding(
-              padding: EdgeInsetsDirectional.only(start: 4),
-              child: Icon(
-                Icons.drag_indicator,
-                color: AppColors.hint,
-                size: 19,
-              ),
-            ),
-          if (onRename != null || onRemove != null || onSetAsDeparture != null)
+          if (_hasMenu)
             _OverflowMenu(
-              canSetAsDeparture: !depot && onSetAsDeparture != null,
+              point: point,
               onRename: onRename,
               onRemove: onRemove,
-              onSetAsDeparture: onSetAsDeparture,
+              onToggleOptional: onToggleOptional,
+              onToggleActive: onToggleActive,
+              onMoveOnMap: onMoveOnMap,
             ),
         ],
       ),
     );
+
+    // Deactivated optional points read as "parked": faded but still
+    // present and re-activatable.
+    return Opacity(opacity: dimmed ? 0.55 : 1.0, child: tile);
   }
 }
 
@@ -193,79 +233,107 @@ class _MiniBadge extends StatelessWidget {
 }
 
 class _OverflowMenu extends StatelessWidget {
-  final bool canSetAsDeparture;
+  final RoutePoint point;
   final VoidCallback? onRename;
   final VoidCallback? onRemove;
-  final VoidCallback? onSetAsDeparture;
+  final VoidCallback? onToggleOptional;
+  final VoidCallback? onToggleActive;
+  final VoidCallback? onMoveOnMap;
 
   const _OverflowMenu({
-    required this.canSetAsDeparture,
+    required this.point,
     this.onRename,
     this.onRemove,
-    this.onSetAsDeparture,
+    this.onToggleOptional,
+    this.onToggleActive,
+    this.onMoveOnMap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // The depot can't be made optional / deactivated.
+    final canToggleOptional = !point.isDepot && onToggleOptional != null;
+    final canToggleActive =
+        !point.isDepot && point.optional && onToggleActive != null;
+
     return PopupMenuButton<_Action>(
       icon: const Icon(Iconsax.more, color: AppColors.textMuted, size: 20),
       onSelected: (value) {
         switch (value) {
           case _Action.rename:
             onRename?.call();
-            break;
+          case _Action.move:
+            onMoveOnMap?.call();
+          case _Action.optional:
+            onToggleOptional?.call();
+          case _Action.active:
+            onToggleActive?.call();
           case _Action.remove:
             onRemove?.call();
-            break;
-          case _Action.setDeparture:
-            onSetAsDeparture?.call();
-            break;
         }
       },
       itemBuilder: (_) => [
         if (onRename != null)
-          PopupMenuItem(
-            value: _Action.rename,
-            child: Row(
-              children: [
-                const Icon(
-                  Iconsax.edit,
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
-                const SizedBox(width: 10),
-                Text(AppStrings.rename),
-              ],
-            ),
+          _menuItem(
+            _Action.rename,
+            Iconsax.edit,
+            AppStrings.rename,
+            AppColors.textSecondary,
           ),
-        if (canSetAsDeparture)
-          PopupMenuItem(
-            value: _Action.setDeparture,
-            child: Row(
-              children: [
-                const Icon(Iconsax.flag, size: 18, color: AppColors.primary),
-                const SizedBox(width: 10),
-                Text(AppStrings.setAsDeparture),
-              ],
-            ),
+        if (onMoveOnMap != null)
+          _menuItem(
+            _Action.move,
+            Iconsax.gps,
+            AppStrings.moveOnMap,
+            AppColors.info,
+          ),
+        if (canToggleOptional)
+          _menuItem(
+            _Action.optional,
+            point.optional ? Iconsax.tick_square : Iconsax.star_1,
+            point.optional ? AppStrings.markRequired : AppStrings.markOptional,
+            AppColors.optional,
+          ),
+        if (canToggleActive)
+          _menuItem(
+            _Action.active,
+            point.active ? Iconsax.pause_circle : Iconsax.play_circle,
+            point.active ? AppStrings.deactivate : AppStrings.activate,
+            point.active ? AppColors.optionalOff : AppColors.primary,
           ),
         if (onRemove != null)
-          PopupMenuItem(
-            value: _Action.remove,
-            child: Row(
-              children: [
-                const Icon(Iconsax.trash, size: 18, color: AppColors.danger),
-                const SizedBox(width: 10),
-                Text(
-                  AppStrings.remove,
-                  style: const TextStyle(color: AppColors.danger),
-                ),
-              ],
-            ),
+          _menuItem(
+            _Action.remove,
+            Iconsax.trash,
+            AppStrings.remove,
+            AppColors.danger,
           ),
       ],
     );
   }
+
+  PopupMenuItem<_Action> _menuItem(
+    _Action value,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: value == _Action.remove
+                ? const TextStyle(color: AppColors.danger)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-enum _Action { rename, remove, setDeparture }
+enum _Action { rename, move, optional, active, remove }

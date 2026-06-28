@@ -1,4 +1,4 @@
-import '../../../../core/config/app_config.dart';
+import '../../../../core/config/routing_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_result.dart';
@@ -12,7 +12,7 @@ class OptimizeRouteUseCase {
 
   Future<ApiResult<OptimizedRoute>> call({
     required List<RoutePoint> points,
-    String routingMode = AppConfig.defaultRoutingMode,
+    String routingMode = RoutingConfig.defaultRoutingMode,
   }) async {
     if (points.length < 2) {
       return ApiFailure(ValidationFailure(AppStrings.errMinTwoPoints));

@@ -7,8 +7,8 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'features/route_planner/presentation/pages/splash_page.dart';
 
-class LaffehApp extends StatelessWidget {
-  const LaffehApp({super.key});
+class LaffahApp extends StatelessWidget {
+  const LaffahApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +21,10 @@ class LaffehApp extends StatelessWidget {
           valueListenable: AppStrings.localeNotifier,
           builder: (_, locale, __) {
             return MaterialApp(
+              // Re-key on locale so changing the language rebuilds the whole
+              // app from the splash — guaranteeing every screen re-localizes
+              // cleanly (incl. text direction) with no stale strings.
+              key: ValueKey('app-${locale.languageCode}'),
               onGenerateTitle: (_) => AppStrings.appName,
               debugShowCheckedModeBanner: false,
               theme: AppTheme.light,
@@ -39,7 +43,7 @@ class LaffehApp extends StatelessWidget {
               builder: EasyLoading.init(
                 builder: (context, child) {
                   return ScrollConfiguration(
-                    behavior: const _LaffehScrollBehavior(),
+                    behavior: const _LaffahScrollBehavior(),
                     child: MediaQuery(
                       data: MediaQuery.of(context).copyWith(
                         textScaler: MediaQuery.textScalerOf(
@@ -60,8 +64,8 @@ class LaffehApp extends StatelessWidget {
   }
 }
 
-class _LaffehScrollBehavior extends MaterialScrollBehavior {
-  const _LaffehScrollBehavior();
+class _LaffahScrollBehavior extends MaterialScrollBehavior {
+  const _LaffahScrollBehavior();
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {

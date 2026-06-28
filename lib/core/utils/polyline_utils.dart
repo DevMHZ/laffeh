@@ -90,6 +90,61 @@ class PolylineUtils {
     );
   }
 
+  /// Bearing (degrees) of the road *ahead* of fraction [t]: the chord from
+  /// the point at [t] to one [aheadMeters] further along [path].
+  ///
+  /// A follow camera oriented by this rotates *into* a turn slightly before
+  /// the vehicle reaches it, so the upcoming road keeps pointing "up" rather
+  /// than swinging sideways mid-bend. Averaging over the window also makes it
+  /// steadier than the local tangent ([sampleAt]); near the end of the path,
+  /// where the two points converge, it falls back to that tangent.
+  static double lookAheadBearing(
+    List<LatLng> path,
+    double t,
+    double aheadMeters,
+  ) {
+    if (path.length < 2) return 0;
+    final totalKm = DistanceUtils.pathLengthKm(path);
+    if (totalKm <= 0) return 0;
+    final from = interpolateByLength(path, t);
+    final aheadT = (t + (aheadMeters / 1000) / totalKm).clamp(0.0, 1.0);
+    final to = interpolateByLength(path, aheadT);
+    if (from == null ||
+        to == null ||
+        DistanceUtils.haversineKm(from, to) * 1000 < 2) {
+      return sampleAt(path, t)?.bearing ?? 0;
+    }
+    return _bearing(from, to);
+  }
+
+  /// Arc-length fraction (0..1) along [path] of the vertex nearest to
+  /// [target]. Lets callers map a real-world stop to its true position
+  /// along the driven polyline (stops are NOT evenly spaced), so marker
+  /// colours flip exactly as the vehicle passes — not on an even split.
+  static double fractionOfNearest(List<LatLng> path, LatLng target) {
+    if (path.length < 2) return 0;
+    final total = DistanceUtils.pathLengthKm(path);
+    if (total <= 0) return 0;
+    double traveled = 0;
+    double best = double.infinity;
+    double bestFrac = 0;
+    for (var i = 0; i < path.length - 1; i++) {
+      final d = DistanceUtils.haversineKm(path[i], target);
+      if (d < best) {
+        best = d;
+        bestFrac = (traveled / total).clamp(0.0, 1.0);
+      }
+      traveled += DistanceUtils.haversineKm(path[i], path[i + 1]);
+    }
+    if (DistanceUtils.haversineKm(path.last, target) < best) return 1.0;
+    return bestFrac;
+  }
+
+  /// True arc-length fraction of each [stops] entry along [path]. Computed
+  /// once per route, then compared against live progress.
+  static List<double> stopFractions(List<LatLng> path, List<LatLng> stops) =>
+      [for (final s in stops) fractionOfNearest(path, s)];
+
   static double _bearing(LatLng a, LatLng b) {
     final lat1 = _deg2rad(a.latitude);
     final lat2 = _deg2rad(b.latitude);

@@ -2,7 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:latlong2/latlong.dart';
 
-import '../../../../core/config/app_config.dart';
+import '../../../../core/config/routing_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
@@ -34,7 +34,7 @@ class RouteRepositoryImpl implements RouteRepository {
   @override
   Future<ApiResult<OptimizedRoute>> optimize({
     required List<RoutePoint> points,
-    String routingMode = AppConfig.defaultRoutingMode,
+    String routingMode = RoutingConfig.defaultRoutingMode,
   }) async {
     if (!await _network.isConnected) {
       return ApiFailure(NetworkFailure(AppStrings.errNoInternet));
@@ -51,13 +51,13 @@ class RouteRepositoryImpl implements RouteRepository {
     }
 
     final request = RouteRequestModel(
-      numVehicles: AppConfig.defaultNumVehicles,
-      vehicleCapacity: AppConfig.defaultVehicleCapacity,
+      numVehicles: RoutingConfig.defaultNumVehicles,
+      vehicleCapacity: RoutingConfig.defaultVehicleCapacity,
       depotLat: depot.latitude,
       depotLon: depot.longitude,
       routingMode: routingMode,
-      timeLimitSeconds: AppConfig.defaultTimeLimitSeconds,
-      maxVehicleTimeMinutes: AppConfig.defaultMaxVehicleTimeMinutes,
+      timeLimitSeconds: RoutingConfig.defaultTimeLimitSeconds,
+      maxVehicleTimeMinutes: RoutingConfig.defaultMaxVehicleTimeMinutes,
       deliveries: stops
           .map(
             (s) => RoutePointModel(

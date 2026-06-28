@@ -30,7 +30,9 @@ class MapActionButton extends StatelessWidget {
     return Tooltip(
       message: tooltip ?? '',
       child: ClipOval(
-        child: BackdropFilter(
+        // Shares one backdrop blur pass with the other map chrome via the
+        // screen's [BackdropGroup] (graceful standalone fallback otherwise).
+        child: BackdropFilter.grouped(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Material(
             color:

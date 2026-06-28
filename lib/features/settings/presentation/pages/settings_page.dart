@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -77,29 +78,138 @@ class SettingsPage extends StatelessWidget {
 class _LanguageCard extends StatelessWidget {
   const _LanguageCard();
 
+  static const _languages = <({String code, String native, String avatar})>[
+    (code: 'en', native: 'English', avatar: 'EN'),
+    (code: 'ar', native: 'العربية', avatar: 'ع'),
+    (code: 'fr', native: 'Français', avatar: 'FR'),
+  ];
+
+  Future<void> _select(String code) async {
+    if (code == AppStrings.languageCode) return;
+    HapticFeedback.selectionClick();
+    AppStrings.setLocale(Locale(code));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppStrings.localeStorageKey, code);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final current = AppStrings.languageCode;
     return AppSectionCard(
       title: AppStrings.language,
       titleIcon: Iconsax.translate,
-      child: DropdownButtonFormField<String>(
-        initialValue: AppStrings.languageCode,
-        icon: const Icon(Iconsax.arrow_down_1, size: 18),
-        decoration: const InputDecoration(contentPadding: EdgeInsets.all(14)),
-        items: [
-          DropdownMenuItem(
-            value: 'en',
-            child: Text(AppStrings.languageEnglish),
-          ),
-          DropdownMenuItem(value: 'ar', child: Text(AppStrings.languageArabic)),
-          DropdownMenuItem(value: 'fr', child: Text(AppStrings.languageFrench)),
+      // Three compact tiles in one row — quicker to scan and far less
+      // vertical weight than a stacked list of radio rows.
+      child: Row(
+        children: [
+          for (final lang in _languages) ...[
+            if (lang != _languages.first) const SizedBox(width: 10),
+            Expanded(
+              child: _LanguageTile(
+                avatar: lang.avatar,
+                native: lang.native,
+                selected: lang.code == current,
+                onTap: () => _select(lang.code),
+              ),
+            ),
+          ],
         ],
-        onChanged: (code) async {
-          if (code == null) return;
-          AppStrings.setLocale(Locale(code));
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppStrings.localeStorageKey, code);
-        },
+      ),
+    );
+  }
+}
+
+class _LanguageTile extends StatelessWidget {
+  final String avatar;
+  final String native;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _LanguageTile({
+    required this.avatar,
+    required this.native,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.10)
+                : AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 46,
+                    height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.primary
+                          : AppColors.primary.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      avatar,
+                      style: AppTextStyles.titleMd.copyWith(
+                        color: selected ? AppColors.white : AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    PositionedDirectional(
+                      end: -5,
+                      top: -5,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.white, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          size: 11,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                native,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.titleSm.copyWith(
+                  color: selected ? AppColors.primary : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -34,9 +34,14 @@ class AfdalLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The source PNG is 3368×1368; decoding it at full size for a 32–64 px
+    // lockup wastes ~18 MB of image-cache RAM. Decode it at the display height
+    // (× device pixel ratio) so it lands in the cache already downscaled.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
     final image = Image.asset(
       'assets/afdalLogo.png',
       height: height,
+      cacheHeight: (height * dpr).ceil(),
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
     );

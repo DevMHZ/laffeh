@@ -128,6 +128,9 @@ void main() {
       simulationActive: true,
       simulationPlaying: true,
       simulationProgress: 0.46,
+      // True arc-length fractions of [depot, s1..s4, depot] — drives the
+      // headline / timeline / scrubber ticks.
+      stopFractions: const [0.0, 0.2, 0.45, 0.65, 0.85, 1.0],
     );
 
     await tester.pumpWidget(
@@ -213,7 +216,11 @@ void main() {
     await tester.pumpWidget(
       _harness(
         state,
-        RoutePointsSheet(onPasteAddresses: () {}, onImportCsv: () {}),
+        RoutePointsSheet(
+          onAddHere: () {},
+          onShowImport: () {},
+          onOpenWhatsapp: () {},
+        ),
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));

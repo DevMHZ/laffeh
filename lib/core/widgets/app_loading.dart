@@ -8,7 +8,7 @@ import 'fun_loading_animations.dart';
 
 /// Inline loader (used inside cards / sheets).
 ///
-/// Renders a [LaffehLoader] — a miniature of the logo: a circular
+/// Renders a [LaffahLoader] — a miniature of the logo: a circular
 /// road loop whose lane dashes drive around it, with a pin perched
 /// on top — instead of a stock spinner.
 class AppLoading extends StatelessWidget {
@@ -23,7 +23,7 @@ class AppLoading extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        LaffehLoader(size: size, pinColor: color),
+        LaffahLoader(size: size, pinColor: color),
         if (label != null) ...[
           const SizedBox(height: 10),
           Text(label!, style: AppTextStyles.bodyMd),
@@ -36,17 +36,17 @@ class AppLoading extends StatelessWidget {
 /// A circular road-loop (straight from the logo) used as a spinner:
 /// the white lane dashes travel around the asphalt ring while a map
 /// pin bobs on top.
-class LaffehLoader extends StatefulWidget {
+class LaffahLoader extends StatefulWidget {
   final double size;
   final Color? pinColor;
 
-  const LaffehLoader({super.key, this.size = 36, this.pinColor});
+  const LaffahLoader({super.key, this.size = 36, this.pinColor});
 
   @override
-  State<LaffehLoader> createState() => _LaffehLoaderState();
+  State<LaffahLoader> createState() => _LaffahLoaderState();
 }
 
-class _LaffehLoaderState extends State<LaffehLoader>
+class _LaffahLoaderState extends State<LaffahLoader>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -75,7 +75,7 @@ class _LaffehLoaderState extends State<LaffehLoader>
       child: AnimatedBuilder(
         animation: _ctrl,
         builder: (_, __) => CustomPaint(
-          painter: _LaffehLoaderPainter(
+          painter: _LaffahLoaderPainter(
             phase: _ctrl.value,
             pinColor: widget.pinColor ?? AppColors.pinRed,
           ),
@@ -85,11 +85,11 @@ class _LaffehLoaderState extends State<LaffehLoader>
   }
 }
 
-class _LaffehLoaderPainter extends CustomPainter {
+class _LaffahLoaderPainter extends CustomPainter {
   final double phase;
   final Color pinColor;
 
-  _LaffehLoaderPainter({required this.phase, required this.pinColor});
+  _LaffahLoaderPainter({required this.phase, required this.pinColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -168,7 +168,7 @@ class _LaffehLoaderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_LaffehLoaderPainter old) =>
+  bool shouldRepaint(_LaffahLoaderPainter old) =>
       old.phase != phase || old.pinColor != pinColor;
 }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Laffeh brand palette.
+/// Laffah brand palette.
 ///
 /// Derived from the road-logo (laffaAppAnim):
 ///   * Leaf-green canvas      → `leaf` / splash & launch background
@@ -58,6 +58,20 @@ class AppColors {
   static const Color routeGo = Color(0xFF3E9148); // leaf green
   static const Color routeReturn = Color(0xFFF2A03D); // pin orange
   static const Color routeShadow = Color(0x66DDE8DA);
+
+  // ── Drive-mode route segmentation (#2) ───────────────────
+  /// Already-driven leg — light, "done" green.
+  static const Color driveDone = Color(0xFF9FD493);
+  /// Current leg between the driver and the next stop — blue.
+  static const Color driveCurrent = Color(0xFF2D7FD3);
+  /// Road still ahead after the next stop — normal brand green.
+  static const Color driveAhead = Color(0xFF3E9148);
+
+  // ── Optional points (#8) ─────────────────────────────────
+  /// Accent for optional (non-mandatory) stops.
+  static const Color optional = Color(0xFFF2A03D); // amber
+  /// Deactivated optional stop — muted/greyed.
+  static const Color optionalOff = Color(0xFF9AA6A0);
 
   // ── Border / Divider ─────────────────────────────────────
   static const Color border = Color(0xFFDFE8DA);

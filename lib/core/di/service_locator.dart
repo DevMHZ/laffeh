@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/route_planner/data/datasources/ai_route_remote_datasource.dart';
 import '../../features/route_planner/data/datasources/osm_geocoding_datasource.dart';
 import '../../features/route_planner/data/datasources/osrm_routing_datasource.dart';
+import '../../features/route_planner/data/datasources/planner_draft_local_datasource.dart';
 import '../../features/route_planner/data/repositories/route_repository_impl.dart';
 import '../../features/route_planner/domain/repositories/route_repository.dart';
 import '../../features/route_planner/domain/usecases/get_directions_usecase.dart';
@@ -51,6 +52,11 @@ Future<void> setupServiceLocator() async {
       () => OsmGeocodingDataSource(DioClient.nominatimDio),
     );
   }
+  if (!sl.isRegistered<PlannerDraftLocalDataSource>()) {
+    sl.registerLazySingleton<PlannerDraftLocalDataSource>(
+      () => PlannerDraftLocalDataSource(sl<SharedPreferences>()),
+    );
+  }
 
   // ── Repositories ───────────────────────────────────────
   if (!sl.isRegistered<RouteRepository>()) {
@@ -95,6 +101,8 @@ Future<void> setupServiceLocator() async {
         sl<OptimizeRouteUseCase>(),
         sl<SavedRoutesRepository>(),
         sl<OsmGeocodingDataSource>(),
+        sl<PlannerDraftLocalDataSource>(),
+        sl<NetworkInfo>(),
       ),
     );
   }

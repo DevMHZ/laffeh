@@ -71,7 +71,6 @@ class AppStrings {
   static String get rename => _t('rename');
   static String get remove => _t('remove');
   static String get removePointTitle => _t('removePointTitle');
-  static String get setAsDeparture => _t('setAsDeparture');
   static String get cancel => _t('cancel');
   static String get save => _t('save');
   static String get retry => _t('retry');
@@ -147,6 +146,7 @@ class AppStrings {
   static String get cameraFollow => _t('cameraFollow');
   static String get cameraChase => _t('cameraChase');
   static String get recenter => _t('recenter');
+  static String get resetView => _t('resetView');
   static String get headedTo => _t('headedTo');
   static String get departingFrom => _t('departingFrom');
   static String get arrived => _t('arrived');
@@ -214,6 +214,61 @@ class AppStrings {
   static String get csvExportFailed => _t('csvExportFailed');
   static String get csvNoPoints => _t('csvNoPoints');
   static String get csvShareText => _t('csvShareText');
+  static String get csvExportSuccess => _t('csvExportSuccess');
+
+  // Optional points (#8) & point actions
+  static String get optional => _t('optional');
+  static String get optionalPoint => _t('optionalPoint');
+  static String get markOptional => _t('markOptional');
+  static String get markRequired => _t('markRequired');
+  static String get activate => _t('activate');
+  static String get deactivate => _t('deactivate');
+  static String get activateStopTitle => _t('activateStopTitle');
+  static String get activateStopMsg => _t('activateStopMsg');
+  static String get reoptimizeNow => _t('reoptimizeNow');
+  static String get skipStop => _t('skipStop');
+  static String get includeStop => _t('includeStop');
+  static String get optionalBadge => _t('optionalBadge');
+  static String get deactivatedBadge => _t('deactivatedBadge');
+  static String get addOptionalHere => _t('addOptionalHere');
+
+  // Move point on map (#9)
+  static String get moveOnMap => _t('moveOnMap');
+  static String get movePointTitle => _t('movePointTitle');
+  static String get movePointHint => _t('movePointHint');
+  static String get saveLocation => _t('saveLocation');
+  static String get locationUpdated => _t('locationUpdated');
+
+  // Add-points UX (#12)
+  static String get addStop => _t('addStop');
+  static String get addOptionalStop => _t('addOptionalStop');
+  static String get addByTap => _t('addByTap');
+  static String get addMethods => _t('addMethods');
+  static String get keepAddingHint => _t('keepAddingHint');
+
+  // Offline / local-save (#10, #11)
+  static String get offlineTitle => _t('offlineTitle');
+  static String get offlineBody => _t('offlineBody');
+  static String get offlineActionUnavailable => _t('offlineActionUnavailable');
+  static String get draftRestoredMsg => _t('draftRestoredMsg');
+  static String get savedLocallyNote => _t('savedLocallyNote');
+
+  // Error (#4)
+  static String get errNoActiveStops => _t('errNoActiveStops');
+  static String get noAddressesFound => _t('noAddressesFound');
+
+  /// Localized label for an optional stop, numbered separately from
+  /// mandatory stops ("Optional 1", "نقطة اختيارية 1"…).
+  static String optionalStopLabel(int number) {
+    switch (_languageCode) {
+      case 'ar':
+        return 'نقطة اختيارية $number';
+      case 'fr':
+        return 'Arrêt optionnel $number';
+      default:
+        return 'Optional $number';
+    }
+  }
 
   static String pointsAdded(int count) {
     switch (_languageCode) {
@@ -257,7 +312,6 @@ class AppStrings {
   static String get returnBadge => _t('returnBadge');
   static String get routeOrder => _t('routeOrder');
   static String get points => _t('points');
-  static String get dragToReorder => _t('dragToReorder');
 
   static String pointsCount(int count) {
     switch (_languageCode) {
@@ -318,7 +372,24 @@ class AppStrings {
   static String get onbImportBody => _t('onbImportBody');
   static String get onbImportWhatsappTag => _t('onbImportWhatsappTag');
   static String get onbImportCsvTag => _t('onbImportCsvTag');
-  static String get onbShareToLaffeh => _t('onbShareToLaffeh');
+  static String get onbShareToLaffah => _t('onbShareToLaffah');
+
+  // Add-options panel (empty state)
+  static String get addOptHeader => _t('addOptHeader');
+  static String get addOptManualTitle => _t('addOptManualTitle');
+  static String get addOptManualSub => _t('addOptManualSub');
+  static String get addOptWhatsappTitle => _t('addOptWhatsappTitle');
+  static String get addOptWhatsappSub => _t('addOptWhatsappSub');
+  static String get addOptImportTitle => _t('addOptImportTitle');
+  static String get addOptImportSub => _t('addOptImportSub');
+  static String get addOptManualBack => _t('addOptManualBack');
+  static String get importChooserTitle => _t('importChooserTitle');
+  static String get importChooserPaste => _t('importChooserPaste');
+  static String get importChooserCsv => _t('importChooserCsv');
+  static String get whatsappOpenFailed => _t('whatsappOpenFailed');
+  static String get waInfoBody => _t('waInfoBody');
+  static String get addPointCta => _t('addPointCta');
+  static String get pressBackAgainToExit => _t('pressBackAgainToExit');
   static String get onbLocationTitle => _t('onbLocationTitle');
   static String get onbLocationBody => _t('onbLocationBody');
   static String get onbAllowLocation => _t('onbAllowLocation');
@@ -338,7 +409,7 @@ class AppUnits {
 
 const Map<String, Map<String, String>> _copy = {
   'en': {
-    'appName': 'Laffeh',
+    'appName': 'Laffah',
     'appTagline': 'Your smarter route',
     'planRouteTitle': 'Plan your route',
     'routePointsTitle': 'Route points',
@@ -361,7 +432,6 @@ const Map<String, Map<String, String>> _copy = {
     'showFull': 'Full route',
     'rename': 'Rename',
     'remove': 'Delete',
-    'setAsDeparture': 'Set as departure',
     'cancel': 'Cancel',
     'save': 'Save',
     'retry': 'Retry',
@@ -423,6 +493,7 @@ const Map<String, Map<String, String>> _copy = {
     'cameraOverview': 'Overview',
     'cameraFollow': 'Follow',
     'recenter': 'Recenter',
+    'resetView': 'Reset view',
     'cameraChase': 'Cinematic',
     'headedTo': 'Heading to',
     'departingFrom': 'Departing from',
@@ -482,17 +553,49 @@ const Map<String, Map<String, String>> _copy = {
     'nextStop': 'Next stop',
     'liveLocation': 'Live location',
     'importCsv': 'Import CSV',
+    'csvExportSuccess': 'CSV file exported',
+    'optional': 'Optional',
+    'optionalPoint': 'Optional point',
+    'markOptional': 'Make optional',
+    'markRequired': 'Make required',
+    'activate': 'Activate',
+    'deactivate': 'Deactivate',
+    'activateStopTitle': 'Add this stop back?',
+    'activateStopMsg':
+        'Including it changes your route. Re-optimize now to add it, or delete the stop.',
+    'reoptimizeNow': 'Re-optimize',
+    'skipStop': 'Skip this stop',
+    'includeStop': 'Add to route',
+    'optionalBadge': 'Optional',
+    'deactivatedBadge': 'Off',
+    'addOptionalHere': 'Add optional stop here',
+    'moveOnMap': 'Move on map',
+    'movePointTitle': 'Move point',
+    'movePointHint': 'Drag the highlighted point on the map, then save.',
+    'saveLocation': 'Save location',
+    'locationUpdated': 'Location updated',
+    'addStop': 'Add stop',
+    'addOptionalStop': 'Add optional stop',
+    'addByTap': 'Add from map',
+    'addMethods': 'Add points',
+    'keepAddingHint': 'Keep adding as many points as you need.',
+    'offlineTitle': 'Offline',
+    'offlineBody': 'No internet — your changes are saved on this device.',
+    'offlineActionUnavailable': 'This needs an internet connection.',
+    'draftRestoredMsg': 'We restored your saved work.',
+    'savedLocallyNote': 'Saved on your device',
+    'errNoActiveStops': 'Activate at least one stop before optimizing.',
+    'noAddressesFound': 'No addresses found. Check the text and try again.',
     'exportCsv': 'Export CSV',
     'csvImportEmpty': 'No route points were found in this CSV file',
     'csvImportFailed': 'Could not import CSV file',
     'csvExportFailed': 'Could not export CSV file',
     'csvNoPoints': 'No points to export',
-    'csvShareText': 'Laffeh route CSV',
+    'csvShareText': 'Laffah route CSV',
     'departureBadge': 'Start',
     'returnBadge': 'Return',
     'routeOrder': 'Route order',
     'points': 'points',
-    'dragToReorder': 'drag to reorder',
     'unitKm': 'km',
     'unitMeter': 'm',
     'unitMin': 'min',
@@ -515,22 +618,38 @@ const Map<String, Map<String, String>> _copy = {
     'onbNext': 'Next',
     'onbBack': 'Back',
     'onbGetStarted': 'Get started',
-    'onbWelcomeTitle': 'Welcome to Laffeh',
+    'onbWelcomeTitle': 'Welcome to Laffah',
     'onbWelcomeBody':
         'Plan the smartest route through all your stops — in seconds.',
     'onbLanguageLabel': 'Choose your language',
     'onbPlanTitle': 'Drop stops, get the best order',
     'onbPlanBody':
-        'Move the map and tap to add each stop. Laffeh reorders them into the fastest route automatically.',
+        'Move the map and tap to add each stop. Laffah reorders them into the fastest route automatically.',
     'onbImportTitle': 'Add stops from WhatsApp',
     'onbImportBody':
-        'Share a location to Laffeh and it lands right on your route — no typing. A CSV import or a pasted list works too.',
+        'Share a location to Laffah and it lands right on your route — no typing. A CSV import or a pasted list works too.',
     'onbImportWhatsappTag': 'WhatsApp',
     'onbImportCsvTag': 'CSV & paste',
-    'onbShareToLaffeh': 'Open with Laffeh',
+    'onbShareToLaffah': 'Open with Laffah',
+    'addOptHeader': 'How would you like to add stops?',
+    'addOptManualTitle': 'Add manually',
+    'addOptManualSub': 'Drop a pin on the map',
+    'addOptWhatsappTitle': 'From WhatsApp',
+    'addOptWhatsappSub': 'Share a location to Laffah',
+    'addOptImportTitle': 'Paste or import',
+    'addOptImportSub': 'A list of addresses or a CSV',
+    'addOptManualBack': 'Choose another way',
+    'importChooserTitle': 'Add several stops',
+    'importChooserPaste': 'Paste a list of addresses',
+    'importChooserCsv': 'Import a CSV file',
+    'whatsappOpenFailed': "Couldn't open WhatsApp",
+    'waInfoBody':
+        'In WhatsApp, tap the shared location and choose "Open with Laffah" — the app opens with the stop already on your route. Repeat for each new stop; it stacks onto the previous ones.',
+    'addPointCta': 'Add a stop',
+    'pressBackAgainToExit': 'Press back again to exit',
     'onbLocationTitle': 'Find your starting point',
     'onbLocationBody':
-        'Allow location so Laffeh can set your departure and guide you while you drive.',
+        'Allow location so Laffah can set your departure and guide you while you drive.',
     'onbAllowLocation': 'Allow location',
     'onbMaybeLater': 'Maybe later',
   },
@@ -558,7 +677,6 @@ const Map<String, Map<String, String>> _copy = {
     'showFull': 'الكامل',
     'rename': 'إعادة تسمية',
     'remove': 'حذف',
-    'setAsDeparture': 'تعيين كنقطة انطلاق',
     'cancel': 'إلغاء',
     'save': 'حفظ',
     'retry': 'إعادة المحاولة',
@@ -620,6 +738,7 @@ const Map<String, Map<String, String>> _copy = {
     'cameraOverview': 'بانورامي',
     'cameraFollow': 'متابعة',
     'recenter': 'إعادة التوسيط',
+    'resetView': 'إعادة ضبط العرض',
     'cameraChase': 'سينمائي',
     'headedTo': 'متجه إلى',
     'departingFrom': 'الانطلاق من',
@@ -678,6 +797,39 @@ const Map<String, Map<String, String>> _copy = {
     'nextStop': 'النقطة التالية',
     'liveLocation': 'موقعك المباشر',
     'importCsv': 'استيراد CSV',
+    'csvExportSuccess': 'تم تصدير ملف CSV',
+    'optional': 'اختياري',
+    'optionalPoint': 'نقطة اختيارية',
+    'markOptional': 'اجعلها اختيارية',
+    'markRequired': 'اجعلها إلزامية',
+    'activate': 'تفعيل',
+    'deactivate': 'تعطيل',
+    'activateStopTitle': 'تضمين هذه النقطة؟',
+    'activateStopMsg':
+        'تضمينها رح يغيّر مسارك. أعد التحسين الآن لإضافتها، أو احذف النقطة.',
+    'reoptimizeNow': 'أعد التحسين',
+    'skipStop': 'تخطّى هذه النقطة',
+    'includeStop': 'ضمّنها بالمسار',
+    'optionalBadge': 'اختيارية',
+    'deactivatedBadge': 'معطّلة',
+    'addOptionalHere': 'أضف نقطة اختيارية هنا',
+    'moveOnMap': 'تعديل الموقع على الخريطة',
+    'movePointTitle': 'تحريك النقطة',
+    'movePointHint': 'اسحب النقطة المميّزة على الخريطة ثم احفظ الموقع الجديد.',
+    'saveLocation': 'حفظ الموقع',
+    'locationUpdated': 'تم تحديث الموقع',
+    'addStop': 'إضافة نقطة',
+    'addOptionalStop': 'إضافة نقطة اختيارية',
+    'addByTap': 'من الخريطة',
+    'addMethods': 'إضافة نقاط',
+    'keepAddingHint': 'يمكنك متابعة إضافة أي عدد من النقاط.',
+    'offlineTitle': 'غير متصل',
+    'offlineBody': 'لا يوجد إنترنت — يتم حفظ تعديلاتك على هذا الجهاز.',
+    'offlineActionUnavailable': 'هذه العملية تحتاج اتصالاً بالإنترنت.',
+    'draftRestoredMsg': 'تمت استعادة عملك المحفوظ.',
+    'savedLocallyNote': 'محفوظ على جهازك',
+    'errNoActiveStops': 'فعّل نقطة واحدة على الأقل قبل تحسين المسار.',
+    'noAddressesFound': 'لم يتم العثور على أي عنوان. تحقق من النص وحاول مجدداً.',
     'exportCsv': 'تصدير CSV',
     'csvImportEmpty': 'لم يتم العثور على نقاط ضمن ملف CSV',
     'csvImportFailed': 'تعذر استيراد ملف CSV',
@@ -688,7 +840,6 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'عودة',
     'routeOrder': 'ترتيب اللفة',
     'points': 'نقطة',
-    'dragToReorder': 'اسحب لإعادة الترتيب',
     'unitKm': 'كم',
     'unitMeter': 'م',
     'unitMin': 'دقيقة',
@@ -722,7 +873,23 @@ const Map<String, Map<String, String>> _copy = {
         'شارك موقعاً إلى لفّة ليظهر مباشرة على مسارك دون كتابة. ويمكنك أيضاً استيراد ملف CSV أو لصق قائمة عناوين.',
     'onbImportWhatsappTag': 'واتساب',
     'onbImportCsvTag': 'CSV ولصق',
-    'onbShareToLaffeh': 'فتح بواسطة لفّة',
+    'onbShareToLaffah': 'فتح بواسطة لفّة',
+    'addOptHeader': 'كيف تريد إضافة نقاطك؟',
+    'addOptManualTitle': 'إضافة يدوية',
+    'addOptManualSub': 'ضع دبوساً على الخريطة',
+    'addOptWhatsappTitle': 'من واتساب',
+    'addOptWhatsappSub': 'شارك موقعاً إلى لفّة',
+    'addOptImportTitle': 'لصق أو استيراد',
+    'addOptImportSub': 'قائمة عناوين أو ملف CSV',
+    'addOptManualBack': 'اختر طريقة أخرى',
+    'importChooserTitle': 'أضف عدة نقاط',
+    'importChooserPaste': 'لصق قائمة عناوين',
+    'importChooserCsv': 'استيراد ملف CSV',
+    'whatsappOpenFailed': 'تعذّر فتح واتساب',
+    'waInfoBody':
+        'في واتساب، اضغط على الموقع المُشارَك واختر «فتح بواسطة لفّة» — يفتح التطبيق والنقطة جاهزة على مسارك. كرّر الخطوات لكل نقطة جديدة، لتضاف فوق السابقة.',
+    'addPointCta': 'أضف نقطة',
+    'pressBackAgainToExit': 'اضغط رجوع مرة أخرى للخروج',
     'onbLocationTitle': 'حدّد نقطة انطلاقك',
     'onbLocationBody':
         'اسمح بالوصول إلى الموقع ليحدّد لفّة نقطة انطلاقك ويرشدك أثناء القيادة.',
@@ -730,7 +897,7 @@ const Map<String, Map<String, String>> _copy = {
     'onbMaybeLater': 'لاحقاً',
   },
   'fr': {
-    'appName': 'Laffeh',
+    'appName': 'Laffah',
     'appTagline': 'Votre itineraire plus intelligent',
     'planRouteTitle': 'Planifiez votre itineraire',
     'routePointsTitle': 'Points du trajet',
@@ -754,7 +921,6 @@ const Map<String, Map<String, String>> _copy = {
     'showFull': 'Trajet complet',
     'rename': 'Renommer',
     'remove': 'Supprimer',
-    'setAsDeparture': 'Definir comme depart',
     'cancel': 'Annuler',
     'save': 'Enregistrer',
     'retry': 'Reessayer',
@@ -820,6 +986,7 @@ const Map<String, Map<String, String>> _copy = {
     'cameraOverview': 'Vue globale',
     'cameraFollow': 'Suivi',
     'recenter': 'Recentrer',
+    'resetView': 'Réinitialiser la vue',
     'cameraChase': 'Cinematique',
     'headedTo': 'Direction',
     'departingFrom': 'Depart de',
@@ -881,17 +1048,49 @@ const Map<String, Map<String, String>> _copy = {
     'nextStop': 'Prochain arret',
     'liveLocation': 'Position en direct',
     'importCsv': 'Importer CSV',
+    'csvExportSuccess': 'Fichier CSV exporté',
+    'optional': 'Optionnel',
+    'optionalPoint': 'Point optionnel',
+    'markOptional': 'Rendre optionnel',
+    'markRequired': 'Rendre obligatoire',
+    'activate': 'Activer',
+    'deactivate': 'Désactiver',
+    'activateStopTitle': 'Rajouter cet arrêt ?',
+    'activateStopMsg':
+        'L\'inclure modifie votre trajet. Réoptimisez pour l\'ajouter, ou supprimez l\'arrêt.',
+    'reoptimizeNow': 'Réoptimiser',
+    'skipStop': 'Ignorer cet arrêt',
+    'includeStop': 'Ajouter au trajet',
+    'optionalBadge': 'Optionnel',
+    'deactivatedBadge': 'Inactif',
+    'addOptionalHere': 'Ajouter un arrêt optionnel ici',
+    'moveOnMap': 'Déplacer sur la carte',
+    'movePointTitle': 'Déplacer le point',
+    'movePointHint': 'Faites glisser le point en surbrillance, puis enregistrez.',
+    'saveLocation': 'Enregistrer l\'emplacement',
+    'locationUpdated': 'Emplacement mis à jour',
+    'addStop': 'Ajouter un arrêt',
+    'addOptionalStop': 'Ajouter un arrêt optionnel',
+    'addByTap': 'Depuis la carte',
+    'addMethods': 'Ajouter des points',
+    'keepAddingHint': 'Continuez à ajouter autant de points que nécessaire.',
+    'offlineTitle': 'Hors ligne',
+    'offlineBody': 'Pas de connexion — vos modifications sont enregistrées sur cet appareil.',
+    'offlineActionUnavailable': 'Cette action nécessite une connexion Internet.',
+    'draftRestoredMsg': 'Nous avons restauré votre travail enregistré.',
+    'savedLocallyNote': 'Enregistré sur votre appareil',
+    'errNoActiveStops': 'Activez au moins un arrêt avant l\'optimisation.',
+    'noAddressesFound': 'Aucune adresse trouvée. Vérifiez le texte et réessayez.',
     'exportCsv': 'Exporter CSV',
     'csvImportEmpty': 'Aucun point trouve dans ce fichier CSV',
     'csvImportFailed': 'Impossible d\'importer le fichier CSV',
     'csvExportFailed': 'Impossible d\'exporter le fichier CSV',
     'csvNoPoints': 'Aucun point a exporter',
-    'csvShareText': 'Trajet Laffeh au format CSV',
+    'csvShareText': 'Trajet Laffah au format CSV',
     'departureBadge': 'Depart',
     'returnBadge': 'Retour',
     'routeOrder': 'Ordre du trajet',
     'points': 'points',
-    'dragToReorder': 'glissez pour reordonner',
     'unitKm': 'km',
     'unitMeter': 'm',
     'unitMin': 'min',
@@ -914,22 +1113,38 @@ const Map<String, Map<String, String>> _copy = {
     'onbNext': 'Suivant',
     'onbBack': 'Retour',
     'onbGetStarted': 'Commencer',
-    'onbWelcomeTitle': 'Bienvenue sur Laffeh',
+    'onbWelcomeTitle': 'Bienvenue sur Laffah',
     'onbWelcomeBody':
         'Planifiez le meilleur itineraire passant par tous vos arrets — en quelques secondes.',
     'onbLanguageLabel': 'Choisissez votre langue',
     'onbPlanTitle': 'Ajoutez des arrets, obtenez le meilleur ordre',
     'onbPlanBody':
-        'Deplacez la carte et touchez pour ajouter chaque arret. Laffeh les remet automatiquement dans le trajet le plus rapide.',
+        'Deplacez la carte et touchez pour ajouter chaque arret. Laffah les remet automatiquement dans le trajet le plus rapide.',
     'onbImportTitle': 'Ajoutez des arrets depuis WhatsApp',
     'onbImportBody':
-        'Partagez une position vers Laffeh et elle apparait sur votre itineraire, sans saisie. Importer un CSV ou coller une liste fonctionne aussi.',
+        'Partagez une position vers Laffah et elle apparait sur votre itineraire, sans saisie. Importer un CSV ou coller une liste fonctionne aussi.',
     'onbImportWhatsappTag': 'WhatsApp',
     'onbImportCsvTag': 'CSV et liste',
-    'onbShareToLaffeh': 'Ouvrir avec Laffeh',
+    'onbShareToLaffah': 'Ouvrir avec Laffah',
+    'addOptHeader': 'Comment ajouter vos arrets ?',
+    'addOptManualTitle': 'Ajout manuel',
+    'addOptManualSub': 'Placez un point sur la carte',
+    'addOptWhatsappTitle': 'Depuis WhatsApp',
+    'addOptWhatsappSub': 'Partagez une position vers Laffah',
+    'addOptImportTitle': 'Coller ou importer',
+    'addOptImportSub': "Une liste d'adresses ou un CSV",
+    'addOptManualBack': 'Choisir une autre methode',
+    'importChooserTitle': 'Ajouter plusieurs arrets',
+    'importChooserPaste': "Coller une liste d'adresses",
+    'importChooserCsv': 'Importer un fichier CSV',
+    'whatsappOpenFailed': "Impossible d'ouvrir WhatsApp",
+    'waInfoBody':
+        "Dans WhatsApp, touchez la position partagee et choisissez « Ouvrir avec Laffah » — l'app s'ouvre avec l'arret deja sur votre itineraire. Repetez pour chaque arret ; il s'ajoute aux precedents.",
+    'addPointCta': 'Ajouter un arret',
+    'pressBackAgainToExit': 'Appuyez encore pour quitter',
     'onbLocationTitle': 'Trouvez votre point de depart',
     'onbLocationBody':
-        'Autorisez la localisation pour que Laffeh definisse votre depart et vous guide pendant la conduite.',
+        'Autorisez la localisation pour que Laffah definisse votre depart et vous guide pendant la conduite.',
     'onbAllowLocation': 'Autoriser la localisation',
     'onbMaybeLater': 'Plus tard',
   },

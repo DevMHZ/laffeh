@@ -18,10 +18,11 @@ enum RoutePlannerStatus {
 
 /// How the camera behaves during simulation playback.
 ///
-///   * [overview] — sits still on the whole route bounds; the
-///     animated vehicle moves within the frame.
+///   * [overview] — panoramic: sits still on the whole route bounds so
+///     every point is on screen; the animated vehicle moves within the
+///     frame. This is the default the preview opens in.
 ///   * [follow]   — flat top-down, camera follows the vehicle at
-///     a moderate zoom. Best default for most users.
+///     a moderate zoom.
 ///   * [chase]    — 3D cinematic, tilted, rotated to the bearing
 ///     of motion. Looks great but is the most "intense".
 enum SimulationCameraMode { overview, follow, chase }
@@ -39,6 +40,12 @@ class RoutePlannerState extends Equatable {
 
   /// Which segment is highlighted on the map.
   final RouteSegment displaySegment;
+
+  /// True arc-length fraction (0..1) of each [optimizedRoute.orderedPoints]
+  /// entry along the full polyline. Computed once when a route is set so
+  /// marker/headline "visited" state flips exactly as the vehicle passes
+  /// a stop (stops aren't evenly spaced along the road).
+  final List<double> stopFractions;
 
   /// User-facing error message (Arabic). Only meaningful on
   /// `optimizedFailure`.
@@ -79,6 +86,25 @@ class RoutePlannerState extends Equatable {
   /// or when the platform does not report it.
   final double? navigationSpeedMps;
 
+  /// True when the last connectivity probe found no internet. Drives the
+  /// offline banner; edits keep saving locally regardless.
+  final bool isOffline;
+
+  /// True once a previously-saved local draft has been restored on
+  /// startup — lets the UI show a subtle "we kept your work" hint.
+  final bool draftRestored;
+
+  /// Id of the point currently being repositioned on the map (#9), or
+  /// null when not in "move" mode. While set, the planner UI collapses
+  /// to a full-screen map with a reticle so the user can drop the point
+  /// at a new spot with their finger.
+  final String? movingPointId;
+
+  /// True while the user is in the empty-state "drop a pin manually" flow —
+  /// i.e. they tapped "add manually" but haven't placed the first point yet.
+  /// Gates the centre crosshair so an untouched map stays clean.
+  final bool manualPlacement;
+
   const RoutePlannerState({
     this.status = RoutePlannerStatus.initial,
     this.points = const [],
@@ -86,24 +112,36 @@ class RoutePlannerState extends Equatable {
     this.cameraTarget,
     this.optimizedRoute,
     this.displaySegment = RouteSegment.full,
+    this.stopFractions = const [],
     this.errorMessage,
     this.simulationActive = false,
     this.simulationPlaying = false,
     this.simulationProgress = 0.0,
     this.simulationSpeed = 1.0,
-    this.simulationCameraMode = SimulationCameraMode.follow,
+    this.simulationCameraMode = SimulationCameraMode.overview,
     this.navigationActive = false,
     this.navigationProgress = 0.0,
     this.navigationStopIndex = 1,
     this.navigationHeading,
     this.navigationSpeedMps,
+    this.isOffline = false,
+    this.draftRestored = false,
+    this.movingPointId,
+    this.manualPlacement = false,
   });
 
   bool get hasOptimizedRoute => optimizedRoute != null;
   bool get isOptimizing => status == RoutePlannerStatus.optimizing;
   bool get isLoadingLocation => status == RoutePlannerStatus.loadingLocation;
   bool get hasPoints => points.isNotEmpty;
-  bool get canOptimize => points.length >= 2 && !isOptimizing;
+
+  /// Points that will actually be optimized: every mandatory point plus
+  /// optional points the user left active. Deactivated optional points
+  /// are excluded.
+  int get routableCount => points.where((p) => p.isRoutable).length;
+
+  /// At least a depot + one active stop, and not mid-run.
+  bool get canOptimize => routableCount >= 2 && !isOptimizing;
 
   RoutePlannerState copyWith({
     RoutePlannerStatus? status,
@@ -112,6 +150,7 @@ class RoutePlannerState extends Equatable {
     LatLng? cameraTarget,
     OptimizedRoute? optimizedRoute,
     RouteSegment? displaySegment,
+    List<double>? stopFractions,
     String? errorMessage,
     bool? simulationActive,
     bool? simulationPlaying,
@@ -123,10 +162,15 @@ class RoutePlannerState extends Equatable {
     int? navigationStopIndex,
     double? navigationHeading,
     double? navigationSpeedMps,
+    bool? isOffline,
+    bool? draftRestored,
+    String? movingPointId,
+    bool? manualPlacement,
     bool clearOptimizedRoute = false,
     bool clearError = false,
     bool clearNavigationHeading = false,
     bool clearNavigationSpeed = false,
+    bool clearMovingPoint = false,
   }) {
     return RoutePlannerState(
       status: status ?? this.status,
@@ -137,6 +181,7 @@ class RoutePlannerState extends Equatable {
           ? null
           : (optimizedRoute ?? this.optimizedRoute),
       displaySegment: displaySegment ?? this.displaySegment,
+      stopFractions: stopFractions ?? this.stopFractions,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       simulationActive: simulationActive ?? this.simulationActive,
       simulationPlaying: simulationPlaying ?? this.simulationPlaying,
@@ -152,6 +197,12 @@ class RoutePlannerState extends Equatable {
       navigationSpeedMps: clearNavigationSpeed
           ? null
           : (navigationSpeedMps ?? this.navigationSpeedMps),
+      isOffline: isOffline ?? this.isOffline,
+      draftRestored: draftRestored ?? this.draftRestored,
+      movingPointId: clearMovingPoint
+          ? null
+          : (movingPointId ?? this.movingPointId),
+      manualPlacement: manualPlacement ?? this.manualPlacement,
     );
   }
 
@@ -163,6 +214,7 @@ class RoutePlannerState extends Equatable {
     cameraTarget,
     optimizedRoute,
     displaySegment,
+    stopFractions,
     errorMessage,
     simulationActive,
     simulationPlaying,
@@ -174,5 +226,9 @@ class RoutePlannerState extends Equatable {
     navigationStopIndex,
     navigationHeading,
     navigationSpeedMps,
+    isOffline,
+    draftRestored,
+    movingPointId,
+    manualPlacement,
   ];
 }
