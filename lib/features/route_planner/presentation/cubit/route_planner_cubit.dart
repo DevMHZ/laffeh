@@ -291,7 +291,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   // ── Point management ──────────────────────────────────────
 
-  Future<void> addPoint(LatLng position, {bool optional = false}) async {
+  /// Forward-geocode [query] into a pick-one list of matches. Backs the
+  /// single-address search in the "add a point" chooser.
+  Future<List<GeoSearchResult>> searchAddresses(String query) =>
+      _geocoding.searchAddresses(query);
+
+  /// Adds a point at [position]. When [address] is supplied (e.g. the label
+  /// the user picked from address search) it is shown immediately and the
+  /// background reverse-geocode is skipped — otherwise the address is resolved
+  /// from the coordinate.
+  Future<void> addPoint(
+    LatLng position, {
+    bool optional = false,
+    String? address,
+  }) async {
     DebugLog.add(
       'addPoint() ENTER pos=${position.latitude.toStringAsFixed(6)},'
       '${position.longitude.toStringAsFixed(6)} optional=$optional '
@@ -347,11 +360,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         ? AppStrings.optionalStopLabel(_optionalCount() + 1)
         : AppStrings.stopLabel(_mandatoryStopCount() + 1);
 
+    final providedAddress = address?.trim();
     final tentative = RoutePoint(
       id: id,
       latitude: position.latitude,
       longitude: position.longitude,
       label: label,
+      address: (providedAddress != null && providedAddress.isNotEmpty)
+          ? providedAddress
+          : null,
       weight: RoutingConfig.defaultStopWeight,
       kind: isFirst ? RoutePointKind.depot : RoutePointKind.stop,
       optional: asOptional,
@@ -381,15 +398,19 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       ),
     );
 
-    _resolveAddress(tentative)
-        .then((withAddr) {
-          if (withAddr == null) return;
-          final idx = state.points.indexWhere((p) => p.id == withAddr.id);
-          if (idx < 0) return;
-          final updated = [...state.points]..[idx] = withAddr;
-          emit(state.copyWith(points: updated));
-        })
-        .catchError((_) {});
+    // A point added via address search already carries its label — only
+    // coordinates (manual pin / WhatsApp) need a reverse lookup.
+    if (tentative.address == null) {
+      _resolveAddress(tentative)
+          .then((withAddr) {
+            if (withAddr == null) return;
+            final idx = state.points.indexWhere((p) => p.id == withAddr.id);
+            if (idx < 0) return;
+            final updated = [...state.points]..[idx] = withAddr;
+            emit(state.copyWith(points: updated));
+          })
+          .catchError((_) {});
+    }
   }
 
   /// Move an existing point to a new lat/lon (called from

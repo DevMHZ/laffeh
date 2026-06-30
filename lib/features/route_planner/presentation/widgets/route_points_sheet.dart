@@ -7,7 +7,6 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
-import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
@@ -17,23 +16,12 @@ import 'point_actions_sheet.dart';
 part 'route_points_sheet_widgets.dart';
 
 class RoutePointsSheet extends StatelessWidget {
-  /// Drops a point at the map crosshair. This is the primary "place a
-  /// point" action — docked at the top of the sheet (instead of floating
-  /// over the map) so the map stays as clear as possible.
-  final VoidCallback? onAddHere;
+  /// Opens the per-point add-method chooser (type an address / pick on the
+  /// map / from WhatsApp). The single entry point for adding another stop,
+  /// docked at the top of the sheet so the map stays as clear as possible.
+  final VoidCallback? onAddPoint;
 
-  /// Opens the paste-or-import-CSV chooser (the two bulk paths combined).
-  final VoidCallback? onShowImport;
-
-  /// Opens WhatsApp so the user can share a location back to Laffah.
-  final VoidCallback? onOpenWhatsapp;
-
-  const RoutePointsSheet({
-    super.key,
-    this.onAddHere,
-    this.onShowImport,
-    this.onOpenWhatsapp,
-  });
+  const RoutePointsSheet({super.key, this.onAddPoint});
 
   @override
   Widget build(BuildContext context) {
@@ -63,19 +51,12 @@ class RoutePointsSheet extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── All "add" paths in one compact row ───────────────────
-              //    Paste · ADD STOP HERE (emphasised, centre) · CSV. One row
-              //    keeps the map as tall as possible. (Returning to the
-              //    user's location is an on-map control, not a sheet button.)
-              if (onAddHere != null ||
-                  onShowImport != null ||
-                  onOpenWhatsapp != null) ...[
-                _AddControlsRow(
-                  hasDepot: state.hasPoints,
-                  onAddHere: onAddHere,
-                  onShowImport: onShowImport,
-                  onOpenWhatsapp: onOpenWhatsapp,
-                ),
+              // ── Add another stop ─────────────────────────────────────
+              //    A single CTA that opens the same add-method chooser used
+              //    everywhere (type an address / pick on the map / WhatsApp),
+              //    so every point is added the same way.
+              if (onAddPoint != null) ...[
+                _AddStopCta(onTap: onAddPoint),
                 const SizedBox(height: 14),
               ],
 

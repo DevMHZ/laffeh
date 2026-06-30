@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/debug_log.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
-import '../widgets/route_map_view.dart';
 import '../widgets/route_points_sheet.dart';
 import '../widgets/route_summary_sheet.dart';
 import 'route_planner_actions.dart';
@@ -15,8 +13,7 @@ import 'route_planner_actions.dart';
 /// Draggable bottom sheet hosting the points list (before optimization) or
 /// the route summary (after). Hidden while a full-screen flow is active.
 class BottomSheetHost extends StatelessWidget {
-  final GlobalKey<RouteMapViewState> mapKey;
-  const BottomSheetHost({super.key, required this.mapKey});
+  const BottomSheetHost({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -27,12 +24,15 @@ class BottomSheetHost extends StatelessWidget {
           a.status != b.status ||
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
+          a.manualPlacement != b.manualPlacement ||
           a.movingPointId != b.movingPointId,
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
-        // Preview, drive, and move-a-point all use the full-screen map.
+        // Preview, drive, move-a-point, and manual pin-placement all use the
+        // full-screen map.
         if (state.simulationActive ||
             state.navigationActive ||
+            state.manualPlacement ||
             state.movingPointId != null) {
           return const SizedBox.shrink();
         }
@@ -112,30 +112,11 @@ class BottomSheetHost extends StatelessWidget {
                             ),
                           )
                         : RoutePointsSheet(
-                            onAddHere: () {
-                              final mapState = mapKey.currentState;
-                              if (mapState == null) {
-                                DebugLog.add(
-                                  'onAddHere TAP ✋ mapKey.currentState NULL '
-                                  '— button is a no-op',
-                                );
-                                return;
-                              }
-                              final center = mapState.mapCenter;
-                              DebugLog.add(
-                                'onAddHere TAP → forwarding center '
-                                '${center.latitude.toStringAsFixed(6)},'
-                                '${center.longitude.toStringAsFixed(6)} to cubit',
-                              );
-                              cubit.addPoint(center);
-                            },
-                            onShowImport: () =>
-                                RoutePlannerActions.showImportChooser(
+                            onAddPoint: () =>
+                                RoutePlannerActions.showAddMethodChooser(
                                   context,
                                   cubit,
                                 ),
-                            onOpenWhatsapp: () =>
-                                RoutePlannerActions.openWhatsapp(context),
                           ),
                   ),
                 ),

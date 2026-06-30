@@ -4,19 +4,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../widgets/route_add_options_panel.dart';
-import '../widgets/route_map_view.dart';
 import 'route_planner_actions.dart';
 
-/// Screen-level entry point shown while the route is still empty: a
-/// professional floating panel docked at the bottom of the map offering the
-/// three ways to add stops. It deliberately is NOT a draggable bottom sheet —
-/// the sheet only takes over once the first point lands.
+/// Screen-level entry point shown while the route is still empty: a single
+/// "Add a stop" call-to-action docked at the bottom of the map. Tapping it
+/// opens the per-point add-method chooser. It deliberately is NOT a draggable
+/// bottom sheet — the sheet only takes over once the first point lands.
 ///
-/// Hidden whenever a point exists, a route is optimized, or a full-screen
-/// flow (preview / drive / move-a-point) is active.
+/// Hidden whenever a point exists, a route is optimized, the user is placing a
+/// pin manually, or a full-screen flow (preview / drive / move-a-point) is
+/// active.
 class AddOptionsHost extends StatelessWidget {
-  final GlobalKey<RouteMapViewState> mapKey;
-  const AddOptionsHost({super.key, required this.mapKey});
+  const AddOptionsHost({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -26,12 +25,14 @@ class AddOptionsHost extends StatelessWidget {
           a.optimizedRoute != b.optimizedRoute ||
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
+          a.manualPlacement != b.manualPlacement ||
           a.movingPointId != b.movingPointId,
       builder: (context, state) {
         final hide = state.hasPoints ||
             state.hasOptimizedRoute ||
             state.simulationActive ||
             state.navigationActive ||
+            state.manualPlacement ||
             state.movingPointId != null;
 
         return AnimatedSwitcher(
@@ -48,21 +49,17 @@ class AddOptionsHost extends StatelessWidget {
               child: child,
             ),
           ),
-          child: hide
-              ? const SizedBox.shrink()
-              : _OptionsCard(mapKey: mapKey),
+          child: hide ? const SizedBox.shrink() : const _OptionsCard(),
         );
       },
     );
   }
 }
 
-/// Positions [RouteAddOptionsPanel] at the bottom of the map. The panel owns
-/// its own chrome now — a bare button while collapsed, a frosted card once
-/// expanded — so the host only handles placement and wiring.
+/// Positions the [RouteAddOptionsPanel] CTA at the bottom of the map and wires
+/// it to the add-method chooser.
 class _OptionsCard extends StatelessWidget {
-  final GlobalKey<RouteMapViewState> mapKey;
-  const _OptionsCard({required this.mapKey});
+  const _OptionsCard();
 
   @override
   Widget build(BuildContext context) {
@@ -76,18 +73,8 @@ class _OptionsCard extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: RouteAddOptionsPanel(
-              onAddHere: () {
-                final map = mapKey.currentState;
-                if (map == null) return;
-                cubit.addPoint(map.mapCenter);
-              },
-              onOpenWhatsapp: () => RoutePlannerActions.openWhatsapp(context),
-              onShowWhatsappInfo: () =>
-                  RoutePlannerActions.showWhatsappInfo(context),
-              onShowImport: () =>
-                  RoutePlannerActions.showImportChooser(context, cubit),
-              onBeginManual: () => cubit.beginManualPlacement(),
-              onCancelManual: () => cubit.cancelManualPlacement(),
+              onTap: () =>
+                  RoutePlannerActions.showAddMethodChooser(context, cubit),
             ),
           ),
         ),

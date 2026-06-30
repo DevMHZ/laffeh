@@ -34,17 +34,17 @@ class CenterPin extends StatelessWidget {
           a.manualPlacement != b.manualPlacement ||
           a.points.isEmpty != b.points.isEmpty,
       builder: (context, state) {
-        // The move-a-point flow shows its own reticle (MovePointHost).
-        // On an empty map the crosshair stays hidden until the user actually
-        // chooses "add manually" (manualPlacement) — once any point exists it
-        // shows again so "add stop here" has its aim.
+        // The crosshair is purely an aiming aid for the "pick on the map"
+        // flow: it shows only while the user is actively placing a pin
+        // (manualPlacement) and disappears the moment the point is dropped.
+        // (The move-a-point flow draws its own reticle in MovePointHost.)
         final visible =
             !state.simulationActive &&
             !state.navigationActive &&
             !state.hasOptimizedRoute &&
             !state.isOptimizing &&
             state.movingPointId == null &&
-            (state.hasPoints || state.manualPlacement);
+            state.manualPlacement;
         if (!visible) return const SizedBox.shrink();
         final hasDepot = state.points.isNotEmpty;
         final color = hasDepot ? AppColors.primary : AppColors.asphalt;

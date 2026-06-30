@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -14,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../../onboarding/presentation/widgets/onboarding_mock.dart';
 import '../../../saved_routes/domain/entities/saved_route.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
@@ -21,6 +20,7 @@ import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../utils/route_csv_utils.dart';
+import '../widgets/route_address_search_sheet.dart';
 
 /// Imperative actions invoked from the planner UI — opening saved routes,
 /// pasting/importing/exporting points, and handing off to Google Maps.
@@ -36,206 +36,6 @@ class RoutePlannerActions {
     );
     if (picked != null) {
       cubit.loadSavedRoute(picked);
-    }
-  }
-
-  /// Shows a dialog to paste multiple addresses (one per line).
-  static Future<void> showPasteAddressesDialog(
-    BuildContext context,
-    RoutePlannerCubit cubit,
-  ) async {
-    final controller = TextEditingController();
-
-    try {
-      final clip = await Clipboard.getData(Clipboard.kTextPlain);
-      if (clip?.text != null && clip!.text!.trim().isNotEmpty) {
-        controller.text = clip.text!;
-      }
-    } catch (_) {}
-
-    if (!context.mounted) return;
-
-    final text = await showGeneralDialog<String>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 220),
-      transitionBuilder: (ctx, anim, _, child) {
-        final curved = CurvedAnimation(
-          parent: anim,
-          curve: Curves.easeOutCubic,
-        );
-        return Opacity(
-          opacity: curved.value,
-          child: Transform.scale(
-            scale: 0.95 + (0.05 * curved.value),
-            child: child,
-          ),
-        );
-      },
-      pageBuilder: (dialogCtx, _, __) => Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Material(
-            type: MaterialType.transparency,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 420),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppColors.shadow,
-                    blurRadius: 36,
-                    offset: Offset(0, 18),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Iconsax.document_copy,
-                        color: AppColors.primary,
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    AppStrings.pasteAddresses,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.h3,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppStrings.pasteAddressesHint,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMd.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    maxLines: 6,
-                    minLines: 3,
-                    style: AppTextStyles.bodyLg,
-                    decoration: InputDecoration(
-                      hintText: AppStrings.pasteAddressesPlaceholder,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.of(dialogCtx).pop(null),
-                          child: Text(AppStrings.cancel),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              Navigator.of(dialogCtx).pop(controller.text),
-                          icon: const Icon(Iconsax.add_circle, size: 18),
-                          label: Text(AppStrings.addPoints),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    if (text == null || text.trim().isEmpty) return;
-
-    EasyLoading.show(status: AppStrings.searchingAddresses);
-    final count = await cubit.addPointsFromText(text);
-    EasyLoading.dismiss();
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(addedMessage(count))));
-    }
-  }
-
-  /// Picks a CSV file and adds its rows as points.
-  static Future<void> importCsv(
-    BuildContext context,
-    RoutePlannerCubit cubit,
-  ) async {
-    try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['csv'],
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.single;
-      final bytes = file.bytes;
-      final path = file.path;
-      if (bytes == null && path == null) {
-        throw const FormatException('CSV file has no readable content');
-      }
-      final text = bytes != null
-          ? utf8.decode(bytes)
-          : await File(path!).readAsString();
-
-      final lines = RouteCsvUtils.decodeImportLines(text);
-      if (lines.isEmpty) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(AppStrings.csvImportEmpty)));
-        }
-        return;
-      }
-
-      EasyLoading.show(status: AppStrings.searchingAddresses);
-      final count = await cubit.addPointsFromText(lines.join('\n'));
-      EasyLoading.dismiss();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(addedMessage(count))));
-      }
-    } catch (_) {
-      EasyLoading.dismiss();
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(AppStrings.csvImportFailed)));
-      }
     }
   }
 
@@ -408,9 +208,12 @@ class RoutePlannerActions {
     );
   }
 
-  /// Bottom-sheet chooser combining the two bulk-add paths: paste a list or
-  /// import a CSV file. Both reuse the existing flows.
-  static Future<void> showImportChooser(
+  /// The per-point "how do you want to add this point?" chooser, shown every
+  /// time the user adds a stop (first or later). Exactly three ways:
+  ///   1. Type a single address (search + pick one) — never a bulk list.
+  ///   2. Pick on the map (drops into manual-placement mode with a crosshair).
+  ///   3. Import from WhatsApp (share a location back to Laffah).
+  static Future<void> showAddMethodChooser(
     BuildContext context,
     RoutePlannerCubit cubit,
   ) {
@@ -431,28 +234,45 @@ class RoutePlannerActions {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
-                  AppStrings.importChooserTitle,
+                  AppStrings.addMethodTitle,
                   style: AppTextStyles.h3,
                 ),
               ),
               const SizedBox(height: 14),
               _chooserRow(
-                icon: Iconsax.document_copy,
-                color: AppColors.primary,
-                label: AppStrings.importChooserPaste,
+                icon: Iconsax.search_normal,
+                color: AppColors.info,
+                label: AppStrings.addMethodAddress,
+                subtitle: AppStrings.addMethodAddressSub,
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  showPasteAddressesDialog(context, cubit);
+                  showAddressSearchSheet(context, cubit);
                 },
               ),
               const SizedBox(height: 10),
               _chooserRow(
-                icon: Iconsax.document_download,
-                color: AppColors.info,
-                label: AppStrings.importChooserCsv,
+                icon: Iconsax.location,
+                color: AppColors.warning,
+                label: AppStrings.addMethodMap,
+                subtitle: AppStrings.addMethodMapSub,
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  importCsv(context, cubit);
+                  cubit.beginManualPlacement();
+                },
+              ),
+              const SizedBox(height: 10),
+              _chooserRow(
+                icon: Iconsax.message,
+                iconWidget: const WhatsappGlyph(
+                  size: 22,
+                  color: AppColors.primary,
+                ),
+                color: AppColors.primary,
+                label: AppStrings.addOptWhatsappTitle,
+                subtitle: AppStrings.addOptWhatsappSub,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  openWhatsapp(context);
                 },
               ),
             ],
@@ -467,29 +287,52 @@ class RoutePlannerActions {
     required Color color,
     required String label,
     required VoidCallback onTap,
+    String? subtitle,
+    Widget? iconWidget,
   }) {
     return Material(
       color: AppColors.surfaceAlt.withValues(alpha: 0.7),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(9),
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: iconWidget ?? Icon(icon, color: color, size: 20),
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: Text(label, style: AppTextStyles.titleSm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(label, style: AppTextStyles.titleSm),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.mutedSm,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               const Icon(
                 Iconsax.arrow_right_3,
                 size: 18,

@@ -131,149 +131,25 @@ class _CellBadge extends StatelessWidget {
   }
 }
 
-/// All the "add a point" paths on one line, docked at the top of the
-/// planning sheet so nothing floats over the map. Mirrors the three options
-/// the empty state offers (RouteAddOptionsPanel): manual, paste/CSV, WhatsApp.
-///
-/// Layout: a compact paste-or-import button, then the emphasised "Add stop
-/// here" CTA expanded in the centre (the hero — asphalt until a departure is
-/// set, brand green afterwards, matching the centre pin), then a compact
-/// WhatsApp button.
-class _AddControlsRow extends StatelessWidget {
-  final bool hasDepot;
-  final VoidCallback? onAddHere;
-  final VoidCallback? onShowImport;
-  final VoidCallback? onOpenWhatsapp;
-
-  const _AddControlsRow({
-    required this.hasDepot,
-    this.onAddHere,
-    this.onShowImport,
-    this.onOpenWhatsapp,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = hasDepot ? AppColors.primary : AppColors.asphalt;
-    return Row(
-      children: [
-        if (onShowImport != null) ...[
-          _SquareIconButton(
-            icon: Iconsax.document_upload,
-            background: AppColors.surfaceAlt,
-            foreground: AppColors.info,
-            tooltip: AppStrings.addOptImportTitle,
-            onTap: onShowImport,
-          ),
-          const SizedBox(width: 8),
-        ],
-        // The hero: expanded so it dominates the centre of the row.
-        if (onAddHere != null)
-          Expanded(
-            child: _AddHereCta(
-              color: color,
-              icon: hasDepot ? Iconsax.location_add : Iconsax.flag,
-              label: hasDepot
-                  ? AppStrings.addStopHere
-                  : AppStrings.setDepartureHere,
-              onTap: onAddHere,
-            ),
-          )
-        else
-          const Spacer(),
-        if (onOpenWhatsapp != null) ...[
-          const SizedBox(width: 8),
-          _SquareIconButton(
-            icon: Iconsax.message,
-            iconWidget: const WhatsappGlyph(
-              size: 22,
-              color: AppColors.primary,
-            ),
-            background: AppColors.primarySoft,
-            foreground: AppColors.primary,
-            tooltip: AppStrings.addOptWhatsappTitle,
-            onTap: onOpenWhatsapp,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Compact 52×52 icon button for the secondary add paths (paste / CSV).
-/// Icon-only with a tooltip so the row stays tight and the centre CTA
-/// keeps the spotlight.
-class _SquareIconButton extends StatelessWidget {
-  final IconData icon;
-  final Widget? iconWidget;
-  final Color background;
-  final Color foreground;
-  final String tooltip;
+/// The single "Add a stop" call-to-action docked at the top of the planning
+/// sheet. Tapping it opens the per-point add-method chooser (type an address /
+/// pick on the map / from WhatsApp), so every stop is added the same way.
+class _AddStopCta extends StatelessWidget {
   final VoidCallback? onTap;
 
-  const _SquareIconButton({
-    required this.icon,
-    this.iconWidget,
-    required this.background,
-    required this.foreground,
-    required this.tooltip,
-    this.onTap,
-  });
+  const _AddStopCta({this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: background,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap == null
-              ? null
-              : () {
-                  HapticFeedback.selectionClick();
-                  onTap!();
-                },
-          child: Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            child: iconWidget ?? Icon(icon, color: foreground, size: 22),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Wide, filled call-to-action that drops a point at the map crosshair.
-class _AddHereCta extends StatelessWidget {
-  final Color color;
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  const _AddHereCta({
-    required this.color,
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // AnimatedContainer so the colour eases asphalt → green the moment the
-    // departure is placed, matching the centre pin's transition.
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 350),
+    return Container(
       height: 52,
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: color,
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.30),
+            color: AppColors.primary.withValues(alpha: 0.30),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -294,11 +170,15 @@ class _AddHereCta extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: AppColors.white, size: 20),
+                const Icon(
+                  Iconsax.location_add,
+                  color: AppColors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: 9),
                 Flexible(
                   child: Text(
-                    label,
+                    AppStrings.addPointCta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.button.copyWith(

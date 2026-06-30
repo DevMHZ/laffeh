@@ -126,46 +126,15 @@ class RouteSummarySheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
-                itemCount: order.length,
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  mainAxisExtent: 54,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                itemBuilder: (context, i) {
-                  final p = order[i];
-                  final isReturn =
-                      i == order.length - 1 && p.isDepot && i != 0;
-                  final color = p.isDeactivated
-                      ? AppColors.optionalOff
-                      : p.isDepot && !isReturn
-                      ? AppColors.primary
-                      : isReturn
-                      ? AppColors.accent
-                      : p.optional
-                      ? AppColors.optional
-                      : AppColors.info;
-                  final icon = p.isDepot && !isReturn
-                      ? Iconsax.flag
-                      : isReturn
-                      ? Iconsax.home_2
-                      : p.optional
-                      ? Iconsax.star_1
-                      : Iconsax.location;
-                  return _SummaryGridCell(
-                    key: ValueKey(p.id),
-                    point: p,
-                    index: i + 1,
-                    color: color,
-                    icon: icon,
-                  );
-                },
+              // One full-width row per stop (not a 3-up grid) so the optimised
+              // order reads cleanly top-to-bottom.
+              Column(
+                children: [
+                  for (var i = 0; i < order.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    _orderCell(order[i], i + 1, order.length),
+                  ],
+                ],
               ),
               const SizedBox(height: 14),
 
@@ -177,6 +146,37 @@ class RouteSummarySheet extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  /// One full-width row for a single stop in the optimised sequence — order
+  /// number badge, label, and (when known) address. Laid out one per line for
+  /// clear order reading.
+  Widget _orderCell(RoutePoint p, int index, int total) {
+    final i = index - 1;
+    final isReturn = i == total - 1 && p.isDepot && i != 0;
+    final color = p.isDeactivated
+        ? AppColors.optionalOff
+        : p.isDepot && !isReturn
+        ? AppColors.primary
+        : isReturn
+        ? AppColors.accent
+        : p.optional
+        ? AppColors.optional
+        : AppColors.info;
+    final icon = p.isDepot && !isReturn
+        ? Iconsax.flag
+        : isReturn
+        ? Iconsax.home_2
+        : p.optional
+        ? Iconsax.star_1
+        : Iconsax.location;
+    return _SummaryGridCell(
+      key: ValueKey(p.id),
+      point: p,
+      index: index,
+      color: color,
+      icon: icon,
     );
   }
 

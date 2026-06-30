@@ -260,9 +260,9 @@ class _StartNavigationButton extends StatelessWidget {
   }
 }
 
-/// Read-only grid cell used in the summary sheet's route sequence.
-/// Same visual style as the planning sheet's _PointGridCell, but
-/// no tap action — the route is already optimized.
+/// Read-only full-width row used in the summary sheet's route sequence — one
+/// per line for clear order reading. Shows the order badge, the label, and the
+/// address when known. No tap action — the route is already optimized.
 class _SummaryGridCell extends StatelessWidget {
   final RoutePoint point;
   final int index;
@@ -279,10 +279,11 @@ class _SummaryGridCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final address = point.address?.trim();
     return Opacity(
       opacity: point.isDeactivated ? 0.55 : 1.0,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.surfaceAlt.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(14),
@@ -295,13 +296,28 @@ class _SummaryGridCell extends StatelessWidget {
         child: Row(
           children: [
             _SummaryCellBadge(color: color, icon: icon, index: index),
-            const SizedBox(width: 7),
+            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                point.label,
-                style: AppTextStyles.titleSm,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    point.label,
+                    style: AppTextStyles.titleSm,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (address != null && address.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      address,
+                      style: AppTextStyles.mutedSm,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
             ),
           ],

@@ -12,6 +12,7 @@ import '../cubit/route_planner_cubit.dart';
 import '../widgets/route_map_view.dart';
 import 'route_add_options_host.dart';
 import 'route_planner_actions.dart';
+import 'route_planner_add_overlay.dart';
 import 'route_planner_bottom_sheet.dart';
 import 'route_planner_move_overlay.dart';
 import 'route_planner_overlays.dart';
@@ -139,8 +140,9 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
             Positioned.fill(child: RouteMapView(key: _mapKey)),
             const TopBar(),
             CenterPin(mapKey: _mapKey),
-            BottomSheetHost(mapKey: _mapKey),
-            AddOptionsHost(mapKey: _mapKey),
+            const BottomSheetHost(),
+            const AddOptionsHost(),
+            ManualPlacementHost(mapKey: _mapKey),
             MovePointHost(mapKey: _mapKey),
             const TripOverlayHost(),
             const LoadingOverlay(),

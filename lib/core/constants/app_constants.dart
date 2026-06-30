@@ -389,6 +389,16 @@ class AppStrings {
   static String get whatsappOpenFailed => _t('whatsappOpenFailed');
   static String get waInfoBody => _t('waInfoBody');
   static String get addPointCta => _t('addPointCta');
+  static String get addMethodTitle => _t('addMethodTitle');
+  static String get addMethodAddress => _t('addMethodAddress');
+  static String get addMethodAddressSub => _t('addMethodAddressSub');
+  static String get addMethodMap => _t('addMethodMap');
+  static String get addMethodMapSub => _t('addMethodMapSub');
+  static String get addressSearchTitle => _t('addressSearchTitle');
+  static String get addressSearchPlaceholder => _t('addressSearchPlaceholder');
+  static String get addressSearchPrompt => _t('addressSearchPrompt');
+  static String get addressSearchEmpty => _t('addressSearchEmpty');
+  static String get placePointHint => _t('placePointHint');
   static String get pressBackAgainToExit => _t('pressBackAgainToExit');
   static String get onbLocationTitle => _t('onbLocationTitle');
   static String get onbLocationBody => _t('onbLocationBody');
@@ -642,6 +652,16 @@ const Map<String, Map<String, String>> _copy = {
     'importChooserTitle': 'Add several stops',
     'importChooserPaste': 'Paste a list of addresses',
     'importChooserCsv': 'Import a CSV file',
+    'addMethodTitle': 'How do you want to add this point?',
+    'addMethodAddress': 'Type an address',
+    'addMethodAddressSub': 'Search and pick one address',
+    'addMethodMap': 'Pick on the map',
+    'addMethodMapSub': 'Drop a pin where you want',
+    'addressSearchTitle': 'Search address',
+    'addressSearchPlaceholder': 'Street, place, city…',
+    'addressSearchPrompt': 'Start typing to search for an address',
+    'addressSearchEmpty': 'No matches. Try a different search.',
+    'placePointHint': 'Move the map, then confirm',
     'whatsappOpenFailed': "Couldn't open WhatsApp",
     'waInfoBody':
         'In WhatsApp, tap the shared location and choose "Open with Laffah" — the app opens with the stop already on your route. Repeat for each new stop; it stacks onto the previous ones.',
@@ -885,6 +905,16 @@ const Map<String, Map<String, String>> _copy = {
     'importChooserTitle': 'أضف عدة نقاط',
     'importChooserPaste': 'لصق قائمة عناوين',
     'importChooserCsv': 'استيراد ملف CSV',
+    'addMethodTitle': 'كيف تريد إضافة هذه النقطة؟',
+    'addMethodAddress': 'اكتب عنواناً',
+    'addMethodAddressSub': 'ابحث واختر عنواناً واحداً',
+    'addMethodMap': 'اختر على الخريطة',
+    'addMethodMapSub': 'ضع دبوساً في المكان المطلوب',
+    'addressSearchTitle': 'ابحث عن عنوان',
+    'addressSearchPlaceholder': 'شارع، مكان، مدينة…',
+    'addressSearchPrompt': 'ابدأ الكتابة للبحث عن عنوان',
+    'addressSearchEmpty': 'لا نتائج. جرّب بحثاً مختلفاً.',
+    'placePointHint': 'حرّك الخريطة ثم أكّد',
     'whatsappOpenFailed': 'تعذّر فتح واتساب',
     'waInfoBody':
         'في واتساب، اضغط على الموقع المُشارَك واختر «فتح بواسطة لفّة» — يفتح التطبيق والنقطة جاهزة على مسارك. كرّر الخطوات لكل نقطة جديدة، لتضاف فوق السابقة.',
@@ -1137,6 +1167,16 @@ const Map<String, Map<String, String>> _copy = {
     'importChooserTitle': 'Ajouter plusieurs arrets',
     'importChooserPaste': "Coller une liste d'adresses",
     'importChooserCsv': 'Importer un fichier CSV',
+    'addMethodTitle': 'Comment ajouter ce point ?',
+    'addMethodAddress': 'Saisir une adresse',
+    'addMethodAddressSub': 'Rechercher et choisir une adresse',
+    'addMethodMap': 'Choisir sur la carte',
+    'addMethodMapSub': 'Placez un point où vous voulez',
+    'addressSearchTitle': 'Rechercher une adresse',
+    'addressSearchPlaceholder': 'Rue, lieu, ville…',
+    'addressSearchPrompt': 'Commencez à taper pour rechercher une adresse',
+    'addressSearchEmpty': 'Aucun résultat. Essayez autrement.',
+    'placePointHint': 'Déplacez la carte, puis confirmez',
     'whatsappOpenFailed': "Impossible d'ouvrir WhatsApp",
     'waInfoBody':
         "Dans WhatsApp, touchez la position partagee et choisissez « Ouvrir avec Laffah » — l'app s'ouvre avec l'arret deja sur votre itineraire. Repetez pour chaque arret ; il s'ajoute aux precedents.",

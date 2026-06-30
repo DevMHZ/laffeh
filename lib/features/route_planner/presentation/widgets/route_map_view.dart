@@ -258,6 +258,11 @@ class RouteMapViewState extends State<RouteMapView>
   SimulationCameraMode _simMode = SimulationCameraMode.follow;
   double _dpr = 1.0;
   bool _vehicleReady = false;
+  // Guards [_ensureVehicleSymbol] against re-entrancy: it's called on every
+  // overview frame and has an `await` gap, so without this two calls could
+  // both add a symbol and the second would overwrite `_symbols['vehicle']`,
+  // orphaning the first car forever (it accumulates across previews).
+  bool _creatingVehicle = false;
   double? _lastVehLat;
   double? _lastVehLon;
   double? _lastVehRot;
@@ -949,22 +954,54 @@ class RouteMapViewState extends State<RouteMapView>
   Future<void> _ensureVehicleSymbol() async {
     final c = _controller;
     final route = _simRoute;
-    if (c == null || route == null || !_styleLoaded || _vehicleReady) return;
-    final imgId = await _ensureImage('img-vehicle', MapMarkerRenderer.vehicle);
-    if (!_simRunning || _vehicleReady) return; // bailed / created meanwhile
-    final sample = PolylineUtils.sampleAt(route.fullPolyline, _renderProgress);
-    final pos = sample?.point ?? route.fullPolyline.first;
-    final sym = await c.addSymbol(
-      SymbolOptions(
-        geometry: LatLng(pos.latitude, pos.longitude),
-        iconImage: imgId,
-        iconSize: _dpr,
-        iconAnchor: 'center',
-        iconRotate: sample?.bearing ?? 0.0,
-      ),
-    );
-    _symbols['vehicle'] = sym;
-    _vehicleReady = true;
+    if (c == null || route == null || !_styleLoaded) return;
+    // Only ever create one vehicle at a time. The re-entrancy guard is what
+    // prevents duplicate/orphaned cars (see [_creatingVehicle]).
+    if (_vehicleReady || _creatingVehicle) return;
+    _creatingVehicle = true;
+    try {
+      final imgId = await _ensureImage('img-vehicle', MapMarkerRenderer.vehicle);
+      // Bailed, already created, or the user left overview while we were
+      // awaiting — don't strand a native car in follow/chase.
+      if (!_simRunning ||
+          _vehicleReady ||
+          _simMode != SimulationCameraMode.overview) {
+        return;
+      }
+      // Defensive: if a previous symbol somehow lingers, drop it before adding
+      // so we never leave two on the map.
+      final stale = _symbols.remove('vehicle');
+      if (stale != null) {
+        try {
+          await c.removeSymbol(stale);
+        } catch (_) {}
+      }
+      final sample = PolylineUtils.sampleAt(route.fullPolyline, _renderProgress);
+      final pos = sample?.point ?? route.fullPolyline.first;
+      final sym = await c.addSymbol(
+        SymbolOptions(
+          geometry: LatLng(pos.latitude, pos.longitude),
+          iconImage: imgId,
+          iconSize: _dpr,
+          iconAnchor: 'center',
+          iconRotate: sample?.bearing ?? 0.0,
+        ),
+      );
+      // Playback may have stopped during the addSymbol await — if so, the
+      // removal in [_removeVehicleSymbol] already ran (and missed, since the
+      // symbol didn't exist yet), so tidy up here instead of leaving a car
+      // parked on a stopped sim.
+      if (!_simRunning || _simMode != SimulationCameraMode.overview) {
+        try {
+          await c.removeSymbol(sym);
+        } catch (_) {}
+        return;
+      }
+      _symbols['vehicle'] = sym;
+      _vehicleReady = true;
+    } finally {
+      _creatingVehicle = false;
+    }
   }
 
   Future<void> _removeVehicleSymbol() async {
