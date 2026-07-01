@@ -50,6 +50,13 @@ class RouteRepositoryImpl implements RouteRepository {
       return ApiFailure(ValidationFailure(AppStrings.errMinOneStopAfterDepot));
     }
 
+    // A single destination has only one possible order — nothing for the
+    // AI solver to optimize. Skip the VRP round-trip entirely and go
+    // straight to road routing (shortest path).
+    if (stops.length == 1) {
+      return _directRoute(depot: depot, stop: stops.first, mode: routingMode);
+    }
+
     final request = RouteRequestModel(
       numVehicles: RoutingConfig.defaultNumVehicles,
       vehicleCapacity: RoutingConfig.defaultVehicleCapacity,
@@ -118,6 +125,47 @@ class RouteRepositoryImpl implements RouteRepository {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
+  /// Direct (non-AI) route for a single destination: only one possible
+  /// order exists, so this skips the VRP solver and goes straight to road
+  /// routing for the polyline + metrics.
+  Future<ApiResult<OptimizedRoute>> _directRoute({
+    required RoutePoint depot,
+    required RoutePoint stop,
+    required String mode,
+  }) async {
+    try {
+      final ordered = [
+        depot.copyWith(sequence: 0),
+        stop.copyWith(label: AppStrings.stopLabel(1), sequence: 1),
+      ];
+
+      final polylines = await _buildPolylines(ordered, mode: mode);
+
+      final metrics = _enrichMetrics(
+        base: const RouteMetrics(),
+        ordered: ordered,
+        polyline: polylines.fullPolyline,
+        roadDistanceKm: polylines.fullDistanceKm,
+        roadDurationMinutes: polylines.fullDurationMinutes,
+        userStops: [depot, stop],
+      );
+
+      return ApiSuccess(
+        OptimizedRoute(
+          orderedPoints: ordered,
+          fullPolyline: polylines.fullPolyline,
+          goPolyline: polylines.goPolyline,
+          returnPolyline: polylines.returnPolyline,
+          metrics: metrics,
+          hasRoadGeometry: polylines.hasRoadGeometry,
+        ),
+      );
+    } catch (e, st) {
+      developer.log('_directRoute() unexpected', error: e, stackTrace: st);
+      return ApiFailure(UnknownFailure(e.toString()));
+    }
+  }
+
   /// Re-build the ordered RoutePoint list using the response sequence.
   ///
   /// The Afdal VRP response lists stops by `address`. We match each
@@ -176,10 +224,12 @@ class RouteRepositoryImpl implements RouteRepository {
 
       if (matched != null) {
         // Relabel by optimised position so dot number == caption label.
-        result.add(matched.copyWith(
-          label: AppStrings.stopLabel(result.length + 1),
-          sequence: result.length + 1,
-        ));
+        result.add(
+          matched.copyWith(
+            label: AppStrings.stopLabel(result.length + 1),
+            sequence: result.length + 1,
+          ),
+        );
       } else if (s.lat != 0 && s.lon != 0) {
         // No label/address/coord match. Try a loose proximity scan (≤500 m)
         // to catch API lat/lon rounding before creating a ghost entry — this
@@ -197,10 +247,14 @@ class RouteRepositoryImpl implements RouteRepository {
           }
         }
         if (looseIdx >= 0 && looseDistMin < 0.5) {
-          result.add(remaining.removeAt(looseIdx).copyWith(
-            label: AppStrings.stopLabel(result.length + 1),
-            sequence: result.length + 1,
-          ));
+          result.add(
+            remaining
+                .removeAt(looseIdx)
+                .copyWith(
+                  label: AppStrings.stopLabel(result.length + 1),
+                  sequence: result.length + 1,
+                ),
+          );
         } else {
           // Truly unrecognised stop from the API — surface it as-is.
           result.add(
@@ -221,10 +275,12 @@ class RouteRepositoryImpl implements RouteRepository {
 
     // Append any stops the API didn't return (safety net).
     for (final r in remaining) {
-      result.add(r.copyWith(
-        label: AppStrings.stopLabel(result.length + 1),
-        sequence: result.length + 1,
-      ));
+      result.add(
+        r.copyWith(
+          label: AppStrings.stopLabel(result.length + 1),
+          sequence: result.length + 1,
+        ),
+      );
     }
 
     // Multi-stop trips return to the depot; a single destination is a one-way
