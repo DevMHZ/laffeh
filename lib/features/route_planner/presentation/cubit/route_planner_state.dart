@@ -82,9 +82,30 @@ class RoutePlannerState extends Equatable {
   /// the platform cannot provide a stable heading.
   final double? navigationHeading;
 
-  /// Current GPS speed in meters/second. May be null while stationary
-  /// or when the platform does not report it.
+  /// Smoothed GPS speed in meters/second. May be null while stationary
+  /// or when the platform does not report it. Drives the adaptive zoom
+  /// and the HUD speed readout.
   final double? navigationSpeedMps;
+
+  /// True while the driver is inside the service radius of the current
+  /// target stop — the "Point Served" button is shown only in this phase.
+  final bool navigationArrived;
+
+  /// Live GPS distance (metres) to the current target stop; null before
+  /// the first fix.
+  final double? navigationStopDistanceMeters;
+
+  /// Arc-length fraction (0..1) of each [OptimizedRoute.maneuvers] entry
+  /// along the full polyline. Computed once when a route is set, same
+  /// lifecycle as [stopFractions].
+  final List<double> maneuverFractions;
+
+  /// Monotonic counter bumped every time a service point is completed
+  /// automatically (enter-then-leave). The HUD listens for increments to
+  /// flash the "service point completed" notice; [autoServedStopLabel]
+  /// carries the completed stop's name.
+  final int autoServeCount;
+  final String? autoServedStopLabel;
 
   /// True when the last connectivity probe found no internet. Drives the
   /// offline banner; edits keep saving locally regardless.
@@ -124,6 +145,11 @@ class RoutePlannerState extends Equatable {
     this.navigationStopIndex = 1,
     this.navigationHeading,
     this.navigationSpeedMps,
+    this.navigationArrived = false,
+    this.navigationStopDistanceMeters,
+    this.maneuverFractions = const [],
+    this.autoServeCount = 0,
+    this.autoServedStopLabel,
     this.isOffline = false,
     this.draftRestored = false,
     this.movingPointId,
@@ -162,6 +188,11 @@ class RoutePlannerState extends Equatable {
     int? navigationStopIndex,
     double? navigationHeading,
     double? navigationSpeedMps,
+    bool? navigationArrived,
+    double? navigationStopDistanceMeters,
+    List<double>? maneuverFractions,
+    int? autoServeCount,
+    String? autoServedStopLabel,
     bool? isOffline,
     bool? draftRestored,
     String? movingPointId,
@@ -170,6 +201,7 @@ class RoutePlannerState extends Equatable {
     bool clearError = false,
     bool clearNavigationHeading = false,
     bool clearNavigationSpeed = false,
+    bool clearNavigationStopDistance = false,
     bool clearMovingPoint = false,
   }) {
     return RoutePlannerState(
@@ -197,6 +229,13 @@ class RoutePlannerState extends Equatable {
       navigationSpeedMps: clearNavigationSpeed
           ? null
           : (navigationSpeedMps ?? this.navigationSpeedMps),
+      navigationArrived: navigationArrived ?? this.navigationArrived,
+      navigationStopDistanceMeters: clearNavigationStopDistance
+          ? null
+          : (navigationStopDistanceMeters ?? this.navigationStopDistanceMeters),
+      maneuverFractions: maneuverFractions ?? this.maneuverFractions,
+      autoServeCount: autoServeCount ?? this.autoServeCount,
+      autoServedStopLabel: autoServedStopLabel ?? this.autoServedStopLabel,
       isOffline: isOffline ?? this.isOffline,
       draftRestored: draftRestored ?? this.draftRestored,
       movingPointId: clearMovingPoint
@@ -226,6 +265,11 @@ class RoutePlannerState extends Equatable {
     navigationStopIndex,
     navigationHeading,
     navigationSpeedMps,
+    navigationArrived,
+    navigationStopDistanceMeters,
+    maneuverFractions,
+    autoServeCount,
+    autoServedStopLabel,
     isOffline,
     draftRestored,
     movingPointId,

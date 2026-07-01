@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../route_planner/domain/entities/route_maneuver.dart';
 import '../../../route_planner/domain/entities/route_metrics.dart';
 import '../../../route_planner/domain/entities/route_point.dart';
 import '../../domain/entities/saved_route.dart';
@@ -21,6 +22,7 @@ class SavedRouteModel {
   final List<List<double>> goPolyline;
   final List<List<double>> returnPolyline;
   final bool hasRoadGeometry;
+  final List<ManeuverDto> maneuvers;
 
   const SavedRouteModel({
     required this.id,
@@ -33,6 +35,7 @@ class SavedRouteModel {
     required this.goPolyline,
     required this.returnPolyline,
     required this.hasRoadGeometry,
+    this.maneuvers = const [],
   });
 
   // ── Entity ↔ Model ────────────────────────────────────
@@ -50,6 +53,7 @@ class SavedRouteModel {
     goPolyline: r.goPolyline.map(_encodeLatLng).toList(growable: false),
     returnPolyline: r.returnPolyline.map(_encodeLatLng).toList(growable: false),
     hasRoadGeometry: r.hasRoadGeometry,
+    maneuvers: r.maneuvers.map(ManeuverDto.fromEntity).toList(growable: false),
   );
 
   SavedRoute toEntity() => SavedRoute(
@@ -63,6 +67,7 @@ class SavedRouteModel {
     goPolyline: goPolyline.map(_decodeLatLng).toList(),
     returnPolyline: returnPolyline.map(_decodeLatLng).toList(),
     hasRoadGeometry: hasRoadGeometry,
+    maneuvers: maneuvers.map((m) => m.toEntity()).toList(),
   );
 
   // ── JSON ──────────────────────────────────────────────
@@ -78,6 +83,7 @@ class SavedRouteModel {
     'goPolyline': goPolyline,
     'returnPolyline': returnPolyline,
     'hasRoadGeometry': hasRoadGeometry,
+    'maneuvers': maneuvers.map((m) => m.toJson()).toList(),
   };
 
   factory SavedRouteModel.fromJson(Map<String, dynamic> j) => SavedRouteModel(
@@ -96,6 +102,11 @@ class SavedRouteModel {
     goPolyline: _readPath(j['goPolyline']),
     returnPolyline: _readPath(j['returnPolyline']),
     hasRoadGeometry: j['hasRoadGeometry'] == true,
+    // Legacy records predate maneuvers — default to none.
+    maneuvers: (j['maneuvers'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ManeuverDto.fromJson)
+        .toList(),
   );
 
   static List<List<double>> _readPath(dynamic raw) {
@@ -116,6 +127,57 @@ class SavedRouteModel {
 }
 
 // ── Internal DTOs ─────────────────────────────────────────
+
+class ManeuverDto {
+  final String kind; // ManeuverKind.name
+  final double lat;
+  final double lon;
+  final String? road;
+  final int? exit;
+
+  const ManeuverDto({
+    required this.kind,
+    required this.lat,
+    required this.lon,
+    this.road,
+    this.exit,
+  });
+
+  factory ManeuverDto.fromEntity(RouteManeuver m) => ManeuverDto(
+    kind: m.kind.name,
+    lat: m.latitude,
+    lon: m.longitude,
+    road: m.roadName,
+    exit: m.roundaboutExit,
+  );
+
+  RouteManeuver toEntity() => RouteManeuver(
+    kind: ManeuverKind.values.firstWhere(
+      (k) => k.name == kind,
+      orElse: () => ManeuverKind.straight,
+    ),
+    latitude: lat,
+    longitude: lon,
+    roadName: road,
+    roundaboutExit: exit,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'kind': kind,
+    'lat': lat,
+    'lon': lon,
+    'road': road,
+    'exit': exit,
+  };
+
+  factory ManeuverDto.fromJson(Map<String, dynamic> j) => ManeuverDto(
+    kind: j['kind']?.toString() ?? 'straight',
+    lat: (j['lat'] is num) ? (j['lat'] as num).toDouble() : 0.0,
+    lon: (j['lon'] is num) ? (j['lon'] as num).toDouble() : 0.0,
+    road: j['road']?.toString(),
+    exit: (j['exit'] is num) ? (j['exit'] as num).toInt() : null,
+  );
+}
 
 class PointDto {
   final String id;

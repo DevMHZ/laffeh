@@ -70,6 +70,7 @@ class MapConfig {
   static const double driveDoneWidth = 6;
   static const double driveAheadWidth = 7;
   static const double driveCurrentWidth = 9;
+  static const double driveManeuverWidth = 5;
   static const double simGhostWidth = 5;
   static const double simTrailWidth = 8;
 }

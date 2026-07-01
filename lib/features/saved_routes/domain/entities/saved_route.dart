@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../route_planner/domain/entities/optimized_route.dart';
+import '../../../route_planner/domain/entities/route_maneuver.dart';
 import '../../../route_planner/domain/entities/route_metrics.dart';
 import '../../../route_planner/domain/entities/route_point.dart';
 
@@ -26,6 +27,10 @@ class SavedRoute extends Equatable {
   final List<LatLng> returnPolyline;
   final bool hasRoadGeometry;
 
+  /// Turn-by-turn maneuvers along [fullPolyline]. Empty for records saved
+  /// before maneuvers existed — drive mode degrades gracefully.
+  final List<RouteManeuver> maneuvers;
+
   const SavedRoute({
     required this.id,
     required this.name,
@@ -37,6 +42,7 @@ class SavedRoute extends Equatable {
     required this.goPolyline,
     required this.returnPolyline,
     required this.hasRoadGeometry,
+    this.maneuvers = const [],
   });
 
   /// Number of "real" stops (excluding the duplicated return depot).
@@ -60,6 +66,7 @@ class SavedRoute extends Equatable {
     returnPolyline: returnPolyline,
     metrics: metrics,
     hasRoadGeometry: hasRoadGeometry,
+    maneuvers: maneuvers,
   );
 
   SavedRoute copyWith({
@@ -73,6 +80,7 @@ class SavedRoute extends Equatable {
     List<LatLng>? goPolyline,
     List<LatLng>? returnPolyline,
     bool? hasRoadGeometry,
+    List<RouteManeuver>? maneuvers,
   }) => SavedRoute(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -84,6 +92,7 @@ class SavedRoute extends Equatable {
     goPolyline: goPolyline ?? this.goPolyline,
     returnPolyline: returnPolyline ?? this.returnPolyline,
     hasRoadGeometry: hasRoadGeometry ?? this.hasRoadGeometry,
+    maneuvers: maneuvers ?? this.maneuvers,
   );
 
   @override
@@ -98,5 +107,6 @@ class SavedRoute extends Equatable {
     goPolyline,
     returnPolyline,
     hasRoadGeometry,
+    maneuvers,
   ];
 }

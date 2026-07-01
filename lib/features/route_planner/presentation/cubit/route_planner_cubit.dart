@@ -47,9 +47,18 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// Smoothed compass heading so the drive camera glides on noisy bearings.
   double? _smoothedHeading;
 
+  /// Smoothed GPS speed (m/s) — drives the adaptive zoom without the
+  /// camera "breathing" on every noisy speed sample.
+  double? _smoothedSpeed;
+
   /// Last emitted navigation progress — used to prevent GPS noise from
   /// regressing the trail (you can't un-drive a segment).
   double _lastNavProgress = 0.0;
+
+  /// Service-point state machine: true once the driver has entered the
+  /// service radius of the *current* target stop. Armed → leaving beyond
+  /// [NavigationConfig.autoServeExitMeters] auto-completes the point.
+  bool _enteredServiceRadius = false;
 
   RoutePlannerCubit(
     this._optimize,
@@ -236,6 +245,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           points: points,
           optimizedRoute: optimized,
           stopFractions: optimized != null ? _fractionsFor(optimized) : null,
+          maneuverFractions: optimized != null
+              ? _maneuverFractionsFor(optimized)
+              : null,
           displaySegment: _segmentFromName(draft.displaySegment),
           cameraTarget: target,
           draftRestored: true,
@@ -741,6 +753,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
             status: RoutePlannerStatus.optimizedSuccess,
             optimizedRoute: route,
             stopFractions: _fractionsFor(route),
+            maneuverFractions: _maneuverFractionsFor(route),
             // Keep deactivated optional points around (dimmed on the map,
             // not part of the route) so deactivation stays reversible.
             points: [
@@ -813,6 +826,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           ? route.orderedPoints[1].latLng
           : loc;
       _lastNavProgress = initialProgress;
+      _enteredServiceRadius = false;
       emit(
         state.copyWith(
           userLocation: loc,
@@ -820,8 +834,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           navigationActive: true,
           navigationProgress: initialProgress,
           navigationStopIndex: 1,
+          navigationArrived: false,
           clearNavigationHeading: true,
           clearNavigationSpeed: true,
+          clearNavigationStopDistance: true,
+          // Fractions may be missing for routes restored from older
+          // drafts/saved records — recompute so turn guidance works.
+          stopFractions: state.stopFractions.length ==
+                  route.orderedPoints.length
+              ? state.stopFractions
+              : _fractionsFor(route),
+          maneuverFractions:
+              state.maneuverFractions.length == route.maneuvers.length
+              ? state.maneuverFractions
+              : _maneuverFractionsFor(route),
           simulationActive: false,
           simulationPlaying: false,
           simulationProgress: 0.0,
@@ -874,26 +900,51 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationActive: false,
         navigationProgress: 0.0,
         navigationStopIndex: 1,
+        navigationArrived: false,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
+        clearNavigationStopDistance: true,
       ),
     );
   }
 
-  /// Driver taps "Arrived" — mark the current target stop as done and
-  /// advance to the next one. When the last stop (return depot) is marked
-  /// done the trip ends automatically.
-  void markCurrentStopDone() {
+  /// Driver taps "Point Served" — manual completion, always wins over the
+  /// automatic fallback. Marks the current target stop as done and
+  /// activates the next one; serving the last point ends the trip.
+  void servePoint() {
+    if (state.optimizedRoute == null || !state.navigationActive) return;
+    HapticFeedback.mediumImpact();
+    _advanceServicePoint();
+  }
+
+  /// Back-compat alias for [servePoint].
+  void markCurrentStopDone() => servePoint();
+
+  /// Shared completion path for manual + automatic serving. Advances to
+  /// the next service point (ending the trip after the final one) and,
+  /// when [autoServedLabel] is set, bumps the one-shot auto-serve notice
+  /// the HUD listens for.
+  void _advanceServicePoint({String? autoServedLabel}) {
     final route = state.optimizedRoute;
     if (route == null || !state.navigationActive) return;
+    _enteredServiceRadius = false;
     final next = state.navigationStopIndex + 1;
     if (next >= route.orderedPoints.length) {
       HapticFeedback.heavyImpact();
       stopNavigation();
       return;
     }
-    HapticFeedback.mediumImpact();
-    emit(state.copyWith(navigationStopIndex: next));
+    emit(
+      state.copyWith(
+        navigationStopIndex: next,
+        navigationArrived: false,
+        clearNavigationStopDistance: true,
+        autoServeCount: autoServedLabel != null
+            ? state.autoServeCount + 1
+            : state.autoServeCount,
+        autoServedStopLabel: autoServedLabel,
+      ),
+    );
   }
 
   /// Advances the debug driver forward along the planned polyline.
@@ -927,12 +978,31 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       stopIndex++;
     }
 
+    // Mirror the live service-point fields so the debug drive exercises
+    // the same HUD (Point Served button, distances) as a real trip.
+    double? distToStop;
+    var arrived = false;
+    if (stopIndex < route.orderedPoints.length) {
+      distToStop =
+          DistanceUtils.haversineKm(
+            loc,
+            route.orderedPoints[stopIndex].latLng,
+          ) *
+          1000;
+      arrived =
+          distToStop <=
+          NavigationConfig.serviceRadiusMeters +
+              NavigationConfig.serviceRadiusAccuracySlack;
+    }
+
     emit(
       state.copyWith(
         userLocation: loc,
         cameraTarget: loc,
         navigationProgress: newProgress,
         navigationStopIndex: stopIndex,
+        navigationArrived: arrived,
+        navigationStopDistanceMeters: distToStop,
       ),
     );
   }
@@ -971,6 +1041,18 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       return;
     }
 
+    // Accuracy gate: a fix that could be tens of metres off can teleport
+    // the car and mis-trigger the 10 m service radius — drop it and wait
+    // for the next one.
+    if (position.accuracy.isFinite &&
+        position.accuracy > NavigationConfig.maxAccuracyMeters) {
+      DebugLog.nav(
+        'GPS tick REJECTED — accuracy ${position.accuracy.toStringAsFixed(0)}m '
+        '> ${NavigationConfig.maxAccuracyMeters}m',
+      );
+      return;
+    }
+
     final loc = LatLng(position.latitude, position.longitude);
     final rawHeading = position.heading.isFinite && position.heading >= 0
         ? position.heading
@@ -978,6 +1060,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final speed = position.speed.isFinite && position.speed >= 0
         ? position.speed
         : null;
+    if (speed != null) {
+      _smoothedSpeed = _smoothedSpeed == null
+          ? speed
+          : _smoothedSpeed! +
+                (speed - _smoothedSpeed!) *
+                    NavigationConfig.speedSmoothingFactor;
+    }
 
     // Heading is meaningless when barely moving — keep the last good one
     // instead of letting the camera spin in place.
@@ -993,60 +1082,92 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       );
     }
 
-    // Only let GPS drive progress / arrival when the fix is genuinely on the
-    // route. Off-route fixes would otherwise snap progress to the nearest
-    // polyline point (often near the end) and fire bogus arrivals; when
-    // off-route we freeze both and keep whatever the last good value was.
+    // Only let GPS drive progress when the fix is genuinely on the route.
+    // Off-route fixes would otherwise snap progress to the nearest polyline
+    // point (often near the end); when off-route we freeze it and keep
+    // whatever the last good value was.
     final onRouteProg = _onRouteProgress(route.fullPolyline, loc);
     var progress = state.navigationProgress;
-    var stopIndex = state.navigationStopIndex;
-
     if (onRouteProg != null) {
       // Monotonic progress: GPS noise can briefly regress the fraction;
       // never go backwards — you can't un-drive a road.
       progress = onRouteProg < _lastNavProgress ? _lastNavProgress : onRouteProg;
       _lastNavProgress = progress;
-
-      // ── Auto-arrival: advance when within the arrival radius of the
-      // current target stop, or once progress passes its fraction. ──
-      if (stopIndex < route.orderedPoints.length) {
-        final targetStop = route.orderedPoints[stopIndex];
-        final distToStop =
-            DistanceUtils.haversineKm(loc, targetStop.latLng) * 1000;
-        final stopIdx = stopIndex;
-        final stopPassed = stopIdx < state.stopFractions.length &&
-            progress >= state.stopFractions[stopIdx];
-        final withinRadius =
-            distToStop <= NavigationConfig.arrivalRadiusMeters;
-
-        if (withinRadius || stopPassed) {
-          final next = stopIndex + 1;
-          if (next >= route.orderedPoints.length) {
-            // Last stop (return depot) reached — end the trip.
-            HapticFeedback.heavyImpact();
-            stopNavigation();
-            return;
-          }
-          HapticFeedback.mediumImpact();
-          stopIndex = next;
-          DebugLog.nav(
-            'auto-arrived at stop $stopIdx via '
-            '${withinRadius ? 'radius (${distToStop.toStringAsFixed(0)}m)' : 'progress (${progress.toStringAsFixed(4)})'} '
-            '→ advancing to stopIndex=$stopIndex',
-          );
-        }
-      }
     } else {
       DebugLog.nav(
-        'off route — progress & arrival frozen at '
+        'off route — progress frozen at '
         '${progress.toStringAsFixed(4)} [off-route fix]',
       );
+    }
+
+    // ── Service-point state machine ──
+    // Upcoming → Arrived (inside the service radius; Point Served button
+    // shows) → Served, either manually (button) or automatically once the
+    // driver leaves the area and is >autoServeExitMeters away.
+    final stopIndex = state.navigationStopIndex;
+    var arrived = state.navigationArrived;
+    double? distToStop;
+    if (stopIndex < route.orderedPoints.length) {
+      final targetStop = route.orderedPoints[stopIndex];
+      distToStop = DistanceUtils.haversineKm(loc, targetStop.latLng) * 1000;
+
+      // The nominal radius grows with the fix's reported accuracy (capped)
+      // so a phone that never reports better than ~20 m can still arrive.
+      final slack = position.accuracy.isFinite && position.accuracy > 0
+          ? math.min(
+              position.accuracy,
+              NavigationConfig.serviceRadiusAccuracySlack,
+            )
+          : 0.0;
+      final radius = NavigationConfig.serviceRadiusMeters + slack;
+
+      if (distToStop <= radius) {
+        if (!_enteredServiceRadius) {
+          DebugLog.nav(
+            'ARRIVED at stop $stopIndex (${distToStop.toStringAsFixed(1)}m '
+            '≤ ${radius.toStringAsFixed(1)}m) — Point Served button shown',
+          );
+          HapticFeedback.lightImpact();
+        }
+        _enteredServiceRadius = true;
+        arrived = true;
+      } else {
+        arrived = false;
+        final passedStop =
+            onRouteProg != null &&
+            stopIndex < state.stopFractions.length &&
+            progress >= state.stopFractions[stopIndex];
+        if ((_enteredServiceRadius || passedStop) &&
+            distToStop > NavigationConfig.autoServeExitMeters) {
+          // Entered-then-left (or drove straight past on-route): the point
+          // has been served — complete it without any dialog and continue
+          // to the next one.
+          DebugLog.nav(
+            'AUTO-SERVED stop $stopIndex '
+            '(${_enteredServiceRadius ? 'entered-then-left' : 'passed on route'}, '
+            'now ${distToStop.toStringAsFixed(0)}m away)',
+          );
+          HapticFeedback.mediumImpact();
+          emit(
+            state.copyWith(
+              userLocation: loc,
+              cameraTarget: loc,
+              navigationProgress: progress,
+              navigationHeading: _smoothedHeading,
+              navigationSpeedMps: _smoothedSpeed,
+            ),
+          );
+          _advanceServicePoint(autoServedLabel: targetStop.label);
+          return;
+        }
+      }
     }
 
     DebugLog.nav(
       '→ emit progress=${progress.toStringAsFixed(4)} '
       'smoothedHeading=${_smoothedHeading?.toStringAsFixed(1)} '
-      'speed=${speed?.toStringAsFixed(2)} stopIndex=$stopIndex',
+      'speed=${_smoothedSpeed?.toStringAsFixed(2)} stopIndex=$stopIndex '
+      'distToStop=${distToStop?.toStringAsFixed(1)}m arrived=$arrived',
     );
 
     emit(
@@ -1055,10 +1176,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         cameraTarget: loc,
         navigationProgress: progress,
         navigationStopIndex: stopIndex,
+        navigationArrived: arrived,
+        navigationStopDistanceMeters: distToStop,
         // Null keeps the previous heading (copyWith semantics), so the
         // camera never snaps back to north on a dropped bearing.
         navigationHeading: _smoothedHeading,
-        navigationSpeedMps: speed,
+        navigationSpeedMps: _smoothedSpeed,
       ),
     );
   }
@@ -1089,7 +1212,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     _navSub?.cancel();
     _navSub = null;
     _smoothedHeading = null;
+    _smoothedSpeed = null;
     _lastNavProgress = 0.0;
+    _enteredServiceRadius = false;
   }
 
   // ── Saved routes integration ───────────────────────────────
@@ -1122,6 +1247,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       goPolyline: route.goPolyline,
       returnPolyline: route.returnPolyline,
       hasRoadGeometry: route.hasRoadGeometry,
+      maneuvers: route.maneuvers,
     );
 
     developer.log(
@@ -1152,6 +1278,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         points: _stripReturnDuplicate(saved.orderedPoints),
         optimizedRoute: route,
         stopFractions: _fractionsFor(route),
+        maneuverFractions: _maneuverFractionsFor(route),
         displaySegment: RouteSegment.full,
         simulationActive: false,
         simulationPlaying: false,
@@ -1421,6 +1548,19 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     return PolylineUtils.stopFractions(
       route.fullPolyline,
       route.orderedPoints.map((p) => p.latLng).toList(),
+    );
+  }
+
+  /// Arc-length fraction of each turn maneuver along the route — the basis
+  /// of "turn right in 350 m". Maneuvers are already route-ordered, so a
+  /// single monotonic sweep suffices. Computed once per route.
+  List<double> _maneuverFractionsFor(OptimizedRoute route) {
+    if (route.fullPolyline.length < 2 || route.maneuvers.isEmpty) {
+      return const [];
+    }
+    return PolylineUtils.orderedFractionsAlong(
+      route.fullPolyline,
+      route.maneuvers.map((m) => m.latLng).toList(),
     );
   }
 

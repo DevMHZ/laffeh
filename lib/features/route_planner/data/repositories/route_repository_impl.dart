@@ -10,6 +10,7 @@ import '../../../../core/network/api_result.dart';
 import '../../../../core/network/network_info.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../../domain/entities/route_maneuver.dart';
 import '../../domain/entities/route_metrics.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/repositories/route_repository.dart';
@@ -109,6 +110,7 @@ class RouteRepositoryImpl implements RouteRepository {
           returnPolyline: polylines.returnPolyline,
           metrics: metrics,
           hasRoadGeometry: polylines.hasRoadGeometry,
+          maneuvers: polylines.maneuvers,
         ),
       );
     } on NetworkException catch (e) {
@@ -158,6 +160,7 @@ class RouteRepositoryImpl implements RouteRepository {
           returnPolyline: polylines.returnPolyline,
           metrics: metrics,
           hasRoadGeometry: polylines.hasRoadGeometry,
+          maneuvers: polylines.maneuvers,
         ),
       );
     } catch (e, st) {
@@ -330,6 +333,9 @@ class RouteRepositoryImpl implements RouteRepository {
       destination: destination,
       waypoints: waypoints,
       profile: osrmProfile,
+      // Only the full trip carries the turn-by-turn maneuvers drive
+      // mode navigates with.
+      includeSteps: true,
     );
     final full = fullRoute.polyline;
 
@@ -370,6 +376,7 @@ class RouteRepositoryImpl implements RouteRepository {
         fullDurationMinutes: fullRoute.durationSeconds > 0
             ? fullRoute.durationSeconds / 60
             : null,
+        maneuvers: fullRoute.maneuvers,
       );
     }
 
@@ -406,6 +413,7 @@ class RouteRepositoryImpl implements RouteRepository {
       fullDurationMinutes: fullRoute.durationSeconds > 0
           ? fullRoute.durationSeconds / 60
           : null,
+      maneuvers: fullRoute.maneuvers,
     );
   }
 
@@ -488,6 +496,7 @@ class _PolylineBundle {
   final bool hasRoadGeometry;
   final double? fullDistanceKm;
   final double? fullDurationMinutes;
+  final List<RouteManeuver> maneuvers;
 
   const _PolylineBundle({
     required this.fullPolyline,
@@ -496,6 +505,7 @@ class _PolylineBundle {
     required this.hasRoadGeometry,
     required this.fullDistanceKm,
     required this.fullDurationMinutes,
+    this.maneuvers = const [],
   });
 
   factory _PolylineBundle.empty() => const _PolylineBundle(

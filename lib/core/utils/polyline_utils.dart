@@ -145,6 +145,49 @@ class PolylineUtils {
   static List<double> stopFractions(List<LatLng> path, List<LatLng> stops) =>
       [for (final s in stops) fractionOfNearest(path, s)];
 
+  /// Arc-length fraction of each [targets] entry along [path], where the
+  /// targets are known to already be in route order (e.g. OSRM maneuvers).
+  ///
+  /// A single monotonic sweep: each target's search resumes from the vertex
+  /// matched for the previous one, so results never go backwards even when
+  /// the route revisits the same road — and the whole list costs one pass
+  /// over the polyline instead of one per target.
+  static List<double> orderedFractionsAlong(
+    List<LatLng> path,
+    List<LatLng> targets,
+  ) {
+    if (targets.isEmpty) return const [];
+    if (path.length < 2) return List.filled(targets.length, 0.0);
+
+    // Cumulative arc length per vertex (km).
+    final cum = List<double>.filled(path.length, 0);
+    for (var i = 1; i < path.length; i++) {
+      cum[i] = cum[i - 1] + DistanceUtils.haversineKm(path[i - 1], path[i]);
+    }
+    final total = cum.last;
+    if (total <= 0) return List.filled(targets.length, 0.0);
+
+    var startIdx = 0;
+    final out = <double>[];
+    for (final t in targets) {
+      var best = double.infinity;
+      var bestIdx = startIdx;
+      for (var i = startIdx; i < path.length; i++) {
+        final d = DistanceUtils.haversineKm(path[i], t);
+        if (d < best) {
+          best = d;
+          bestIdx = i;
+        }
+        // Found a near-exact vertex and we're now clearly walking away
+        // from it — no need to scan the rest of the route.
+        if (best < 0.005 && d > best + 0.05) break;
+      }
+      startIdx = bestIdx;
+      out.add((cum[bestIdx] / total).clamp(0.0, 1.0));
+    }
+    return out;
+  }
+
   static double _bearing(LatLng a, LatLng b) {
     final lat1 = _deg2rad(a.latitude);
     final lat2 = _deg2rad(b.latitude);

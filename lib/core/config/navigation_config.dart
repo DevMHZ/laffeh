@@ -3,9 +3,6 @@ class NavigationConfig {
   NavigationConfig._();
 
   // ── Camera ───────────────────────────────────────────────
-  /// Close, tilted 3rd-person zoom for the driver's view.
-  static const double zoom = 17.0;
-
   /// Pitch — a behind-the-car perspective looking down the road.
   static const double tilt = 60;
 
@@ -19,9 +16,39 @@ class NavigationConfig {
   /// anticipation but more corner-cutting on tight curves.
   static const double cameraAnticipationMeters = 60.0;
 
+  /// Native camera interpolation between GPS-driven follow targets. Long
+  /// enough to glide over the ~1 s / 5 m GPS cadence, short enough that the
+  /// view never lags a genuine turn.
+  static const Duration cameraAnimDuration = Duration(milliseconds: 700);
+
+  // ── Speed-adaptive zoom ──────────────────────────────────
+  // The follow camera zooms out as the vehicle speeds up so the driver
+  // always sees an appropriate amount of road ahead. Zoom is interpolated
+  // piecewise between these anchors and then exponentially smoothed, so
+  // transitions are gradual — never a visible "gear change".
+  static const double zoomCrawl = 17.5; // ≤ crawl speed (stopped/serving)
+  static const double zoomCity = 17.0; // urban driving
+  static const double zoomFast = 16.2; // arterials
+  static const double zoomHighway = 15.4; // ≥ highway speed
+  static const double speedCrawlKmh = 15;
+  static const double speedCityKmh = 40;
+  static const double speedFastKmh = 80;
+
+  /// Exponential smoother applied to the zoom target per camera frame.
+  static const double zoomSmoothingFactor = 0.15;
+
+  // ── Free exploration (drive mode) ────────────────────────
+  /// After the user stops touching the map, follow-mode resumes
+  /// automatically once this much time passes with no interaction.
+  static const Duration exploreResumeDelay = Duration(seconds: 3);
+
   // ── GPS stream ───────────────────────────────────────────
   /// Minimum movement (metres) between position updates.
   static const int distanceFilterMeters = 5;
+
+  /// Fixes with a worse reported accuracy than this are noise — they can
+  /// teleport the car and mis-trigger service radii, so they're dropped.
+  static const double maxAccuracyMeters = 40.0;
 
   /// Heading is meaningless when barely moving — only update it once
   /// the speed (m/s) clears this floor, so the camera doesn't spin in
@@ -31,11 +58,23 @@ class NavigationConfig {
   /// Exponential smoother for the drive camera heading (0..1).
   static const double headingSmoothingFactor = 0.3;
 
-  // ── Arrival detection ────────────────────────────────────
-  /// GPS distance (metres) from the current target stop that triggers
-  /// an automatic "Arrived" — the cubit advances [navigationStopIndex]
-  /// without waiting for the driver to tap the button.
-  static const double arrivalRadiusMeters = 150.0;
+  /// Exponential smoother for GPS speed (drives the adaptive zoom).
+  static const double speedSmoothingFactor = 0.3;
+
+  // ── Service points ───────────────────────────────────────
+  /// Radius (metres) around the current service point in which the driver
+  /// counts as "arrived": the Point Served button appears and the
+  /// enter-then-leave auto-serve arms itself.
+  static const double serviceRadiusMeters = 10.0;
+
+  /// The service radius grows by the fix's reported accuracy, capped at
+  /// this — otherwise a 10 m radius can be physically unreachable on a
+  /// phone that only ever reports 15–25 m accuracy.
+  static const double serviceRadiusAccuracySlack = 15.0;
+
+  /// After entering the service radius, moving farther than this from the
+  /// point auto-completes it (the driver has served it and moved on).
+  static const double autoServeExitMeters = 50.0;
 
   /// Max distance (metres) a GPS fix may sit from the planned route for it
   /// to drive `navigationProgress`. Beyond this the fix is treated as
@@ -44,6 +83,15 @@ class NavigationConfig {
   /// polyline point — which used to jump progress to ~1.0 and fire bogus
   /// arrivals on the Simulator.
   static const double onRouteThresholdMeters = 120.0;
+
+  // ── Turn guidance ────────────────────────────────────────
+  /// The upcoming maneuver's road segment is highlighted (bright white)
+  /// once the vehicle is within this many metres of it.
+  static const double maneuverHighlightWithinMeters = 250.0;
+
+  /// Length (metres) of the highlighted guidance segment drawn from the
+  /// maneuver point forward along the selected branch.
+  static const double maneuverHighlightLengthMeters = 45.0;
 
   // ── Debug ────────────────────────────────────────────────
   /// Distance the debug "step forward" control advances per tap.

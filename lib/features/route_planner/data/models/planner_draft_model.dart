@@ -78,6 +78,7 @@ class PlannerDraftModel {
           goPolyline: optimizedRoute.goPolyline,
           returnPolyline: optimizedRoute.returnPolyline,
           hasRoadGeometry: optimizedRoute.hasRoadGeometry,
+          maneuvers: optimizedRoute.maneuvers,
         ),
       );
     }

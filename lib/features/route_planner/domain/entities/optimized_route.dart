@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'route_maneuver.dart';
 import 'route_metrics.dart';
 import 'route_point.dart';
 
@@ -35,6 +36,11 @@ class OptimizedRoute extends Equatable {
   /// if we fell back to straight lines.
   final bool hasRoadGeometry;
 
+  /// Route-ordered turn-by-turn maneuvers along [fullPolyline]. Empty for
+  /// straight-line fallbacks and for routes saved before maneuvers existed
+  /// — drive mode degrades to distance-to-stop guidance in that case.
+  final List<RouteManeuver> maneuvers;
+
   const OptimizedRoute({
     required this.orderedPoints,
     required this.fullPolyline,
@@ -42,6 +48,7 @@ class OptimizedRoute extends Equatable {
     required this.returnPolyline,
     required this.metrics,
     required this.hasRoadGeometry,
+    this.maneuvers = const [],
   });
 
   bool get isEmpty => orderedPoints.isEmpty;
@@ -54,5 +61,6 @@ class OptimizedRoute extends Equatable {
     returnPolyline,
     metrics,
     hasRoadGeometry,
+    maneuvers,
   ];
 }
