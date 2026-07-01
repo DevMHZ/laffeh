@@ -227,11 +227,15 @@ class RouteRepositoryImpl implements RouteRepository {
       ));
     }
 
-    return [
-      depot.copyWith(sequence: 0),
-      ...result,
-      depot.copyWith(id: '${depot.id}_return', sequence: result.length + 1),
-    ];
+    // Multi-stop trips return to the depot; a single destination is a one-way
+    // path (classic navigator), so only close the loop for 2+ stops.
+    final ordered = [depot.copyWith(sequence: 0), ...result];
+    if (result.length > 1) {
+      ordered.add(
+        depot.copyWith(id: '${depot.id}_return', sequence: result.length + 1),
+      );
+    }
+    return ordered;
   }
 
   bool _isSameCoord(double a1, double a2, double b1, double b2) {
@@ -260,6 +264,9 @@ class RouteRepositoryImpl implements RouteRepository {
         .map((p) => p.latLng)
         .toList();
 
+    // Single destination (depot → stop): a one-way path, no return leg.
+    final oneWay = waypoints.isEmpty;
+
     final osrmProfile = _mapModeToOsrmProfile(mode);
 
     final fullRoute = await _routing.fetchRoute(
@@ -273,6 +280,16 @@ class RouteRepositoryImpl implements RouteRepository {
     if (full.isEmpty) {
       // Fallback: straight segments.
       final fallback = ordered.map((p) => p.latLng).toList();
+      if (oneWay) {
+        return _PolylineBundle(
+          fullPolyline: fallback,
+          goPolyline: fallback,
+          returnPolyline: const [],
+          hasRoadGeometry: false,
+          fullDistanceKm: null,
+          fullDurationMinutes: null,
+        );
+      }
       final lastStopIndex = fallback.length - 2;
       return _PolylineBundle(
         fullPolyline: fallback,
@@ -281,6 +298,22 @@ class RouteRepositoryImpl implements RouteRepository {
         hasRoadGeometry: false,
         fullDistanceKm: null,
         fullDurationMinutes: null,
+      );
+    }
+
+    if (oneWay) {
+      // The whole route is the "go" leg; there is no return.
+      return _PolylineBundle(
+        fullPolyline: full,
+        goPolyline: full,
+        returnPolyline: const [],
+        hasRoadGeometry: true,
+        fullDistanceKm: fullRoute.distanceMeters > 0
+            ? fullRoute.distanceMeters / 1000
+            : null,
+        fullDurationMinutes: fullRoute.durationSeconds > 0
+            ? fullRoute.durationSeconds / 60
+            : null,
       );
     }
 
@@ -360,18 +393,23 @@ class RouteRepositoryImpl implements RouteRepository {
         ..add(userStops.firstWhere((p) => p.isDepot).latLng),
     );
 
-    final savedDistance =
-        base.savedDistanceKm ??
-        (baselineKm > totalKm ? (baselineKm - totalKm) : null);
+    // A single destination is one-way (no return depot), so there's nothing to
+    // optimize — the round-trip baseline "savings" would be meaningless.
+    final oneWay = ordered.length < 3;
+    final savedDistance = oneWay
+        ? null
+        : (base.savedDistanceKm ??
+              (baselineKm > totalKm ? (baselineKm - totalKm) : null));
 
     // ~40 km/h urban average — used only when no duration was provided.
     final estimatedDuration =
         base.estimatedDurationMinutes ??
         roadDurationMinutes ??
         ((totalKm / 40.0) * 60);
-    final savedDuration =
-        base.savedDurationMinutes ??
-        (savedDistance != null ? (savedDistance / 40.0) * 60 : null);
+    final savedDuration = oneWay
+        ? null
+        : (base.savedDurationMinutes ??
+              (savedDistance != null ? (savedDistance / 40.0) * 60 : null));
 
     // 8 L / 100 km — rough urban average. Only used when fuel wasn't
     // returned by the API.

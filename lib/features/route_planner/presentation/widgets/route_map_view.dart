@@ -776,6 +776,10 @@ class RouteMapViewState extends State<RouteMapView>
       // centre reticle stands in for it.
       if (p.id == state.movingPointId) continue;
 
+      // The auto departure is the user's current location — the live blue dot
+      // already marks it, so don't draw a separate depot pin for it.
+      if (p.isDepot && p.id.startsWith('depot_current')) continue;
+
       String imgId;
       if (p.isDepot) {
         imgId = await _ensureImage('img-depot', MapMarkerRenderer.depot);

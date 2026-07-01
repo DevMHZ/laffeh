@@ -350,11 +350,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     _cancelNavigationStream();
 
     final isFirst = state.points.isEmpty;
-    // The depot is never optional — the trip has to start somewhere.
-    final asOptional = optional && !isFirst;
+    final hasLoc = state.userLocation != null;
+    // Departure is always the user's current location: the first dropped pin is
+    // a destination, and we inject a current-location depot ahead of it. Only
+    // when no location is available does the first pin act as the depot.
+    final firstAsDepot = isFirst && !hasLoc;
+    final asOptional = optional && !firstAsDepot;
     final id = 'p_${now.microsecondsSinceEpoch}';
 
-    final label = isFirst
+    final label = firstAsDepot
         ? AppStrings.departure
         : asOptional
         ? AppStrings.optionalStopLabel(_optionalCount() + 1)
@@ -370,20 +374,26 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           ? providedAddress
           : null,
       weight: RoutingConfig.defaultStopWeight,
-      kind: isFirst ? RoutePointKind.depot : RoutePointKind.stop,
+      kind: firstAsDepot ? RoutePointKind.depot : RoutePointKind.stop,
       optional: asOptional,
     );
 
     DebugLog.add(
       'addPoint() ✅ ACCEPTED "$label" '
-      '(${isFirst ? 'depot' : asOptional ? 'optional' : 'stop'}) id=$id '
+      '(${firstAsDepot ? 'depot' : asOptional ? 'optional' : 'stop'}) id=$id '
       '→ total=${state.points.length + 1}',
     );
+
+    final newPoints = <RoutePoint>[
+      if (isFirst && hasLoc) _currentLocationDepot(),
+      ...state.points,
+      tentative,
+    ];
 
     emit(
       state.copyWith(
         status: RoutePlannerStatus.pointsUpdated,
-        points: [...state.points, tentative],
+        points: newPoints,
         clearOptimizedRoute: true,
         clearError: true,
         simulationActive: false,
@@ -516,11 +526,16 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   void removePoint(String id) {
     _cancelNavigationStream();
     final updated = state.points.where((p) => p.id != id).toList();
-    final rebalanced = _ensureSingleDepot(updated);
+    // If only the auto-departure is left (no destinations), reset to the empty
+    // state so the user is back at "add a destination".
+    final hasDestinations = updated.any((p) => !p.isDepot);
+    final next = hasDestinations
+        ? _relabel(_ensureSingleDepot(updated))
+        : const <RoutePoint>[];
 
     emit(
       state.copyWith(
-        points: _relabel(rebalanced),
+        points: next,
         status: RoutePlannerStatus.pointsUpdated,
         clearOptimizedRoute: true,
         navigationActive: false,
@@ -668,11 +683,25 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   Future<void> optimize() async {
     _cancelNavigationStream();
 
+    // Departure tracks the user's live location: refresh the auto-depot to the
+    // latest fix so the route always starts from where they are now.
+    final basePoints = state.userLocation == null
+        ? state.points
+        : [
+            for (final p in state.points)
+              p.id == 'depot_current'
+                  ? p.copyWith(
+                      latitude: state.userLocation!.latitude,
+                      longitude: state.userLocation!.longitude,
+                    )
+                  : p,
+          ];
+
     // Only routable points (mandatory + active optional) go to the
     // optimizer. Deactivated optional points sit out this run but are
     // preserved so the user can switch them back on later.
-    final routable = state.points.where((p) => p.isRoutable).toList();
-    final deactivated = state.points.where((p) => p.isDeactivated).toList();
+    final routable = basePoints.where((p) => p.isRoutable).toList();
+    final deactivated = basePoints.where((p) => p.isDeactivated).toList();
 
     if (routable.length < 2) {
       // Distinguish "not enough points at all" from "you switched your
@@ -1331,6 +1360,21 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   }
 
   double _degToRad(double deg) => deg * math.pi / 180.0;
+
+  /// The implicit departure: a depot pinned to the user's current location.
+  /// Injected ahead of the first destination so every route starts from where
+  /// the user is, without them placing a departure pin.
+  RoutePoint _currentLocationDepot() {
+    final loc = state.userLocation!;
+    return RoutePoint(
+      id: 'depot_current',
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      label: AppStrings.departure,
+      weight: RoutingConfig.defaultStopWeight,
+      kind: RoutePointKind.depot,
+    );
+  }
 
   List<RoutePoint> _ensureSingleDepot(List<RoutePoint> points) {
     if (points.isEmpty) return points;

@@ -41,6 +41,12 @@ class RoutePointsSheet extends StatelessWidget {
             state.errorMessage == AppStrings.errLocationServiceDisabled ||
             state.errorMessage == AppStrings.errLocationPermissionDenied;
 
+        // The auto departure (current location) isn't a user-managed point, so
+        // the destinations list shows everything except it.
+        final destinations = state.points
+            .where((p) => !(p.isDepot && p.id.startsWith('depot_current')))
+            .toList();
+
         // No title / count header: the add controls below make the
         // sheet's purpose obvious and the empty state has its own hint,
         // so dropping the title row (and the big empty gutter beside it)
@@ -98,7 +104,7 @@ class RoutePointsSheet extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 padding: EdgeInsets.zero,
-                itemCount: state.points.length,
+                itemCount: destinations.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   mainAxisExtent: 54,
@@ -106,7 +112,7 @@ class RoutePointsSheet extends StatelessWidget {
                   mainAxisSpacing: 8,
                 ),
                 itemBuilder: (context, i) {
-                  final p = state.points[i];
+                  final p = destinations[i];
                   return _PointGridCell(
                     key: ValueKey(p.id),
                     point: p,
