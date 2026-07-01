@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -13,19 +14,24 @@ import '../../../../core/utils/distance_utils.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
+import '../utils/navigation_instructions.dart';
 import 'stop_timeline.dart';
 
 /// Full-screen drive-mode HUD.
 ///
 /// Built for a phone mounted in a vehicle:
-///   * Dark high-contrast banner at the top — next stop name huge and
-///     readable in sunlight, with real-time distance from GPS.
-///   * Horizontal stop timeline: done = green check, current = orange
-///     pulsing, upcoming = white outlined. All unchecked on entry.
-///   * Bottom panel: a big primary "Arrived" button (the most-used
-///     action), plus Maps and End Trip as secondary actions.
-///   * GPS auto-advances the current target when within 150 m; the
-///     driver can also tap "Arrived" to confirm manually.
+///   * Top instruction banner — the upcoming maneuver (icon + localized
+///     text + road name) with a continuously counting-down distance,
+///     Google-Maps style. Falls back to "continue toward stop" when the
+///     route carries no maneuver data.
+///   * Slim next-stop bar + horizontal stop timeline underneath.
+///   * Bottom info panel: remaining distance, time and arrival clock,
+///     live speed, focus toggle, Maps / End-trip actions.
+///   * "Point Served" — a large button that appears only while the driver
+///     is inside the service radius of the current stop; serving advances
+///     to the next stop instantly. Leaving the radius without tapping
+///     auto-serves (see the cubit's service state machine) and flashes a
+///     brief notice here.
 class RouteNavigationOverlay extends StatefulWidget {
   final VoidCallback? onOpenGoogleMaps;
 
@@ -36,14 +42,14 @@ class RouteNavigationOverlay extends StatefulWidget {
 }
 
 class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
-  /// Portrait-only — the app's default everywhere outside focus mode.
+  /// Portrait-only — the app's default everywhere outside drive mode.
   static const _portraitOnly = <DeviceOrientation>[
     DeviceOrientation.portraitUp,
   ];
 
-  /// All orientations — focus mode lets the driver turn a mounted phone
-  /// sideways for a wide map. Rotation stays the user's choice; we only
-  /// permit it, never force it.
+  /// All orientations — drive mode lets the driver turn a mounted phone
+  /// sideways for a wide map at any time (not just in focus mode).
+  /// Rotation stays the user's choice; we only permit it, never force it.
   static const _allOrientations = <DeviceOrientation>[
     DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
@@ -51,27 +57,30 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
   ];
 
   /// When true the HUD collapses to an eyes-on-road minimum: only the slim
-  /// next-stop banner and an exit control remain, so the map fills the screen.
+  /// instruction banner and an exit control remain, so the map fills the
+  /// screen.
   bool _focusMode = false;
 
-  /// Enters/leaves focus mode and unlocks/relocks landscape with it. Leaving
-  /// focus forces the device back to portrait even if held sideways.
   void _setFocusMode(bool enabled) {
     if (_focusMode == enabled) return;
     setState(() => _focusMode = enabled);
-    SystemChrome.setPreferredOrientations(
-      enabled ? _allOrientations : _portraitOnly,
-    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // The whole drive is rotatable: this overlay is only mounted while
+    // navigation is active, so unlocking here scopes landscape to drive
+    // mode exactly.
+    SystemChrome.setPreferredOrientations(_allOrientations);
   }
 
   @override
   void dispose() {
-    // Navigation can end while focus mode is still on (arrival auto-ends the
-    // trip, or End Trip is tapped). Always restore the portrait lock so the
-    // rest of the app is never left rotatable.
-    if (_focusMode) {
-      SystemChrome.setPreferredOrientations(_portraitOnly);
-    }
+    // The trip can end from anywhere (Point Served at the last stop, End
+    // Trip, a stream error). Always restore the portrait lock so the rest
+    // of the app is never left rotatable.
+    SystemChrome.setPreferredOrientations(_portraitOnly);
     super.dispose();
   }
 
@@ -81,6 +90,10 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
       buildWhen: (a, b) =>
           a.navigationProgress != b.navigationProgress ||
           a.navigationStopIndex != b.navigationStopIndex ||
+          a.navigationArrived != b.navigationArrived ||
+          a.navigationStopDistanceMeters != b.navigationStopDistanceMeters ||
+          a.navigationSpeedMps != b.navigationSpeedMps ||
+          a.maneuverFractions != b.maneuverFractions ||
           a.userLocation != b.userLocation ||
           a.optimizedRoute != b.optimizedRoute,
       builder: (context, state) {
@@ -96,45 +109,111 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         final isReturn = _isReturn(route, targetIndex);
 
         // The trip is never "finished" while navigation is active — the
-        // driver must tap the button at the return depot to end it.
+        // driver must serve the final point to end it.
         const finished = false;
 
+        // Live distance to the current service point: the GPS-derived
+        // figure the service machine uses, falling back to a straight-line
+        // estimate before the first tick.
         final loc = state.userLocation;
-        final distanceToTarget = loc == null
-            ? null
-            : DistanceUtils.haversineKm(loc, target.latLng);
+        final distanceToTarget = state.navigationStopDistanceMeters != null
+            ? state.navigationStopDistanceMeters! / 1000
+            : (loc == null
+                  ? null
+                  : DistanceUtils.haversineKm(loc, target.latLng));
         final remainingKm =
             (route.metrics.totalDistanceKm ?? 0) *
             (1 - state.navigationProgress);
+        final remainingMinutes = route.metrics.estimatedDurationMinutes != null
+            ? route.metrics.estimatedDurationMinutes! *
+                  (1 - state.navigationProgress)
+            : null;
 
-        // Landscape only happens inside focus mode (the app is portrait-locked
-        // otherwise). A full-width banner across a wide screen would bury the
-        // map, so we cap it and pin it to the leading edge — Maps/Waze style.
+        final instruction = NavigationInstructions.compute(state);
+
+        final subtitle = isReturn
+            ? AppStrings.endTrip
+            : '${AppStrings.nextStop} · '
+                  '${AppStrings.stopNofM(_stopNumber(route, targetIndex), _stopCount(route))}';
+
+        // Landscape is available for the whole drive. A full-width banner
+        // across a wide screen would bury the map, so the HUD docks on the
+        // leading edge instead: a full column of the same cards outside
+        // focus mode, or the super-thin rail inside it.
         final isLandscape =
             MediaQuery.orientationOf(context) == Orientation.landscape;
-
-        // Landscape gets a wholly different shape: a super-thin vertical rail
-        // hugging the leading edge, vertically centred — icons and numbers
-        // only, no labels — so it takes almost no width and never sits in the
-        // driver's line of sight. Landscape only ever happens in focus mode.
         if (isLandscape) {
+          if (_focusMode) {
+            return Positioned.fill(
+              child: SafeArea(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 8),
+                    child: _LandscapeHudRail(
+                      isReturn: isReturn,
+                      subtitle: subtitle,
+                      label: target.label,
+                      address: target.address,
+                      instruction: instruction,
+                      distanceToTarget: distanceToTarget,
+                      remainingKm: remainingKm,
+                      arrived: state.navigationArrived,
+                      onServe: cubit.servePoint,
+                      onExitFocus: () => _setFocusMode(false),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          // Landscape, full HUD: everything the portrait layout offers,
+          // stacked in a side column so the map keeps most of the width.
           return Positioned.fill(
             child: SafeArea(
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 8),
-                  child: _LandscapeHudRail(
-                    isReturn: isReturn,
-                    subtitle: isReturn
-                        ? AppStrings.endTrip
-                        : '${AppStrings.nextStop} · '
-                              '${AppStrings.stopNofM(_stopNumber(route, targetIndex), _stopCount(route))}',
-                    label: target.label,
-                    address: target.address,
-                    distanceToTarget: distanceToTarget,
-                    remainingKm: remainingKm,
-                    onExitFocus: () => _setFocusMode(false),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 8),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 330),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (instruction != null)
+                          _InstructionBanner(instruction: instruction),
+                        const SizedBox(height: 6),
+                        _NextStopBar(
+                          isReturn: isReturn,
+                          subtitle: subtitle,
+                          label: target.label,
+                          distanceToTarget: distanceToTarget,
+                          onLongPress: cubit.servePoint,
+                        ),
+                        const _AutoServeNotice(),
+                        const Spacer(),
+                        _ServedButton(
+                          visible: state.navigationArrived,
+                          label: isReturn
+                              ? AppStrings.endTrip
+                              : AppStrings.pointServed,
+                          icon: isReturn
+                              ? Iconsax.flag
+                              : Iconsax.tick_circle,
+                          onTap: cubit.servePoint,
+                        ),
+                        _BottomPanel(
+                          remainingKm: remainingKm,
+                          remainingMinutes: remainingMinutes,
+                          speedMps: state.navigationSpeedMps,
+                          onFocus: () => _setFocusMode(true),
+                          onOpenGoogleMaps: widget.onOpenGoogleMaps,
+                          onEndTrip: cubit.stopNavigation,
+                          debugStep:
+                              kDebugMode ? cubit.debugStepForward : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -145,100 +224,28 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         return Positioned.fill(
           child: Column(
             children: [
-              // ── Top: next-stop banner + timeline ──
+              // ── Top: instruction banner + next stop + timeline ──
               SafeArea(
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
                   child: Column(
                     children: [
-                      // Dark banner — maximum contrast for in-car use.
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.asphalt.withValues(alpha: 0.97),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: AppColors.shadow,
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-                          child: Row(
-                            children: [
-                              // Icon badge.
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  isReturn ? Iconsax.repeat : Iconsax.location,
-                                  color: AppColors.white,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              // Stop info.
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      isReturn
-                                          ? AppStrings.endTrip
-                                          : '${AppStrings.nextStop} · ${AppStrings.stopNofM(_stopNumber(route, targetIndex), _stopCount(route))}',
-                                      style: AppTextStyles.bodySm.copyWith(
-                                        color: AppColors.white.withValues(
-                                          alpha: 0.70,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      target.label,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTextStyles.h3.copyWith(
-                                        color: AppColors.white,
-                                      ),
-                                    ),
-                                    if (target.address != null &&
-                                        target.address!.isNotEmpty) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        target.address!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: AppTextStyles.bodySm.copyWith(
-                                          color: AppColors.white.withValues(
-                                            alpha: 0.55,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Live distance to target.
-                              if (distanceToTarget != null)
-                                Text(
-                                  MetricFormat.distance(distanceToTarget),
-                                  style: AppTextStyles.h3.copyWith(
-                                    color: AppColors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              const SizedBox(width: 2),
-                            ],
-                          ),
-                        ),
+                      if (instruction != null)
+                        _InstructionBanner(instruction: instruction),
+                      const SizedBox(height: 6),
+                      _NextStopBar(
+                        isReturn: isReturn,
+                        subtitle: subtitle,
+                        label: target.label,
+                        distanceToTarget: distanceToTarget,
+                        // Escape hatch: a long-press serves the point even
+                        // when GPS never registers the 10 m radius.
+                        onLongPress: cubit.servePoint,
                       ),
+                      // One-shot "service point completed" notice for
+                      // automatic completions.
+                      const _AutoServeNotice(),
                       if (!_focusMode) ...[
                         const SizedBox(height: 6),
                         // Timeline strip.
@@ -263,107 +270,39 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
 
               const Spacer(),
 
-              // ── Bottom: full panel, or a slim exit bar in focus mode ──
+              // ── Bottom: Point Served + full panel (or slim focus bar) ──
               SafeArea(
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: _focusMode
-                      ? _FocusExitBar(
-                          remaining: MetricFormat.distance(remainingKm),
-                          onExit: () => _setFocusMode(false),
-                        )
-                      : GlassPanel(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                          radius: 20,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Header: remaining distance + focus toggle.
-                              Row(
-                                children: [
-                                  Icon(
-                                    Iconsax.routing,
-                                    size: 15,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    MetricFormat.distance(remainingKm),
-                                    style: AppTextStyles.titleSm,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    AppStrings.remainingShort,
-                                    style: AppTextStyles.mutedSm,
-                                  ),
-                                  const Spacer(),
-                                  _FocusToggleButton(
-                                    onTap: () => _setFocusMode(true),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-
-                              // Primary action: "Arrived" at every stop. At the
-                              // return depot it becomes "End Trip" — the driver
-                              // must physically arrive and tap to finish.
-                              SizedBox(
-                                width: double.infinity,
-                                child: _BigAction(
-                                  icon: isReturn
-                                      ? Iconsax.flag
-                                      : Iconsax.tick_circle,
-                                  label: isReturn
-                                      ? AppStrings.endTrip
-                                      : AppStrings.arrivedHere,
-                                  background: AppColors.primary,
-                                  foreground: AppColors.white,
-                                  onTap: isReturn
-                                      ? cubit.stopNavigation
-                                      : cubit.markCurrentStopDone,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-
-                              // Secondary actions.
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _BigAction(
-                                      icon: Iconsax.map_1,
-                                      label: AppStrings.googleMapsShort,
-                                      background: AppColors.surfaceAlt,
-                                      foreground: AppColors.textPrimary,
-                                      onTap: widget.onOpenGoogleMaps,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _BigAction(
-                                      icon: Iconsax.close_circle,
-                                      label: AppStrings.endTrip,
-                                      background: AppColors.danger.withValues(
-                                        alpha: 0.10,
-                                      ),
-                                      foreground: AppColors.danger,
-                                      onTap: cubit.stopNavigation,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              // ── DEBUG ONLY — visible drive-test stepper,
-                              // compiled out of release builds via [kDebugMode].
-                              if (kDebugMode && !finished) ...[
-                                const SizedBox(height: 6),
-                                _DebugStepButton(
-                                  onStep: cubit.debugStepForward,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ServedButton(
+                        visible: state.navigationArrived,
+                        label: isReturn
+                            ? AppStrings.endTrip
+                            : AppStrings.pointServed,
+                        icon: isReturn ? Iconsax.flag : Iconsax.tick_circle,
+                        onTap: cubit.servePoint,
+                      ),
+                      _focusMode
+                          ? _FocusExitBar(
+                              remaining: MetricFormat.distance(remainingKm),
+                              onExit: () => _setFocusMode(false),
+                            )
+                          : _BottomPanel(
+                              remainingKm: remainingKm,
+                              remainingMinutes: remainingMinutes,
+                              speedMps: state.navigationSpeedMps,
+                              onFocus: () => _setFocusMode(true),
+                              onOpenGoogleMaps: widget.onOpenGoogleMaps,
+                              onEndTrip: cubit.stopNavigation,
+                              debugStep:
+                                  kDebugMode ? cubit.debugStepForward : null,
+                            ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -390,12 +329,480 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
       route.orderedPoints.where((p) => !p.isDepot).length;
 }
 
+/// Top maneuver banner: big icon, counting-down distance, localized
+/// instruction and the road it leads onto — dark, high-contrast, readable
+/// in sunlight at a glance.
+class _InstructionBanner extends StatelessWidget {
+  final NavInstruction instruction;
+  const _InstructionBanner({required this.instruction});
+
+  @override
+  Widget build(BuildContext context) {
+    final road = instruction.roadName;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.asphalt.withValues(alpha: 0.97),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Row(
+          children: [
+            // Maneuver glyph — cross-fades when the maneuver changes so
+            // transitions feel deliberate, not flickery.
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: ScaleTransition(scale: anim, child: child),
+                ),
+                child: Icon(
+                  instruction.icon,
+                  key: ValueKey(instruction.icon.codePoint),
+                  color: AppColors.white,
+                  size: 32,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // The headline number: distance to the maneuver, updated
+                  // on every progress tick.
+                  Text(
+                    MetricFormat.distance(instruction.distanceMeters / 1000),
+                    style: AppTextStyles.h2.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w800,
+                      height: 1.05,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    instruction.text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.white.withValues(alpha: 0.92),
+                    ),
+                  ),
+                  if (road != null && road.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      road,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodySm.copyWith(
+                        color: AppColors.white.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Slim pill under the instruction banner: which service point is next
+/// (n of m + name) and how far it is. Long-press = manual serve escape
+/// hatch when GPS can't register the service radius.
+class _NextStopBar extends StatelessWidget {
+  final bool isReturn;
+  final String subtitle;
+  final String label;
+  final double? distanceToTarget;
+  final VoidCallback onLongPress;
+
+  const _NextStopBar({
+    required this.isReturn,
+    required this.subtitle,
+    required this.label,
+    required this.distanceToTarget,
+    required this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: () {
+        HapticFeedback.heavyImpact();
+        onLongPress();
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.asphalt.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(
+                  isReturn ? Iconsax.repeat : Iconsax.location,
+                  color: AppColors.white,
+                  size: 14,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.mutedSm.copyWith(
+                        color: AppColors.white.withValues(alpha: 0.65),
+                      ),
+                    ),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleSm.copyWith(
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (distanceToTarget != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  MetricFormat.distance(distanceToTarget!),
+                  style: AppTextStyles.titleMd.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One-shot animated notice for automatic service completion:
+/// "Service point completed. Navigating to next stop."
+class _AutoServeNotice extends StatefulWidget {
+  const _AutoServeNotice();
+
+  @override
+  State<_AutoServeNotice> createState() => _AutoServeNoticeState();
+}
+
+class _AutoServeNoticeState extends State<_AutoServeNotice> {
+  bool _visible = false;
+  Timer? _hideTimer;
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _flash() {
+    _hideTimer?.cancel();
+    setState(() => _visible = true);
+    _hideTimer = Timer(const Duration(milliseconds: 2800), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<RoutePlannerCubit, RoutePlannerState>(
+      listenWhen: (a, b) =>
+          b.autoServeCount > a.autoServeCount && b.navigationActive,
+      listener: (_, __) => _flash(),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        child: !_visible
+            ? const SizedBox(width: double.infinity)
+            : Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _visible ? 1 : 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: AppColors.shadow,
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Iconsax.tick_circle,
+                            color: AppColors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              AppStrings.autoServedNotice,
+                              maxLines: 2,
+                              style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+/// The "Point Served" action: hidden until the driver is inside the
+/// service radius, then springs in as a large, impossible-to-miss button
+/// that's easy to hit while stopped.
+class _ServedButton extends StatelessWidget {
+  final bool visible;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ServedButton({
+    required this.visible,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      child: !visible
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AnimatedScale(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutBack,
+                scale: visible ? 1 : 0.8,
+                child: Material(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(18),
+                  elevation: 8,
+                  shadowColor: AppColors.shadow,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      onTap();
+                    },
+                    child: SizedBox(
+                      height: 58,
+                      width: double.infinity,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, color: AppColors.white, size: 24),
+                          const SizedBox(width: 10),
+                          Text(
+                            label,
+                            style: AppTextStyles.h3.copyWith(
+                              color: AppColors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+/// Bottom glass panel: trip stats (remaining distance / time / arrival
+/// clock / live speed), the focus toggle, and Maps / End-trip actions.
+class _BottomPanel extends StatelessWidget {
+  final double remainingKm;
+  final double? remainingMinutes;
+  final double? speedMps;
+  final VoidCallback onFocus;
+  final VoidCallback? onOpenGoogleMaps;
+  final VoidCallback onEndTrip;
+  final VoidCallback? debugStep;
+
+  const _BottomPanel({
+    required this.remainingKm,
+    required this.remainingMinutes,
+    required this.speedMps,
+    required this.onFocus,
+    required this.onOpenGoogleMaps,
+    required this.onEndTrip,
+    required this.debugStep,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final eta = remainingMinutes != null
+        ? DateFormat('HH:mm').format(
+            DateTime.now().add(Duration(minutes: remainingMinutes!.round())),
+          )
+        : null;
+    final kmh = speedMps != null ? (speedMps! * 3.6).round() : null;
+
+    return GlassPanel(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      radius: 20,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header: remaining distance · time · arrival — plus live speed
+          // and the focus toggle.
+          Row(
+            children: [
+              Icon(Iconsax.routing, size: 15, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      MetricFormat.distance(remainingKm),
+                      style: AppTextStyles.titleSm,
+                    ),
+                    if (remainingMinutes != null) ...[
+                      Text('·', style: AppTextStyles.mutedSm),
+                      Text(
+                        MetricFormat.duration(remainingMinutes!),
+                        style: AppTextStyles.titleSm,
+                      ),
+                    ],
+                    if (eta != null) ...[
+                      Text('·', style: AppTextStyles.mutedSm),
+                      Text(
+                        '${AppStrings.arrivalLabel} $eta',
+                        style: AppTextStyles.mutedSm,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (kmh != null && kmh > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '$kmh ${AppStrings.speedUnitKmh}',
+                    style: AppTextStyles.mutedSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              _FocusToggleButton(onTap: onFocus),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Secondary actions. Serving happens with the big Point Served
+          // button (only shown at the stop), so the panel stays minimal.
+          Row(
+            children: [
+              Expanded(
+                child: _BigAction(
+                  icon: Iconsax.map_1,
+                  label: AppStrings.googleMapsShort,
+                  background: AppColors.surfaceAlt,
+                  foreground: AppColors.textPrimary,
+                  onTap: onOpenGoogleMaps,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _BigAction(
+                  icon: Iconsax.close_circle,
+                  label: AppStrings.endTrip,
+                  background: AppColors.danger.withValues(alpha: 0.10),
+                  foreground: AppColors.danger,
+                  onTap: onEndTrip,
+                ),
+              ),
+            ],
+          ),
+
+          // ── DEBUG ONLY — visible drive-test stepper,
+          // compiled out of release builds via [kDebugMode].
+          if (debugStep != null) ...[
+            const SizedBox(height: 6),
+            _DebugStepButton(onStep: debugStep!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Super-thin landscape rail for focus mode.
 ///
 /// A single narrow vertical strip on the leading edge — icons and numbers
 /// stacked, no text labels — so it occupies almost no width and stays clear
-/// of the driver's view. Shows: next-stop distance (the big number), remaining
-/// trip distance, and an icon-only exit back to portrait.
+/// of the driver's view. Shows: the upcoming maneuver (icon + distance),
+/// next-stop distance, remaining trip distance, a serve control while at
+/// the stop, and an icon-only exit back to portrait.
 ///
 /// Tapping the next-stop badge expands the rail to reveal the stop name (and
 /// "Next stop · N of M" heading); tapping again collapses it. The expand state
@@ -405,8 +812,11 @@ class _LandscapeHudRail extends StatefulWidget {
   final String subtitle;
   final String label;
   final String? address;
+  final NavInstruction? instruction;
   final double? distanceToTarget;
   final double remainingKm;
+  final bool arrived;
+  final VoidCallback onServe;
   final VoidCallback onExitFocus;
 
   const _LandscapeHudRail({
@@ -414,8 +824,11 @@ class _LandscapeHudRail extends StatefulWidget {
     required this.subtitle,
     required this.label,
     required this.address,
+    required this.instruction,
     required this.distanceToTarget,
     required this.remainingKm,
+    required this.arrived,
+    required this.onServe,
     required this.onExitFocus,
   });
 
@@ -434,6 +847,7 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
   @override
   Widget build(BuildContext context) {
     final white70 = AppColors.white.withValues(alpha: 0.70);
+    final instruction = widget.instruction;
     return AnimatedSize(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
@@ -461,6 +875,27 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Upcoming maneuver — the primary in-drive information.
+                if (instruction != null) ...[
+                  Icon(instruction.icon, size: 22, color: AppColors.white),
+                  const SizedBox(height: 2),
+                  Text(
+                    MetricFormat.distance(instruction.distanceMeters / 1000),
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.white.withValues(alpha: 0.15),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 // Next-stop badge — tap to reveal/hide the stop name.
                 GestureDetector(
                   onTap: _toggle,
@@ -540,6 +975,32 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
                     ),
                   ),
                 ],
+
+                // Serve control — only while inside the service radius.
+                if (widget.arrived) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    child: Material(
+                      color: AppColors.primary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          widget.onServe();
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(11),
+                          child: Icon(
+                            Iconsax.tick_circle,
+                            size: 20,
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Divider(
                   height: 1,
@@ -595,8 +1056,8 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
 /// Tap once  → advance 100 m along the planned route.
 /// Long-press → auto-step every 250 ms until released (hands-free drive).
 ///
-/// When the simulated position enters the 150 m arrival radius of a stop
-/// the cubit auto-advances the stop index, same as the real GPS logic.
+/// When the simulated position crosses a stop's arc-length fraction the
+/// cubit auto-advances the stop index, same as the real GPS logic.
 class _DebugStepButton extends StatefulWidget {
   final VoidCallback onStep;
   const _DebugStepButton({required this.onStep});

@@ -71,7 +71,7 @@ class RouteMapView extends StatefulWidget {
 }
 
 class RouteMapViewState extends State<RouteMapView>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   MapLibreMapController? _controller;
   bool _styleLoaded = false;
 
@@ -106,6 +106,13 @@ class RouteMapViewState extends State<RouteMapView>
   /// glued to the road across DPR, tilt, and the Android native/Flutter
   /// centre offset. See [_projectNavPuck].
   final ValueNotifier<Offset?> _navPuckPos = ValueNotifier<Offset?>(null);
+
+  /// Road tangent (degrees) under the car during live drive, read over a
+  /// short chord so polyline vertex kinks don't twitch it. The camera's
+  /// bearing anticipates the road *ahead*, so mid-bend the car must rotate
+  /// by (tangent − live camera bearing) to stay lying along its own road
+  /// instead of appearing to drift sideways. Null outside navigation.
+  final ValueNotifier<double?> _navTangent = ValueNotifier<double?>(null);
 
   /// Plugin projection unit factor: physical px on Android, logical
   /// everywhere else. `toScreenLocation`/`toLatLng` results are divided by
@@ -279,24 +286,81 @@ class RouteMapViewState extends State<RouteMapView>
   static const _srcBg = 'poly-bg';
   static const _srcFg = 'poly-fg';
   static const _srcTrail = 'poly-trail';
+  static const _srcManeuver = 'poly-maneuver';
   static const _lyrBg = 'lyr-bg';
   static const _lyrFg = 'lyr-fg';
   static const _lyrTrail = 'lyr-trail';
+  static const _lyrManeuver = 'lyr-maneuver';
 
   /// Smoothed bearing used by the locked live navigation camera.
   double? _navBearing;
 
+  /// Smoothed speed-adaptive zoom for the drive camera; null until the
+  /// first drive frame (then eased toward the speed-band target so zoom
+  /// changes read as gradual breathing, never steps).
+  double? _navZoom;
+
+  /// False until the drive camera's first frame, which snaps into place;
+  /// every later update glides via animateCamera.
+  bool _navCamSnapped = false;
+
+  /// The vehicle's on-route anchor for the current drive frame — what the
+  /// nav puck is projected from (also while the user explores the map).
+  ll.LatLng? _navAnchor;
+
+  /// True while the driver is freely panning/zooming the map mid-drive:
+  /// the follow camera pauses (navigation itself continues) and a
+  /// "Re-center" pill is shown. Auto-resumes after
+  /// [NavigationConfig.exploreResumeDelay] without touches.
+  final ValueNotifier<bool> _navExploring = ValueNotifier(false);
+  Timer? _exploreResumeTimer;
+
+  // Throttle state for the nav-puck screen projection (one light platform
+  // round-trip at most every ~80 ms, incl. while the camera animates).
+  bool _puckProjecting = false;
+  DateTime _lastPuckProjection = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Whether the maneuver-highlight layer currently holds geometry, so
+  /// non-drive modes can clear it exactly once instead of every frame.
+  bool _maneuverHlVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Orientation / window-size change: the drive camera's look-ahead is
+  /// viewport-dependent, and GPS only ticks after ~5 m of movement — so a
+  /// rotation while stopped would leave the car mis-framed until the next
+  /// fix. Re-aim as soon as the new layout settles.
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = context.read<RoutePlannerCubit>().state;
+      if (state.navigationActive && state.optimizedRoute != null) {
+        unawaited(_syncNavigationCamera(state));
+      }
+    });
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _vehicleTicker
       ?..stop()
       ..dispose();
     _puck.dispose();
+    _exploreResumeTimer?.cancel();
+    _navExploring.dispose();
     _controller?.onSymbolTapped.remove(_onSymbolTapped);
     _bearing.dispose();
     _showRecenter.dispose();
     aimOffset.dispose();
     _navPuckPos.dispose();
+    _navTangent.dispose();
     super.dispose();
   }
 
@@ -336,6 +400,11 @@ class RouteMapViewState extends State<RouteMapView>
     // Keep the drop point (= camera centre) continuously fresh, so adding
     // a point is accurate even if onCameraIdle is unreliable on a device.
     _mapCenter = ll.LatLng(position.target.latitude, position.target.longitude);
+
+    // Drive mode: the camera glides between GPS fixes (and the user can
+    // pan freely in explore mode) — keep the car pinned to the road
+    // through every intermediate frame.
+    if (_wasNavigationActive) _maybeReprojectNavPuck();
 
     // Toggle the "return to my location" control as the user pans away from
     // their current position. The threshold scales with zoom so it triggers
@@ -525,6 +594,21 @@ class RouteMapViewState extends State<RouteMapView>
         lineJoin: 'round',
       ),
     );
+
+    // Drive-mode turn guidance: a bright white segment drawn over the
+    // route at the upcoming maneuver, so the correct branch is obvious.
+    // Added last = renders on top of every other route line.
+    await c.addGeoJsonSource(_srcManeuver, MapGeometry.emptyGeoJson);
+    await c.addLineLayer(
+      _srcManeuver,
+      _lyrManeuver,
+      const LineLayerProperties(
+        lineColor: '#FFFFFF',
+        lineWidth: MapConfig.driveManeuverWidth,
+        lineCap: 'round',
+        lineJoin: 'round',
+      ),
+    );
   }
 
   /// Tracks the active line-style so we only re-apply layer paint when
@@ -543,6 +627,7 @@ class RouteMapViewState extends State<RouteMapView>
       await c.setGeoJsonSource(_srcBg, MapGeometry.emptyGeoJson);
       await c.setGeoJsonSource(_srcFg, MapGeometry.emptyGeoJson);
       await c.setGeoJsonSource(_srcTrail, MapGeometry.emptyGeoJson);
+      await _clearManeuverHighlight();
       _lineStyleKey = 'empty';
       return;
     }
@@ -581,6 +666,7 @@ class RouteMapViewState extends State<RouteMapView>
         _srcTrail,
         MapGeometry.lineGeoJson(MapGeometry.subPath(full, p, nextFrac)),
       );
+      await _syncManeuverHighlight(state, full, p);
       if (restyle) {
         await _setLine(_lyrBg, AppColors.driveDone, MapConfig.driveDoneWidth);
         await _setLine(_lyrFg, AppColors.driveAhead, MapConfig.driveAheadWidth);
@@ -592,6 +678,9 @@ class RouteMapViewState extends State<RouteMapView>
       }
       return;
     }
+
+    // Not driving — make sure no stale turn highlight lingers.
+    await _clearManeuverHighlight();
 
     // ── Trip preview / simulation ──
     if (state.simulationActive) {
@@ -640,6 +729,59 @@ class RouteMapViewState extends State<RouteMapView>
       );
       await _setLine(_lyrFg, fgColor, MapConfig.planFgWidth);
     }
+  }
+
+  /// Turn guidance (drive mode): once the vehicle is within
+  /// [NavigationConfig.maneuverHighlightWithinMeters] of the upcoming
+  /// maneuver, paint a short bright-white segment of the route from the
+  /// maneuver point forward — the selected branch pops out of the
+  /// intersection/roundabout so the driver never hesitates.
+  Future<void> _syncManeuverHighlight(
+    RoutePlannerState state,
+    List<ll.LatLng> full,
+    double progress,
+  ) async {
+    final c = _controller;
+    if (c == null) return;
+
+    final route = state.optimizedRoute;
+    final fractions = state.maneuverFractions;
+    double? highlightFrac;
+    if (route != null &&
+        fractions.isNotEmpty &&
+        fractions.length == route.maneuvers.length &&
+        full.length >= 2) {
+      final totalKm = DistanceUtils.pathLengthKm(full);
+      if (totalKm > 0) {
+        for (final f in fractions) {
+          if (f <= progress) continue;
+          final metersAhead = (f - progress) * totalKm * 1000;
+          if (metersAhead <= NavigationConfig.maneuverHighlightWithinMeters) {
+            highlightFrac = f;
+          }
+          break; // only ever the nearest upcoming maneuver
+        }
+        if (highlightFrac != null) {
+          final len =
+              NavigationConfig.maneuverHighlightLengthMeters / 1000 / totalKm;
+          await c.setGeoJsonSource(
+            _srcManeuver,
+            MapGeometry.lineGeoJson(
+              MapGeometry.subPath(full, highlightFrac, highlightFrac + len),
+            ),
+          );
+          _maneuverHlVisible = true;
+          return;
+        }
+      }
+    }
+    await _clearManeuverHighlight();
+  }
+
+  Future<void> _clearManeuverHighlight() async {
+    if (!_maneuverHlVisible) return;
+    _maneuverHlVisible = false;
+    await _controller?.setGeoJsonSource(_srcManeuver, MapGeometry.emptyGeoJson);
   }
 
   /// Apply a solid rounded line paint to [layerId].
@@ -888,6 +1030,9 @@ class RouteMapViewState extends State<RouteMapView>
     final pointId = sym.data?['pointId'] as String?;
     if (pointId == null || !mounted) return;
     final state = context.read<RoutePlannerCubit>().state;
+    // Stop markers stay visible while exploring mid-drive, but their edit
+    // sheet belongs to planning — never open it over the drive HUD.
+    if (state.navigationActive) return;
     try {
       final point = state.points.firstWhere((p) => p.id == pointId);
       showPointActions(context, point);
@@ -896,8 +1041,11 @@ class RouteMapViewState extends State<RouteMapView>
 
   void _onMapLongClick(math.Point<double> screenPoint, LatLng coordinates) {
     if (!mounted) return;
-    final tapPos = ll.LatLng(coordinates.latitude, coordinates.longitude);
     final state = context.read<RoutePlannerCubit>().state;
+    // Mid-drive the map is pannable (explore mode) — a long press must
+    // never pop the remove-point dialog in the driver's face.
+    if (state.navigationActive || state.simulationActive) return;
+    final tapPos = ll.LatLng(coordinates.latitude, coordinates.longitude);
 
     RoutePoint? nearest;
     var nearestDist = double.infinity;
@@ -1142,6 +1290,10 @@ class RouteMapViewState extends State<RouteMapView>
       if (!_wasNavigationActive) {
         _northLock = false;
         _navBearing = null;
+        _navZoom = null;
+        _navCamSnapped = false;
+        _navAnchor = null;
+        _stopExploring(resumeCamera: false);
       }
       _wasNavigationActive = true;
       await _syncNavigationCamera(state);
@@ -1158,7 +1310,12 @@ class RouteMapViewState extends State<RouteMapView>
     if (_wasNavigationActive) {
       _wasNavigationActive = false;
       _navBearing = null;
+      _navZoom = null;
+      _navCamSnapped = false;
+      _navAnchor = null;
       _navPuckPos.value = null;
+      _navTangent.value = null;
+      _stopExploring(resumeCamera: false);
       await _moveCamera(CameraUpdate.tiltTo(0));
       await _moveCamera(CameraUpdate.bearingTo(0));
     }
@@ -1290,6 +1447,11 @@ class RouteMapViewState extends State<RouteMapView>
   /// driver. The camera targets a point just ahead of the vehicle, so the
   /// current location sits in the lower-middle of the screen like a real
   /// navigation/chase view instead of being seen from an arbitrary angle.
+  ///
+  /// The first drive frame snaps into position; every later update *glides*
+  /// there via a native camera animation spanning the GPS cadence, so the
+  /// view moves continuously instead of jumping fix-to-fix. Zoom adapts to
+  /// speed (close when crawling, wide on the highway) with its own easing.
   Future<void> _syncNavigationCamera(RoutePlannerState state) async {
     final loc = state.userLocation;
     if (loc == null) {
@@ -1333,40 +1495,166 @@ class RouteMapViewState extends State<RouteMapView>
         ? PolylineUtils.interpolateByLength(polyline, state.navigationProgress)
         : null;
     final anchor = onRoute ?? loc;
+    _navAnchor = anchor;
 
-    final target = MapGeometry.destinationPoint(
-      anchor,
-      heading,
-      NavigationConfig.lookaheadMeters,
-    );
+    // The road direction the *car* is on right now — a short chord, unlike
+    // the camera's long anticipation window — drives the avatar's rotation.
+    _navTangent.value = polyline.length >= 2
+        ? PolylineUtils.lookAheadBearing(
+            polyline,
+            state.navigationProgress,
+            NavigationConfig.avatarTangentMeters,
+          )
+        : state.navigationHeading;
+
+    // While the driver explores the map, guidance continues but the camera
+    // is theirs — only the puck keeps tracking (via onCameraMove).
+    if (_navExploring.value) {
+      unawaited(_projectNavPuck(anchor));
+      return;
+    }
+
+    // Speed-adaptive zoom, exponentially eased toward the band target.
+    final zoomTarget = _zoomForSpeed(state.navigationSpeedMps);
+    _navZoom = _navZoom == null
+        ? zoomTarget
+        : _navZoom! +
+              (zoomTarget - _navZoom!) * NavigationConfig.zoomSmoothingFactor;
+    final zoom = _navZoom!;
+
+    // The look-ahead offset scales with the viewport: landscape screens
+    // are short, so the portrait offset would leave the car off-screen.
+    final viewport = MediaQuery.sizeOf(context);
+    final lookahead = viewport.width > viewport.height
+        ? NavigationConfig.lookaheadMetersLandscape
+        : NavigationConfig.lookaheadMeters;
+    final target = MapGeometry.destinationPoint(anchor, heading, lookahead);
     DebugLog.cam(
-      'navCamera loc=${loc.latitude.toStringAsFixed(6)},'
-      '${loc.longitude.toStringAsFixed(6)} '
-      'anchor=${anchor.latitude.toStringAsFixed(6)},'
+      'navCamera anchor=${anchor.latitude.toStringAsFixed(6)},'
       '${anchor.longitude.toStringAsFixed(6)} '
       'tangent=${tangent?.toStringAsFixed(1)} '
       'ahead=${aheadBearing?.toStringAsFixed(1)} '
       'stateHeading=${state.navigationHeading?.toStringAsFixed(1)} '
       '→ appliedHeading=${heading.toStringAsFixed(1)} '
       'prog=${state.navigationProgress.toStringAsFixed(4)} '
-      'zoom=${NavigationConfig.zoom} tilt=${NavigationConfig.tilt}',
+      'zoom=${zoom.toStringAsFixed(2)} tilt=${NavigationConfig.tilt}',
     );
-    await _moveCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: _ml(target),
-          zoom: NavigationConfig.zoom,
-          bearing: heading,
-          tilt: NavigationConfig.tilt,
-        ),
+    final update = CameraUpdate.newCameraPosition(
+      CameraPosition(
+        target: _ml(target),
+        zoom: zoom,
+        bearing: heading,
+        tilt: NavigationConfig.tilt,
       ),
     );
+    if (!_navCamSnapped) {
+      _navCamSnapped = true;
+      await _moveCamera(update);
+    } else {
+      // Fire-and-forget: the native side interpolates position, bearing
+      // and zoom over the animation window, so the apply pipeline never
+      // stalls and motion stays continuous between GPS fixes.
+      unawaited(
+        _controller?.animateCamera(
+              update,
+              duration: NavigationConfig.cameraAnimDuration,
+            ) ??
+            Future<void>.value(),
+      );
+    }
 
     // Drop the car where the on-route anchor projects on screen (the camera
     // centres the look-ahead point, so the anchor sits lower). The map's own
     // projection handles perspective + the Android native/Flutter offset, so
-    // the car rides the road instead of a fixed slot.
+    // the car rides the road instead of a fixed slot. onCameraMove keeps
+    // re-projecting it while the animation runs.
     await _projectNavPuck(anchor);
+  }
+
+  /// Zoom for the current speed: piecewise-linear between the config
+  /// bands so it changes continuously, never in steps.
+  double _zoomForSpeed(double? speedMps) {
+    final kmh = (speedMps ?? 0) * 3.6;
+    double lerp(double a, double b, double t) => a + (b - a) * t.clamp(0, 1);
+    if (kmh <= NavigationConfig.speedCrawlKmh) return NavigationConfig.zoomCrawl;
+    if (kmh <= NavigationConfig.speedCityKmh) {
+      return lerp(
+        NavigationConfig.zoomCrawl,
+        NavigationConfig.zoomCity,
+        (kmh - NavigationConfig.speedCrawlKmh) /
+            (NavigationConfig.speedCityKmh - NavigationConfig.speedCrawlKmh),
+      );
+    }
+    if (kmh <= NavigationConfig.speedFastKmh) {
+      return lerp(
+        NavigationConfig.zoomCity,
+        NavigationConfig.zoomFast,
+        (kmh - NavigationConfig.speedCityKmh) /
+            (NavigationConfig.speedFastKmh - NavigationConfig.speedCityKmh),
+      );
+    }
+    // 80 → 120 km/h eases out to the widest view.
+    return lerp(
+      NavigationConfig.zoomFast,
+      NavigationConfig.zoomHighway,
+      (kmh - NavigationConfig.speedFastKmh) /
+          (120.0 - NavigationConfig.speedFastKmh),
+    );
+  }
+
+  // ── Free exploration during drive mode ──────────────────────────────────────
+
+  /// First touch on the map mid-drive hands the camera to the user:
+  /// follow pauses (navigation continues), the Re-center pill appears.
+  void _onNavPointerDown() {
+    if (!mounted) return;
+    if (!context.read<RoutePlannerCubit>().state.navigationActive) return;
+    _exploreResumeTimer?.cancel();
+    if (!_navExploring.value) {
+      DebugLog.cam('explore: user touched map — follow paused');
+      _navExploring.value = true;
+    }
+  }
+
+  /// Touch lifted: arm the auto-resume. If the user stays hands-off for
+  /// [NavigationConfig.exploreResumeDelay], follow mode returns by itself.
+  void _onNavPointerUp() {
+    if (!_navExploring.value) return;
+    _exploreResumeTimer?.cancel();
+    _exploreResumeTimer = Timer(
+      NavigationConfig.exploreResumeDelay,
+      () => _stopExploring(resumeCamera: true),
+    );
+  }
+
+  /// Leaves exploration; when [resumeCamera] the follow camera glides
+  /// straight back to the vehicle. Also the Re-center pill's tap action.
+  void _stopExploring({required bool resumeCamera}) {
+    _exploreResumeTimer?.cancel();
+    _exploreResumeTimer = null;
+    if (!_navExploring.value) return;
+    _navExploring.value = false;
+    DebugLog.cam('explore: resuming follow (resumeCamera=$resumeCamera)');
+    if (resumeCamera && mounted) {
+      unawaited(
+        _syncNavigationCamera(context.read<RoutePlannerCubit>().state),
+      );
+    }
+  }
+
+  /// Throttled nav-puck re-projection driven by [_onCameraMove]: keeps the
+  /// car glued to its on-route anchor while the camera animates between
+  /// fixes and while the user pans around in explore mode.
+  void _maybeReprojectNavPuck() {
+    final anchor = _navAnchor;
+    if (anchor == null || _puckProjecting) return;
+    final now = DateTime.now();
+    if (now.difference(_lastPuckProjection).inMilliseconds < 80) return;
+    _lastPuckProjection = now;
+    _puckProjecting = true;
+    unawaited(
+      _projectNavPuck(anchor).whenComplete(() => _puckProjecting = false),
+    );
   }
 
   /// Projects the live-drive [loc] to a logical screen position for the car
@@ -1461,6 +1749,7 @@ class RouteMapViewState extends State<RouteMapView>
           a.navigationProgress != b.navigationProgress ||
           a.navigationStopIndex != b.navigationStopIndex ||
           a.navigationHeading != b.navigationHeading ||
+          a.navigationSpeedMps != b.navigationSpeedMps ||
           a.userLocation != b.userLocation ||
           a.points != b.points ||
           a.movingPointId != b.movingPointId ||
@@ -1486,15 +1775,34 @@ class RouteMapViewState extends State<RouteMapView>
                   if (!state.navigationActive || state.userLocation == null) {
                     return const SizedBox.shrink();
                   }
+                  // The avatar rotates by (road tangent under the car −
+                  // live camera bearing): zero on a straight road, but as
+                  // the camera anticipates into a bend the car keeps lying
+                  // along the road it is actually on. Listening to the live
+                  // bearing keeps it aligned through camera animations and
+                  // while the user explores the map.
+                  final puck = ValueListenableBuilder<double>(
+                    valueListenable: _bearing,
+                    builder: (_, camBearing, __) =>
+                        ValueListenableBuilder<double?>(
+                          valueListenable: _navTangent,
+                          builder: (_, tangent, __) {
+                            final rotation = tangent == null
+                                ? 0.0
+                                : ((tangent - camBearing + 540) % 360) - 180;
+                            return NavigationPuck(rotationDegrees: rotation);
+                          },
+                        ),
+                  );
                   return ValueListenableBuilder<Offset?>(
                     valueListenable: _navPuckPos,
                     builder: (_, pos, __) {
                       if (pos == null) {
                         // First frame, before the projection lands: an
                         // approximate lower-middle slot.
-                        return const Align(
-                          alignment: Alignment(0, 0.34),
-                          child: NavigationPuck(),
+                        return Align(
+                          alignment: const Alignment(0, 0.34),
+                          child: puck,
                         );
                       }
                       return Stack(
@@ -1502,9 +1810,9 @@ class RouteMapViewState extends State<RouteMapView>
                           Positioned(
                             left: pos.dx,
                             top: pos.dy,
-                            child: const FractionalTranslation(
-                              translation: Offset(-0.5, -0.5),
-                              child: NavigationPuck(),
+                            child: FractionalTranslation(
+                              translation: const Offset(-0.5, -0.5),
+                              child: puck,
                             ),
                           ),
                         ],
@@ -1632,6 +1940,43 @@ class RouteMapViewState extends State<RouteMapView>
               },
             ),
           ),
+          // Drive-mode "Re-center": floats above the HUD's bottom panel
+          // while the user is exploring the map mid-navigation. One tap
+          // (or 3 s hands-off) returns to the follow camera.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: MediaQuery.paddingOf(context).bottom + 200,
+            child: Center(
+              child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+                buildWhen: (a, b) => a.navigationActive != b.navigationActive,
+                builder: (context, state) {
+                  if (!state.navigationActive) return const SizedBox.shrink();
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: _navExploring,
+                    builder: (context, exploring, __) {
+                      return AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: ScaleTransition(scale: anim, child: child),
+                        ),
+                        child: exploring
+                            ? RecenterButton(
+                                key: const ValueKey('nav-recenter'),
+                                icon: Icons.navigation_rounded,
+                                label: AppStrings.reCenter,
+                                onTap: () =>
+                                    _stopExploring(resumeCamera: true),
+                              )
+                            : const SizedBox.shrink(),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1641,7 +1986,20 @@ class RouteMapViewState extends State<RouteMapView>
     final initialTarget =
         state.cameraTarget ??
         const ll.LatLng(MapConfig.fallbackLat, MapConfig.fallbackLon);
-    final gesturesEnabled = !state.navigationActive;
+    // Pan/zoom stay live during navigation: touching the map hands the
+    // camera to the user (explore mode) without interrupting guidance.
+    // The Listener sees the raw pointers the map consumes as gestures.
+    return Listener(
+      onPointerDown: (_) => _onNavPointerDown(),
+      onPointerUp: (_) => _onNavPointerUp(),
+      onPointerCancel: (_) => _onNavPointerUp(),
+      behavior: HitTestBehavior.translucent,
+      child: _buildMap(initialTarget),
+    );
+  }
+
+  Widget _buildMap(ll.LatLng initialTarget) {
+    const gesturesEnabled = true;
 
     return MapLibreMap(
       styleString: EnvConfig.mapStyleUrl,

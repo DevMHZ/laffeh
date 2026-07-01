@@ -300,6 +300,34 @@ class AppStrings {
   static String get startFresh => _t('startFresh');
   static String get replay => _t('replay');
 
+  // Drive mode — service points & turn guidance
+  static String get pointServed => _t('pointServed');
+  static String get autoServedNotice => _t('autoServedNotice');
+  static String get reCenter => _t('reCenter');
+  static String get arrivalLabel => _t('arrivalLabel');
+  static String get speedUnitKmh => _t('speedUnitKmh');
+  static String get manTurnLeft => _t('manTurnLeft');
+  static String get manTurnRight => _t('manTurnRight');
+  static String get manSlightLeft => _t('manSlightLeft');
+  static String get manSlightRight => _t('manSlightRight');
+  static String get manSharpLeft => _t('manSharpLeft');
+  static String get manSharpRight => _t('manSharpRight');
+  static String get manUTurn => _t('manUTurn');
+  static String get manStraight => _t('manStraight');
+  static String get manMerge => _t('manMerge');
+  static String get manKeepLeft => _t('manKeepLeft');
+  static String get manKeepRight => _t('manKeepRight');
+  static String get manOnRamp => _t('manOnRamp');
+  static String get manOffRamp => _t('manOffRamp');
+  static String get manRoundabout => _t('manRoundabout');
+  static String get manArrive => _t('manArrive');
+
+  static String manRoundaboutExit(int n) =>
+      _t('manRoundaboutExit').replaceAll('{n}', '$n');
+
+  static String continueToward(String stop) =>
+      _t('continueToward').replaceAll('{stop}', stop);
+
   static String stopNofM(int n, int m) {
     switch (_languageCode) {
       case 'ar':
@@ -642,6 +670,28 @@ const Map<String, Map<String, String>> _copy = {
     'startFresh': 'Delete trip & start fresh',
     'replay': 'Replay',
     'arrivedHere': 'Arrived',
+    'pointServed': 'Point served',
+    'autoServedNotice': 'Service point completed. Navigating to next stop.',
+    'reCenter': 'Re-center',
+    'arrivalLabel': 'Arrival',
+    'speedUnitKmh': 'km/h',
+    'manTurnLeft': 'Turn left',
+    'manTurnRight': 'Turn right',
+    'manSlightLeft': 'Keep slightly left',
+    'manSlightRight': 'Keep slightly right',
+    'manSharpLeft': 'Turn sharply left',
+    'manSharpRight': 'Turn sharply right',
+    'manUTurn': 'Make a U-turn',
+    'manStraight': 'Continue straight',
+    'manMerge': 'Merge onto the road',
+    'manKeepLeft': 'Keep left',
+    'manKeepRight': 'Keep right',
+    'manOnRamp': 'Take the ramp',
+    'manOffRamp': 'Take the exit',
+    'manRoundabout': 'Enter the roundabout',
+    'manRoundaboutExit': 'At the roundabout, take exit {n}',
+    'manArrive': 'Arriving at your stop',
+    'continueToward': 'Continue toward {stop}',
     'onbSkip': 'Skip',
     'onbNext': 'Next',
     'onbBack': 'Back',
@@ -910,6 +960,28 @@ const Map<String, Map<String, String>> _copy = {
     'startFresh': 'احذف اللفة وابدأ من جديد',
     'replay': 'إعادة التشغيل',
     'arrivedHere': 'تم الوصول',
+    'pointServed': 'تمت الخدمة',
+    'autoServedNotice': 'اكتملت خدمة النقطة. جارٍ التوجه إلى المحطة التالية.',
+    'reCenter': 'إعادة التمركز',
+    'arrivalLabel': 'الوصول',
+    'speedUnitKmh': 'كم/س',
+    'manTurnLeft': 'انعطف يسارًا',
+    'manTurnRight': 'انعطف يمينًا',
+    'manSlightLeft': 'انحرف قليلًا لليسار',
+    'manSlightRight': 'انحرف قليلًا لليمين',
+    'manSharpLeft': 'انعطف بحدة لليسار',
+    'manSharpRight': 'انعطف بحدة لليمين',
+    'manUTurn': 'قم بالالتفاف للخلف',
+    'manStraight': 'تابع للأمام',
+    'manMerge': 'اندمج مع الطريق',
+    'manKeepLeft': 'الزم اليسار',
+    'manKeepRight': 'الزم اليمين',
+    'manOnRamp': 'اسلك المدخل',
+    'manOffRamp': 'اسلك المخرج',
+    'manRoundabout': 'ادخل الدوار',
+    'manRoundaboutExit': 'عند الدوار، اسلك المخرج {n}',
+    'manArrive': 'أنت تصل إلى محطتك',
+    'continueToward': 'تابع نحو {stop}',
     'onbSkip': 'تخطّي',
     'onbNext': 'التالي',
     'onbBack': 'السابق',
@@ -1188,6 +1260,29 @@ const Map<String, Map<String, String>> _copy = {
     'startFresh': 'Supprimer le trajet et recommencer',
     'replay': 'Rejouer',
     'arrivedHere': 'Arrive',
+    'pointServed': 'Point servi',
+    'autoServedNotice':
+        'Point de service termine. Navigation vers le prochain arret.',
+    'reCenter': 'Recentrer',
+    'arrivalLabel': 'Arrivee',
+    'speedUnitKmh': 'km/h',
+    'manTurnLeft': 'Tournez a gauche',
+    'manTurnRight': 'Tournez a droite',
+    'manSlightLeft': 'Restez legerement a gauche',
+    'manSlightRight': 'Restez legerement a droite',
+    'manSharpLeft': 'Virage serre a gauche',
+    'manSharpRight': 'Virage serre a droite',
+    'manUTurn': 'Faites demi-tour',
+    'manStraight': 'Continuez tout droit',
+    'manMerge': 'Inserez-vous sur la route',
+    'manKeepLeft': 'Restez a gauche',
+    'manKeepRight': 'Restez a droite',
+    'manOnRamp': 'Prenez la bretelle',
+    'manOffRamp': 'Prenez la sortie',
+    'manRoundabout': 'Entrez dans le rond-point',
+    'manRoundaboutExit': 'Au rond-point, prenez la sortie {n}',
+    'manArrive': 'Arrivee a votre arret',
+    'continueToward': 'Continuez vers {stop}',
     'onbSkip': 'Passer',
     'onbNext': 'Suivant',
     'onbBack': 'Retour',
