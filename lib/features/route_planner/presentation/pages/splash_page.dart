@@ -124,7 +124,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     _loop.dispose();
     // Restore the rest-of-app overlay style.
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,

@@ -9,13 +9,13 @@ class AppFontFamily {
 
 /// Tight, opinionated typography ramp.
 ///
-/// Use named styles instead of bare `TextStyle()` so adjusting the
-/// scale is a single-file change. The ramp follows a 1.125 step:
-///   h1 28 / h2 22 / h3 18 / title 16 / body 14 / small 12.
+/// Exposed as getters (not cached statics) so text colours track the active
+/// theme: each access reads the current [AppColors] palette. The ramp follows
+/// a 1.125 step: h1 28 / h2 22 / h3 18 / title 16 / body 14 / small 12.
 class AppTextStyles {
   AppTextStyles._();
 
-  static const TextStyle _base = TextStyle(
+  static TextStyle get _base => TextStyle(
     fontFamily: AppFontFamily.almarai,
     color: AppColors.textPrimary,
     height: 1.32,
@@ -23,59 +23,38 @@ class AppTextStyles {
   );
 
   // ── Display / Headings ────────────────────────────────
-  static TextStyle display = _base.copyWith(
-    fontSize: 32,
-    fontWeight: FontWeight.w800,
-    height: 1.15,
-  );
-  static TextStyle h1 = _base.copyWith(
-    fontSize: 26,
-    fontWeight: FontWeight.w800,
-  );
-  static TextStyle h2 = _base.copyWith(
-    fontSize: 22,
-    fontWeight: FontWeight.w700,
-  );
-  static TextStyle h3 = _base.copyWith(
-    fontSize: 18,
-    fontWeight: FontWeight.w700,
-  );
+  static TextStyle get display =>
+      _base.copyWith(fontSize: 32, fontWeight: FontWeight.w800, height: 1.15);
+  static TextStyle get h1 =>
+      _base.copyWith(fontSize: 26, fontWeight: FontWeight.w800);
+  static TextStyle get h2 =>
+      _base.copyWith(fontSize: 22, fontWeight: FontWeight.w700);
+  static TextStyle get h3 =>
+      _base.copyWith(fontSize: 18, fontWeight: FontWeight.w700);
 
   // ── Titles ────────────────────────────────────────────
-  static TextStyle titleLg = _base.copyWith(
-    fontSize: 17,
-    fontWeight: FontWeight.w700,
-  );
-  static TextStyle titleMd = _base.copyWith(
-    fontSize: 15,
-    fontWeight: FontWeight.w700,
-  );
-  static TextStyle titleSm = _base.copyWith(
-    fontSize: 13,
-    fontWeight: FontWeight.w700,
-  );
+  static TextStyle get titleLg =>
+      _base.copyWith(fontSize: 17, fontWeight: FontWeight.w700);
+  static TextStyle get titleMd =>
+      _base.copyWith(fontSize: 15, fontWeight: FontWeight.w700);
+  static TextStyle get titleSm =>
+      _base.copyWith(fontSize: 13, fontWeight: FontWeight.w700);
 
   // ── Body ──────────────────────────────────────────────
-  static TextStyle bodyLg = _base.copyWith(
-    fontSize: 16,
-    fontWeight: FontWeight.w500,
-  );
-  static TextStyle bodyMd = _base.copyWith(
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
-  );
-  static TextStyle bodySm = _base.copyWith(
-    fontSize: 12,
-    fontWeight: FontWeight.w500,
-  );
+  static TextStyle get bodyLg =>
+      _base.copyWith(fontSize: 16, fontWeight: FontWeight.w500);
+  static TextStyle get bodyMd =>
+      _base.copyWith(fontSize: 14, fontWeight: FontWeight.w500);
+  static TextStyle get bodySm =>
+      _base.copyWith(fontSize: 12, fontWeight: FontWeight.w500);
 
   // ── Muted / Helper ────────────────────────────────────
-  static TextStyle muted = _base.copyWith(
+  static TextStyle get muted => _base.copyWith(
     fontSize: 13,
     fontWeight: FontWeight.w500,
     color: AppColors.textMuted,
   );
-  static TextStyle mutedSm = _base.copyWith(
+  static TextStyle get mutedSm => _base.copyWith(
     fontSize: 11,
     fontWeight: FontWeight.w500,
     color: AppColors.textMuted,
@@ -83,42 +62,41 @@ class AppTextStyles {
   );
 
   // ── Button / CTA ──────────────────────────────────────
-  static TextStyle button = _base.copyWith(
+  static TextStyle get button => _base.copyWith(
     fontSize: 16,
     fontWeight: FontWeight.w700,
     color: AppColors.white,
   );
 
   // ── Inverted ──────────────────────────────────────────
-  static TextStyle white14w600 = _base.copyWith(
+  static TextStyle get white14w600 => _base.copyWith(
     fontSize: 14,
     fontWeight: FontWeight.w600,
     color: AppColors.white,
   );
-
-  static TextStyle white16w700 = _base.copyWith(
+  static TextStyle get white16w700 => _base.copyWith(
     fontSize: 16,
     fontWeight: FontWeight.w700,
     color: AppColors.white,
   );
 
   // ── Colored variants ──────────────────────────────────
-  static TextStyle primary14w700 = _base.copyWith(
+  static TextStyle get primary14w700 => _base.copyWith(
     fontSize: 14,
     fontWeight: FontWeight.w700,
     color: AppColors.primary,
   );
-  static TextStyle accent14w700 = _base.copyWith(
+  static TextStyle get accent14w700 => _base.copyWith(
     fontSize: 14,
     fontWeight: FontWeight.w700,
     color: AppColors.accent,
   );
-  static TextStyle danger13w600 = _base.copyWith(
+  static TextStyle get danger13w600 => _base.copyWith(
     fontSize: 13,
     fontWeight: FontWeight.w600,
     color: AppColors.danger,
   );
-  static TextStyle success13w600 = _base.copyWith(
+  static TextStyle get success13w600 => _base.copyWith(
     fontSize: 13,
     fontWeight: FontWeight.w600,
     color: AppColors.success,

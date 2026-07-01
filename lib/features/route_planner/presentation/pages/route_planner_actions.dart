@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/google_glyph.dart';
 import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../../onboarding/presentation/widgets/onboarding_mock.dart';
 import '../../../saved_routes/domain/entities/saved_route.dart';
@@ -21,6 +22,7 @@ import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../utils/route_csv_utils.dart';
 import '../widgets/route_address_search_sheet.dart';
+import '../widgets/route_paste_location_sheet.dart';
 
 /// Imperative actions invoked from the planner UI — opening saved routes,
 /// pasting/importing/exporting points, and handing off to Google Maps.
@@ -181,9 +183,7 @@ class RoutePlannerActions {
                 child: Center(
                   child: FittedBox(
                     fit: BoxFit.contain,
-                    child: OnbPhoneFrame(
-                      child: const OnbWhatsappDemo(),
-                    ),
+                    child: OnbPhoneFrame(child: const OnbWhatsappDemo()),
                   ),
                 ),
               ),
@@ -209,10 +209,11 @@ class RoutePlannerActions {
   }
 
   /// The per-point "how do you want to add this point?" chooser, shown every
-  /// time the user adds a stop (first or later). Exactly three ways:
-  ///   1. Type a single address (search + pick one) — never a bulk list.
-  ///   2. Pick on the map (drops into manual-placement mode with a crosshair).
-  ///   3. Import from WhatsApp (share a location back to Laffah).
+  /// time the user adds a stop (first or later). Exactly four ways:
+  ///   1. Pick on the map (drops into manual-placement mode with a crosshair).
+  ///   2. Type a single address (search + pick one) — never a bulk list.
+  ///   3. Paste a Google (or Apple) Maps link — short or full.
+  ///   4. Import from WhatsApp (share a location back to Laffah).
   static Future<void> showAddMethodChooser(
     BuildContext context,
     RoutePlannerCubit cubit,
@@ -233,23 +234,9 @@ class RoutePlannerActions {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  AppStrings.addMethodTitle,
-                  style: AppTextStyles.h3,
-                ),
+                child: Text(AppStrings.addMethodTitle, style: AppTextStyles.h3),
               ),
               const SizedBox(height: 14),
-              _chooserRow(
-                icon: Iconsax.search_normal,
-                color: AppColors.info,
-                label: AppStrings.addMethodAddress,
-                subtitle: AppStrings.addMethodAddressSub,
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  showAddressSearchSheet(context, cubit);
-                },
-              ),
-              const SizedBox(height: 10),
               _chooserRow(
                 icon: Iconsax.location,
                 color: AppColors.warning,
@@ -262,11 +249,31 @@ class RoutePlannerActions {
               ),
               const SizedBox(height: 10),
               _chooserRow(
+                icon: Iconsax.search_normal,
+                color: AppColors.info,
+                label: AppStrings.addMethodAddress,
+                subtitle: AppStrings.addMethodAddressSub,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  showAddressSearchSheet(context, cubit);
+                },
+              ),
+              const SizedBox(height: 10),
+              _chooserRow(
+                icon: Iconsax.link,
+                iconWidget: const GoogleGlyph(size: 22),
+                color: AppColors.info,
+                label: AppStrings.addMethodPasteLink,
+                subtitle: AppStrings.addMethodPasteLinkSub,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  showPasteLocationSheet(context, cubit);
+                },
+              ),
+              const SizedBox(height: 10),
+              _chooserRow(
                 icon: Iconsax.message,
-                iconWidget: const WhatsappGlyph(
-                  size: 22,
-                  color: AppColors.primary,
-                ),
+                iconWidget: WhatsappGlyph(size: 22, color: AppColors.primary),
                 color: AppColors.primary,
                 label: AppStrings.addOptWhatsappTitle,
                 subtitle: AppStrings.addOptWhatsappSub,
@@ -333,7 +340,7 @@ class RoutePlannerActions {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
+              Icon(
                 Iconsax.arrow_right_3,
                 size: 18,
                 color: AppColors.textSecondary,

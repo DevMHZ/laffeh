@@ -81,6 +81,14 @@ class LinkParser {
       if (result != null) return result;
     }
 
+    // Format 4:  /maps/search/lat,lng   (short-link redirect target — no
+    // place name, just a bare coordinate pair as its own path segment)
+    //   https://www.google.com/maps/search/49.043893,+2.030417
+    for (final segment in uri.pathSegments) {
+      final result = parseLatLngPair(segment);
+      if (result != null) return result;
+    }
+
     return null;
   }
 

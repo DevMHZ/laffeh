@@ -1,14 +1,26 @@
 // Visual preview of the playback car marker at various bearings.
 // Run: flutter test test/marker_preview_test.dart --update-goldens
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:laffeh/core/theme/app_colors.dart';
+import 'package:laffeh/core/theme/vehicle_kind.dart';
 import 'package:laffeh/core/utils/marker_factory.dart';
+
+Widget _vehicleAt(VehicleKind kind, double bearing) => Transform.rotate(
+  angle: bearing * math.pi / 180,
+  child: SizedBox(
+    width: 40,
+    height: 40,
+    child: CustomPaint(painter: kind.painter()),
+  ),
+);
 
 void main() {
   testWidgets('vehicle marker bearings', (tester) async {
-    tester.view.physicalSize = const Size(360 * 3, 200 * 3);
+    tester.view.physicalSize = const Size(360 * 3, 280 * 3);
     tester.view.devicePixelRatio = 3.0;
 
     await tester.pumpWidget(
@@ -24,8 +36,7 @@ void main() {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    for (final bearing
-                        in const [0.0, 45.0, 90.0, 180.0, 270.0])
+                    for (final bearing in const [0.0, 45.0, 90.0, 180.0, 270.0])
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -33,18 +44,33 @@ void main() {
                             width: 56,
                             height: 56,
                             child: Center(
-                              child: MarkerFactory.vehicle(bearing: bearing),
+                              child: _vehicleAt(VehicleKind.vwBus, bearing),
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             '${bearing.round()}°',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondary,
                             ),
                           ),
                         ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Vespa preview (the other selectable vehicle icon).
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (final bearing in const [0.0, 90.0, 180.0])
+                      SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: Center(
+                          child: _vehicleAt(VehicleKind.vespa, bearing),
+                        ),
                       ),
                   ],
                 ),

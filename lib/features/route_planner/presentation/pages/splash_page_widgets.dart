@@ -5,7 +5,7 @@ class _PinDots extends StatelessWidget {
   final double phase;
   const _PinDots({required this.phase});
 
-  static const _colors = [AppColors.pinBlue, AppColors.pinRed, AppColors.pinOrange];
+  static final _colors = [AppColors.pinBlue, AppColors.pinRed, AppColors.pinOrange];
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +54,7 @@ class _RoadTripPainter extends CustomPainter {
 
   _RoadTripPainter({required this.trip, required this.dashPhase});
 
-  static const _pinColors = [AppColors.pinBlue, AppColors.pinRed, AppColors.pinOrange];
+  static final _pinColors = [AppColors.pinBlue, AppColors.pinRed, AppColors.pinOrange];
   // Stops along the road (fraction of width).
   static const _stops = [0.28, 0.52, 0.76];
 

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/utils/marker_factory.dart';
 
 /// Renders the map's marker icons as canvas-drawn PNG bytes, ready to be
@@ -60,7 +61,13 @@ class MapMarkerRenderer {
           fontWeight: FontWeight.w800,
         );
       case StopVisitState.visiting:
-        _dot(c, sz, fill: AppColors.pinOrange, r: 13, glow: AppColors.pinOrange);
+        _dot(
+          c,
+          sz,
+          fill: AppColors.pinOrange,
+          r: 13,
+          glow: AppColors.pinOrange,
+        );
         _glyph(
           c,
           sz,
@@ -95,9 +102,10 @@ class MapMarkerRenderer {
     );
   });
 
-  /// The animated playback / drive vehicle (top-down car).
+  /// The animated playback / drive vehicle — whichever [VehicleKind] the
+  /// user picked in Settings (top-down, drawn pointing north).
   static Future<Uint8List> vehicle() =>
-      _toPng(40, 40, (c, sz) => const TopViewCarPainter().paint(c, sz));
+      _toPng(40, 40, (c, sz) => VehiclePrefs.current.painter().paint(c, sz));
 
   /// The user's current location — a haloed blue dot.
   static Future<Uint8List> userLocation() => _toPng(32, 32, (c, sz) {

@@ -108,7 +108,7 @@ class _PinShufflePainter extends CustomPainter {
 
   _PinShufflePainter({required this.t, required this.slots, required this.swap});
 
-  static const _colors = [
+  static final _colors = [
     AppColors.pinBlue,
     AppColors.pinRed,
     AppColors.pinOrange,
@@ -324,7 +324,7 @@ class _DropAndConnectPainter extends CustomPainter {
     Offset(0.34, 0.76),
   ];
   static const _order = [0, 1, 2, 3];
-  static const _colors = [
+  static final _colors = [
     AppColors.pinBlue,
     AppColors.pinOrange,
     AppColors.pinRed,

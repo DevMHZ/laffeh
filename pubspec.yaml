@@ -73,6 +73,7 @@ flutter:
     - assets/laffeh_logo.png
     - assets/laffeh_road.png
     - assets/whatsapp.svg
+    - assets/google.svg
     - assets/animations/
 
   fonts:

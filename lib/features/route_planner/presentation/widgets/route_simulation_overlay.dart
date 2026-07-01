@@ -8,8 +8,8 @@ import 'package:iconsax/iconsax.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/utils/distance_utils.dart';
-import '../../../../core/utils/marker_factory.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
@@ -104,7 +104,9 @@ class RouteSimulationOverlay extends StatelessWidget {
                                               ? AppStrings.previewRoute
                                               : AppStrings.stopNofM(
                                                   _stopNumber(
-                                                      route, targetIndex),
+                                                    route,
+                                                    targetIndex,
+                                                  ),
                                                   _stopCount(route),
                                                 ),
                                           style: AppTextStyles.mutedSm,
@@ -122,7 +124,9 @@ class RouteSimulationOverlay extends StatelessWidget {
                                     ],
                                   ),
                                   Text(
-                                    finished ? AppStrings.arrived : target.label,
+                                    finished
+                                        ? AppStrings.arrived
+                                        : target.label,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTextStyles.titleMd,
@@ -141,7 +145,7 @@ class RouteSimulationOverlay extends StatelessWidget {
                                 HapticFeedback.selectionClick();
                                 cubit.exitSimulation();
                               },
-                              icon: const Icon(
+                              icon: Icon(
                                 Iconsax.close_circle,
                                 color: AppColors.textSecondary,
                                 size: 22,
@@ -225,7 +229,11 @@ class RouteSimulationOverlay extends StatelessWidget {
   /// Ordered index of the stop the vehicle is currently heading to — the
   /// first whose true arc-length fraction is still ahead of [progress].
   /// Falls back to even spacing only if fractions aren't available yet.
-  int _targetIndex(List<double> fractions, OptimizedRoute route, double progress) {
+  int _targetIndex(
+    List<double> fractions,
+    OptimizedRoute route,
+    double progress,
+  ) {
     final count = route.orderedPoints.length;
     if (count < 2) return 0;
     if (fractions.length == count) {

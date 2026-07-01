@@ -7,7 +7,7 @@ import 'package:iconsax/iconsax.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/utils/marker_factory.dart';
+import '../../../../core/theme/vehicle_prefs.dart';
 
 /// Screen-centred playback car for follow/chase modes. A plain Flutter
 /// widget (not a map symbol) so it stays glued to the centre while the
@@ -20,10 +20,10 @@ class SimPuck extends StatelessWidget {
   Widget build(BuildContext context) {
     return Transform.rotate(
       angle: rotation * math.pi / 180.0,
-      child: const SizedBox(
+      child: SizedBox(
         width: 44,
         height: 44,
-        child: CustomPaint(painter: TopViewCarPainter()),
+        child: CustomPaint(painter: VehiclePrefs.current.painter()),
       ),
     );
   }
@@ -62,7 +62,7 @@ class _NavigationPuckPainter extends CustomPainter {
         ..color = Colors.black.withValues(alpha: 0.22)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    const TopViewCarPainter().paint(canvas, size);
+    VehiclePrefs.current.painter().paint(canvas, size);
   }
 
   @override
@@ -91,7 +91,7 @@ class LocateFab extends StatelessWidget {
             HapticFeedback.selectionClick();
             onTap();
           },
-          child: const SizedBox(
+          child: SizedBox(
             width: 46,
             height: 46,
             child: Icon(Iconsax.gps, color: AppColors.primary, size: 22),
