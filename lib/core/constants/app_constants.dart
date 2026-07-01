@@ -291,6 +291,7 @@ class AppStrings {
   static String get endTrip => _t('endTrip');
   static String get moreActions => _t('moreActions');
   static String get googleMapsShort => _t('googleMapsShort');
+  static String get openWithMaps => _t('openWithMaps');
   static String get newRouteShort => _t('newRouteShort');
   static String get startFresh => _t('startFresh');
   static String get replay => _t('replay');
@@ -620,6 +621,7 @@ const Map<String, Map<String, String>> _copy = {
     'endTrip': 'End trip',
     'moreActions': 'More',
     'googleMapsShort': 'Maps',
+    'openWithMaps': 'Open with Maps',
     'newRouteShort': 'New',
     'startFresh': 'Delete trip & start fresh',
     'replay': 'Replay',
@@ -874,6 +876,7 @@ const Map<String, Map<String, String>> _copy = {
     'endTrip': 'إنهاء الرحلة',
     'moreActions': 'المزيد',
     'googleMapsShort': 'الخرائط',
+    'openWithMaps': 'فتح في الخرائط',
     'newRouteShort': 'جديدة',
     'startFresh': 'احذف اللفة وابدأ من جديد',
     'replay': 'إعادة التشغيل',
@@ -1135,6 +1138,7 @@ const Map<String, Map<String, String>> _copy = {
     'endTrip': 'Terminer le trajet',
     'moreActions': 'Plus',
     'googleMapsShort': 'Maps',
+    'openWithMaps': 'Ouvrir dans Maps',
     'newRouteShort': 'Nouveau',
     'startFresh': 'Supprimer le trajet et recommencer',
     'replay': 'Rejouer',

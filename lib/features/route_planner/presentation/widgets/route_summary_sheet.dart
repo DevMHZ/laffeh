@@ -40,62 +40,30 @@ class RouteSummarySheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Compact inline metrics ──────────────────────────────
-              _InlineMetrics(route: route),
-              const SizedBox(height: 12),
-
-              // ── Primary: start the trip ─────────────────────────────
+              // ── Actions: preview → drive → open in Maps ─────────────
+              AppButton(
+                label: AppStrings.previewRoute,
+                icon: Iconsax.play_circle,
+                variant: AppButtonVariant.secondary,
+                height: 50,
+                radius: 14,
+                onPressed: cubit.startSimulation,
+              ),
+              const SizedBox(height: 8),
               _StartNavigationButton(onPressed: cubit.startNavigation),
               const SizedBox(height: 8),
-
-              // ── Secondary: preview / open in external maps ──────────
-              Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      label: AppStrings.previewRoute,
-                      icon: Iconsax.play_circle,
-                      variant: AppButtonVariant.secondary,
-                      height: 50,
-                      radius: 14,
-                      onPressed: cubit.startSimulation,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AppButton(
-                      label: AppStrings.googleMapsShort,
-                      icon: Iconsax.map_1,
-                      variant: AppButtonVariant.secondary,
-                      height: 50,
-                      radius: 14,
-                      onPressed: onOpenGoogleMaps,
-                    ),
-                  ),
-                ],
+              AppButton(
+                label: AppStrings.openWithMaps,
+                icon: Iconsax.map_1,
+                variant: AppButtonVariant.secondary,
+                height: 50,
+                radius: 14,
+                onPressed: onOpenGoogleMaps,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
-              // ── Tertiary: save / export ─────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: _ActionTile(
-                      icon: Iconsax.save_2,
-                      label: AppStrings.save,
-                      onTap: () => _saveRoute(context),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ActionTile(
-                      icon: Iconsax.document_upload,
-                      label: 'CSV',
-                      onTap: onExportCsv,
-                    ),
-                  ),
-                ],
-              ),
+              // ── Trip metrics (time · distance) ──────────────────────
+              _InlineMetrics(route: route),
               const SizedBox(height: 16),
 
               // ── Route sequence ──────────────────────────────────────
@@ -136,7 +104,30 @@ class RouteSummarySheet extends StatelessWidget {
                   ],
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
+
+              // ── Save / export — kept low, just above the destructive
+              //    action so the primary trip actions lead the sheet. ───
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionTile(
+                      icon: Iconsax.save_2,
+                      label: AppStrings.save,
+                      onTap: () => _saveRoute(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ActionTile(
+                      icon: Iconsax.document_upload,
+                      label: 'CSV',
+                      onTap: onExportCsv,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
 
               // ── Destructive escape hatch ────────────────────────────
               _StartFreshButton(
