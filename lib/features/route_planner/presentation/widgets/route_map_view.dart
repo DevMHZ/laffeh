@@ -107,6 +107,13 @@ class RouteMapViewState extends State<RouteMapView>
   /// centre offset. See [_projectNavPuck].
   final ValueNotifier<Offset?> _navPuckPos = ValueNotifier<Offset?>(null);
 
+  /// Road tangent (degrees) under the car during live drive, read over a
+  /// short chord so polyline vertex kinks don't twitch it. The camera's
+  /// bearing anticipates the road *ahead*, so mid-bend the car must rotate
+  /// by (tangent − live camera bearing) to stay lying along its own road
+  /// instead of appearing to drift sideways. Null outside navigation.
+  final ValueNotifier<double?> _navTangent = ValueNotifier<double?>(null);
+
   /// Plugin projection unit factor: physical px on Android, logical
   /// everywhere else. `toScreenLocation`/`toLatLng` results are divided by
   /// this to land in Flutter's logical-pixel space.
@@ -330,6 +337,7 @@ class RouteMapViewState extends State<RouteMapView>
     _showRecenter.dispose();
     aimOffset.dispose();
     _navPuckPos.dispose();
+    _navTangent.dispose();
     super.dispose();
   }
 
@@ -1283,6 +1291,7 @@ class RouteMapViewState extends State<RouteMapView>
       _navCamSnapped = false;
       _navAnchor = null;
       _navPuckPos.value = null;
+      _navTangent.value = null;
       _stopExploring(resumeCamera: false);
       await _moveCamera(CameraUpdate.tiltTo(0));
       await _moveCamera(CameraUpdate.bearingTo(0));
@@ -1464,6 +1473,16 @@ class RouteMapViewState extends State<RouteMapView>
         : null;
     final anchor = onRoute ?? loc;
     _navAnchor = anchor;
+
+    // The road direction the *car* is on right now — a short chord, unlike
+    // the camera's long anticipation window — drives the avatar's rotation.
+    _navTangent.value = polyline.length >= 2
+        ? PolylineUtils.lookAheadBearing(
+            polyline,
+            state.navigationProgress,
+            NavigationConfig.avatarTangentMeters,
+          )
+        : state.navigationHeading;
 
     // While the driver explores the map, guidance continues but the camera
     // is theirs — only the puck keeps tracking (via onCameraMove).
@@ -1731,15 +1750,34 @@ class RouteMapViewState extends State<RouteMapView>
                   if (!state.navigationActive || state.userLocation == null) {
                     return const SizedBox.shrink();
                   }
+                  // The avatar rotates by (road tangent under the car −
+                  // live camera bearing): zero on a straight road, but as
+                  // the camera anticipates into a bend the car keeps lying
+                  // along the road it is actually on. Listening to the live
+                  // bearing keeps it aligned through camera animations and
+                  // while the user explores the map.
+                  final puck = ValueListenableBuilder<double>(
+                    valueListenable: _bearing,
+                    builder: (_, camBearing, __) =>
+                        ValueListenableBuilder<double?>(
+                          valueListenable: _navTangent,
+                          builder: (_, tangent, __) {
+                            final rotation = tangent == null
+                                ? 0.0
+                                : ((tangent - camBearing + 540) % 360) - 180;
+                            return NavigationPuck(rotationDegrees: rotation);
+                          },
+                        ),
+                  );
                   return ValueListenableBuilder<Offset?>(
                     valueListenable: _navPuckPos,
                     builder: (_, pos, __) {
                       if (pos == null) {
                         // First frame, before the projection lands: an
                         // approximate lower-middle slot.
-                        return const Align(
-                          alignment: Alignment(0, 0.34),
-                          child: NavigationPuck(),
+                        return Align(
+                          alignment: const Alignment(0, 0.34),
+                          child: puck,
                         );
                       }
                       return Stack(
@@ -1747,9 +1785,9 @@ class RouteMapViewState extends State<RouteMapView>
                           Positioned(
                             left: pos.dx,
                             top: pos.dy,
-                            child: const FractionalTranslation(
-                              translation: Offset(-0.5, -0.5),
-                              child: NavigationPuck(),
+                            child: FractionalTranslation(
+                              translation: const Offset(-0.5, -0.5),
+                              child: puck,
                             ),
                           ),
                         ],

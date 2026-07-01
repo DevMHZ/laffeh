@@ -29,18 +29,29 @@ class SimPuck extends StatelessWidget {
   }
 }
 
-/// Fixed on-screen vehicle for live driving. It intentionally does not rotate
-/// with the map; the map/camera rotate underneath it so the driver always sees
-/// the car pointing straight ahead, like a third-person navigation view.
+/// Fixed on-screen vehicle for live driving.
+///
+/// The camera rotates the map underneath it, so on a straight road the car
+/// points straight up — but the camera's bearing *anticipates* the road
+/// ahead of the vehicle, so mid-bend the two diverge. [rotationDegrees]
+/// carries that difference (road tangent under the car minus the live
+/// camera bearing) so the avatar always lies along the road it is actually
+/// on instead of appearing to drift sideways into the turn.
 class NavigationPuck extends StatelessWidget {
-  const NavigationPuck({super.key});
+  /// Clockwise degrees from screen-up; 0 on a straight road.
+  final double rotationDegrees;
+
+  const NavigationPuck({super.key, this.rotationDegrees = 0});
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 54,
-      height: 54,
-      child: CustomPaint(painter: _NavigationPuckPainter()),
+    return Transform.rotate(
+      angle: rotationDegrees * math.pi / 180.0,
+      child: const SizedBox(
+        width: 54,
+        height: 54,
+        child: CustomPaint(painter: _NavigationPuckPainter()),
+      ),
     );
   }
 }

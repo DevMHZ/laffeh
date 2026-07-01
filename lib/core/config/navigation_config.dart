@@ -74,7 +74,13 @@ class NavigationConfig {
 
   /// After entering the service radius, moving farther than this from the
   /// point auto-completes it (the driver has served it and moved on).
-  static const double autoServeExitMeters = 50.0;
+  static const double autoServeExitMeters = 20.0;
+
+  /// Chord length (metres) used to read the road tangent under the car for
+  /// the avatar's rotation — long enough to smooth polyline vertex kinks,
+  /// short enough to still be "the road under the car" (unlike the camera,
+  /// which anticipates [cameraAnticipationMeters] ahead).
+  static const double avatarTangentMeters = 12.0;
 
   /// Max distance (metres) a GPS fix may sit from the planned route for it
   /// to drive `navigationProgress`. Beyond this the fix is treated as
