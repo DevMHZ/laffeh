@@ -282,7 +282,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                               // Header: remaining distance + focus toggle.
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Iconsax.routing,
                                     size: 15,
                                     color: AppColors.textSecondary,
@@ -693,7 +693,7 @@ class _FocusToggleButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.center_focus_strong_rounded,
                 size: 17,
                 color: AppColors.primary,

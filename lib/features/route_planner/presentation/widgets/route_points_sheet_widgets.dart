@@ -211,7 +211,7 @@ class _OfflineBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Iconsax.wifi_square, color: AppColors.asphalt, size: 18),
+          Icon(Iconsax.wifi_square, color: AppColors.asphalt, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -243,7 +243,7 @@ class _DraftRestoredHint extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Iconsax.refresh_circle, color: AppColors.primary, size: 16),
+        Icon(Iconsax.refresh_circle, color: AppColors.primary, size: 16),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -415,7 +415,7 @@ class _ClearAllButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Iconsax.trash, color: AppColors.danger, size: 18),
+                Icon(Iconsax.trash, color: AppColors.danger, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   AppStrings.clearAll,
@@ -449,7 +449,7 @@ Future<void> confirmClearAll(BuildContext context) {
               color: AppColors.danger.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Iconsax.trash, color: AppColors.danger, size: 26),
+            child: Icon(Iconsax.trash, color: AppColors.danger, size: 26),
           ),
           const SizedBox(height: 14),
           Text(

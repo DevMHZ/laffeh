@@ -48,7 +48,7 @@ class MovePointHost extends StatelessWidget {
             // Reticle pinned to the true drop point, same as when adding.
             AimAlignedReticle(
               mapKey: mapKey,
-              child: const IgnorePointer(
+              child: IgnorePointer(
                 child: CenterPinWidget(color: AppColors.info),
               ),
             ),
@@ -64,7 +64,7 @@ class MovePointHost extends StatelessWidget {
                     radius: 18,
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Iconsax.gps,
                           color: AppColors.info,
                           size: 20,

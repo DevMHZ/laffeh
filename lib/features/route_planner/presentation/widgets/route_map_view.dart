@@ -16,6 +16,7 @@ import '../../../../core/config/navigation_config.dart';
 import '../../../../core/config/simulation_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/utils/debug_log.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/utils/marker_factory.dart';
@@ -560,11 +561,18 @@ class RouteMapViewState extends State<RouteMapView>
     //   done (light green) → current leg to next stop (blue) → ahead (green)
     if (state.navigationActive) {
       final p = state.navigationProgress.clamp(0.0, 1.0);
-      final nextFrac = MapGeometry.nextStopFraction(route, state.navigationStopIndex, p);
+      final nextFrac = MapGeometry.nextStopFraction(
+        route,
+        state.navigationStopIndex,
+        p,
+      );
 
       // bg = already driven, fg = remaining after the next stop,
       // trail (drawn on top) = the current leg the driver is on.
-      await c.setGeoJsonSource(_srcBg, MapGeometry.lineGeoJson(MapGeometry.subPath(full, 0, p)));
+      await c.setGeoJsonSource(
+        _srcBg,
+        MapGeometry.lineGeoJson(MapGeometry.subPath(full, 0, p)),
+      );
       await c.setGeoJsonSource(
         _srcFg,
         MapGeometry.lineGeoJson(MapGeometry.subPath(full, nextFrac, 1.0)),
@@ -591,7 +599,10 @@ class RouteMapViewState extends State<RouteMapView>
       // Only the growing trail changes each frame; the faint full-route
       // ghost underneath is set once on entry. Keeping per-tick work to a
       // single source update is what keeps follow-mode playback smooth.
-      await c.setGeoJsonSource(_srcTrail, MapGeometry.lineGeoJson(MapGeometry.trailUpTo(full, t)));
+      await c.setGeoJsonSource(
+        _srcTrail,
+        MapGeometry.lineGeoJson(MapGeometry.trailUpTo(full, t)),
+      );
       if (restyle) {
         await c.setGeoJsonSource(_srcBg, MapGeometry.lineGeoJson(full));
         await c.setGeoJsonSource(_srcFg, MapGeometry.emptyGeoJson);
@@ -721,7 +732,10 @@ class RouteMapViewState extends State<RouteMapView>
     // ── User location ──────────────────────────────────────────────────────
     final userLoc = state.userLocation;
     if (userLoc != null && !state.navigationActive) {
-      final imgId = await _ensureImage('img-uloc', MapMarkerRenderer.userLocation);
+      final imgId = await _ensureImage(
+        'img-uloc',
+        MapMarkerRenderer.userLocation,
+      );
       specs.add(_SymbolSpec(key: 'usr-loc', imageId: imgId, position: userLoc));
     }
 
@@ -755,9 +769,11 @@ class RouteMapViewState extends State<RouteMapView>
     int? orderedIndex(Map<String, int> map, String id) => map[id];
     final orderedIndexById = <String, int>{};
     if (state.navigationActive && state.optimizedRoute != null) {
-      for (var idx = 0;
-          idx < state.optimizedRoute!.orderedPoints.length;
-          idx++) {
+      for (
+        var idx = 0;
+        idx < state.optimizedRoute!.orderedPoints.length;
+        idx++
+      ) {
         orderedIndexById[state.optimizedRoute!.orderedPoints[idx].id] = idx;
       }
     }
@@ -785,7 +801,10 @@ class RouteMapViewState extends State<RouteMapView>
         imgId = await _ensureImage('img-depot', MapMarkerRenderer.depot);
       } else if (p.isDeactivated) {
         // Deactivated optional point: dimmed, unnumbered, no visit state.
-        imgId = await _ensureImage('img-opt-off', MapMarkerRenderer.optionalOff);
+        imgId = await _ensureImage(
+          'img-opt-off',
+          MapMarkerRenderer.optionalOff,
+        );
       } else {
         // Mandatory stop or active optional point — numbered, with the
         // sim/drive visit state.
@@ -844,6 +863,11 @@ class RouteMapViewState extends State<RouteMapView>
   }
 
   /// Returns [id] after ensuring the image has been registered with the map.
+  /// Cache key for the registered vehicle image, namespaced by the user's
+  /// picked [VehicleKind] so switching it re-registers a fresh icon instead
+  /// of reusing whatever was cached under a shared id.
+  String get _vehicleImageId => 'img-vehicle-${VehiclePrefs.current.id}';
+
   Future<String> _ensureImage(
     String id,
     Future<Uint8List> Function() render,
@@ -964,7 +988,10 @@ class RouteMapViewState extends State<RouteMapView>
     if (_vehicleReady || _creatingVehicle) return;
     _creatingVehicle = true;
     try {
-      final imgId = await _ensureImage('img-vehicle', MapMarkerRenderer.vehicle);
+      final imgId = await _ensureImage(
+        _vehicleImageId,
+        MapMarkerRenderer.vehicle,
+      );
       // Bailed, already created, or the user left overview while we were
       // awaiting — don't strand a native car in follow/chase.
       if (!_simRunning ||
@@ -980,7 +1007,10 @@ class RouteMapViewState extends State<RouteMapView>
           await c.removeSymbol(stale);
         } catch (_) {}
       }
-      final sample = PolylineUtils.sampleAt(route.fullPolyline, _renderProgress);
+      final sample = PolylineUtils.sampleAt(
+        route.fullPolyline,
+        _renderProgress,
+      );
       final pos = sample?.point ?? route.fullPolyline.first;
       final sym = await c.addSymbol(
         SymbolOptions(
@@ -1060,7 +1090,7 @@ class RouteMapViewState extends State<RouteMapView>
       sym,
       SymbolOptions(
         geometry: LatLng(lat, lon),
-        iconImage: 'img-vehicle',
+        iconImage: _vehicleImageId,
         iconSize: _dpr,
         iconAnchor: 'center',
         iconRotate: iconRot,
@@ -1229,7 +1259,10 @@ class RouteMapViewState extends State<RouteMapView>
     _simCameraAnchored = true;
     final zoom = firstFrame
         ? (isChase ? SimulationConfig.chaseZoom : SimulationConfig.followZoom)
-        : (_controller?.cameraPosition?.zoom ?? (isChase ? SimulationConfig.chaseZoom : SimulationConfig.followZoom));
+        : (_controller?.cameraPosition?.zoom ??
+              (isChase
+                  ? SimulationConfig.chaseZoom
+                  : SimulationConfig.followZoom));
     final update = CameraUpdate.newCameraPosition(
       CameraPosition(
         target: _ml(sample.point),
@@ -1244,7 +1277,10 @@ class RouteMapViewState extends State<RouteMapView>
       // Fire-and-forget so the apply pipeline isn't blocked for the
       // animation's duration.
       unawaited(
-        _controller?.animateCamera(update, duration: MapConfig.followCamDuration) ??
+        _controller?.animateCamera(
+              update,
+              duration: MapConfig.followCamDuration,
+            ) ??
             Future<void>.value(),
       );
     }
@@ -1282,7 +1318,8 @@ class RouteMapViewState extends State<RouteMapView>
             NavigationConfig.cameraAnticipationMeters,
           )
         : null;
-    final rawHeading = aheadBearing ?? state.navigationHeading ?? tangent ?? 0.0;
+    final rawHeading =
+        aheadBearing ?? state.navigationHeading ?? tangent ?? 0.0;
     _navBearing = _blendAngle(_navBearing, rawHeading);
     final heading = _navBearing ?? rawHeading;
 
@@ -1639,5 +1676,4 @@ class RouteMapViewState extends State<RouteMapView>
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   static LatLng _ml(ll.LatLng p) => LatLng(p.latitude, p.longitude);
-
 }

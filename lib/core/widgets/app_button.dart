@@ -27,7 +27,8 @@ class AppButton extends StatefulWidget {
     this.loading = false,
     this.expand = true,
     this.height = 56,
-    this.radius = 16,
+    // Chunkier default corner so primary CTAs read as easy driver targets.
+    this.radius = 18,
   });
 
   @override

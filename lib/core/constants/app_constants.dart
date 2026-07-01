@@ -186,6 +186,10 @@ class AppStrings {
   static String get visitWebsite => _t('visitWebsite');
   static String get aboutDescription => _t('aboutDescription');
   static String get language => _t('language');
+  static String get appearance => _t('appearance');
+  static String get vehicleIcon => _t('vehicleIcon');
+  static String get vehicleVwBus => _t('vehicleVwBus');
+  static String get vehicleVespa => _t('vehicleVespa');
   static String get languageEnglish => _t('languageEnglish');
   static String get languageArabic => _t('languageArabic');
   static String get languageFrench => _t('languageFrench');
@@ -395,6 +399,14 @@ class AppStrings {
   static String get addMethodAddressSub => _t('addMethodAddressSub');
   static String get addMethodMap => _t('addMethodMap');
   static String get addMethodMapSub => _t('addMethodMapSub');
+  static String get addMethodPasteLink => _t('addMethodPasteLink');
+  static String get addMethodPasteLinkSub => _t('addMethodPasteLinkSub');
+  static String get pasteLocationTitle => _t('pasteLocationTitle');
+  static String get pasteLocationSub => _t('pasteLocationSub');
+  static String get pasteLocationPlaceholder => _t('pasteLocationPlaceholder');
+  static String get pasteLocationAdd => _t('pasteLocationAdd');
+  static String get pasteLocationInvalid => _t('pasteLocationInvalid');
+  static String get pasteFromClipboard => _t('pasteFromClipboard');
   static String get addressSearchTitle => _t('addressSearchTitle');
   static String get addressSearchPlaceholder => _t('addressSearchPlaceholder');
   static String get addressSearchPrompt => _t('addressSearchPrompt');
@@ -542,6 +554,10 @@ const Map<String, Map<String, String>> _copy = {
     'officialWebsite': 'Official website',
     'visitWebsite': 'Visit website',
     'language': 'Language',
+    'appearance': 'Appearance',
+    'vehicleIcon': 'Vehicle icon',
+    'vehicleVwBus': 'VW Bus',
+    'vehicleVespa': 'Vespa',
     'languageEnglish': 'English',
     'languageArabic': 'Arabic',
     'languageFrench': 'French',
@@ -659,6 +675,14 @@ const Map<String, Map<String, String>> _copy = {
     'addMethodAddressSub': 'Search and pick one address',
     'addMethodMap': 'Pick on the map',
     'addMethodMapSub': 'Drop a pin where you want',
+    'addMethodPasteLink': 'Paste a Google location',
+    'addMethodPasteLinkSub': 'Paste a Maps link you copied',
+    'pasteLocationTitle': 'Paste a Google location',
+    'pasteLocationSub': 'Paste a Google Maps link — we\'ll drop a pin for it',
+    'pasteLocationPlaceholder': 'Paste a Maps link…',
+    'pasteLocationAdd': 'Add point',
+    'pasteLocationInvalid': 'Couldn\'t find a location in that link',
+    'pasteFromClipboard': 'Paste from clipboard',
     'addressSearchTitle': 'Search address',
     'addressSearchPlaceholder': 'Street, place, city…',
     'addressSearchPrompt': 'Start typing to search for an address',
@@ -797,6 +821,10 @@ const Map<String, Map<String, String>> _copy = {
     'officialWebsite': 'الموقع الرسمي',
     'visitWebsite': 'زيارة الموقع',
     'language': 'اللغة',
+    'appearance': 'المظهر',
+    'vehicleIcon': 'أيقونة المركبة',
+    'vehicleVwBus': 'حافلة فولكسفاغن',
+    'vehicleVespa': 'فيسبا',
     'languageEnglish': 'الإنجليزية',
     'languageArabic': 'العربية',
     'languageFrench': 'الفرنسية',
@@ -851,7 +879,8 @@ const Map<String, Map<String, String>> _copy = {
     'draftRestoredMsg': 'تمت استعادة عملك المحفوظ.',
     'savedLocallyNote': 'محفوظ على جهازك',
     'errNoActiveStops': 'فعّل نقطة واحدة على الأقل قبل تحسين المسار.',
-    'noAddressesFound': 'لم يتم العثور على أي عنوان. تحقق من النص وحاول مجدداً.',
+    'noAddressesFound':
+        'لم يتم العثور على أي عنوان. تحقق من النص وحاول مجدداً.',
     'exportCsv': 'تصدير CSV',
     'csvImportEmpty': 'لم يتم العثور على نقاط ضمن ملف CSV',
     'csvImportFailed': 'تعذر استيراد ملف CSV',
@@ -913,6 +942,14 @@ const Map<String, Map<String, String>> _copy = {
     'addMethodAddressSub': 'ابحث واختر عنواناً واحداً',
     'addMethodMap': 'اختر على الخريطة',
     'addMethodMapSub': 'ضع دبوساً في المكان المطلوب',
+    'addMethodPasteLink': 'الصق موقع من Google',
+    'addMethodPasteLinkSub': 'الصق رابط خرائط نسخته',
+    'pasteLocationTitle': 'الصق موقع من Google',
+    'pasteLocationSub': 'الصق رابط خرائط Google وسنضع الدبوس مكانه',
+    'pasteLocationPlaceholder': 'الصق رابط الخريطة…',
+    'pasteLocationAdd': 'أضف النقطة',
+    'pasteLocationInvalid': 'لم نجد موقعاً في هذا الرابط',
+    'pasteFromClipboard': 'الصق من الحافظة',
     'addressSearchTitle': 'ابحث عن عنوان',
     'addressSearchPlaceholder': 'شارع، مكان، مدينة…',
     'addressSearchPrompt': 'ابدأ الكتابة للبحث عن عنوان',
@@ -1058,6 +1095,10 @@ const Map<String, Map<String, String>> _copy = {
     'officialWebsite': 'Site officiel',
     'visitWebsite': 'Visiter le site',
     'language': 'Langue',
+    'appearance': 'Apparence',
+    'vehicleIcon': 'Icône du véhicule',
+    'vehicleVwBus': 'Combi VW',
+    'vehicleVespa': 'Vespa',
     'languageEnglish': 'Anglais',
     'languageArabic': 'Arabe',
     'languageFrench': 'Francais',
@@ -1099,7 +1140,8 @@ const Map<String, Map<String, String>> _copy = {
     'addOptionalHere': 'Ajouter un arrêt optionnel ici',
     'moveOnMap': 'Déplacer sur la carte',
     'movePointTitle': 'Déplacer le point',
-    'movePointHint': 'Faites glisser le point en surbrillance, puis enregistrez.',
+    'movePointHint':
+        'Faites glisser le point en surbrillance, puis enregistrez.',
     'saveLocation': 'Enregistrer l\'emplacement',
     'locationUpdated': 'Emplacement mis à jour',
     'addStop': 'Ajouter un arrêt',
@@ -1108,12 +1150,15 @@ const Map<String, Map<String, String>> _copy = {
     'addMethods': 'Ajouter des points',
     'keepAddingHint': 'Continuez à ajouter autant de points que nécessaire.',
     'offlineTitle': 'Hors ligne',
-    'offlineBody': 'Pas de connexion — vos modifications sont enregistrées sur cet appareil.',
-    'offlineActionUnavailable': 'Cette action nécessite une connexion Internet.',
+    'offlineBody':
+        'Pas de connexion — vos modifications sont enregistrées sur cet appareil.',
+    'offlineActionUnavailable':
+        'Cette action nécessite une connexion Internet.',
     'draftRestoredMsg': 'Nous avons restauré votre travail enregistré.',
     'savedLocallyNote': 'Enregistré sur votre appareil',
     'errNoActiveStops': 'Activez au moins un arrêt avant l\'optimisation.',
-    'noAddressesFound': 'Aucune adresse trouvée. Vérifiez le texte et réessayez.',
+    'noAddressesFound':
+        'Aucune adresse trouvée. Vérifiez le texte et réessayez.',
     'exportCsv': 'Exporter CSV',
     'csvImportEmpty': 'Aucun point trouve dans ce fichier CSV',
     'csvImportFailed': 'Impossible d\'importer le fichier CSV',
@@ -1176,6 +1221,15 @@ const Map<String, Map<String, String>> _copy = {
     'addMethodAddressSub': 'Rechercher et choisir une adresse',
     'addMethodMap': 'Choisir sur la carte',
     'addMethodMapSub': 'Placez un point où vous voulez',
+    'addMethodPasteLink': 'Coller un lien Google Maps',
+    'addMethodPasteLinkSub': 'Collez un lien Maps copié',
+    'pasteLocationTitle': 'Coller un lien Google Maps',
+    'pasteLocationSub':
+        'Collez un lien Google Maps — on y place le point automatiquement',
+    'pasteLocationPlaceholder': 'Collez un lien Maps…',
+    'pasteLocationAdd': 'Ajouter le point',
+    'pasteLocationInvalid': 'Aucun lieu trouvé dans ce lien',
+    'pasteFromClipboard': 'Coller depuis le presse-papiers',
     'addressSearchTitle': 'Rechercher une adresse',
     'addressSearchPlaceholder': 'Rue, lieu, ville…',
     'addressSearchPrompt': 'Commencez à taper pour rechercher une adresse',

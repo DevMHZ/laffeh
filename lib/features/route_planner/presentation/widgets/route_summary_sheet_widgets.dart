@@ -117,7 +117,7 @@ class _StartFreshButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Iconsax.trash, color: AppColors.danger, size: 19),
+              Icon(Iconsax.trash, color: AppColors.danger, size: 19),
               const SizedBox(width: 9),
               Flexible(
                 child: Text(
@@ -201,7 +201,7 @@ class _StartNavigationButton extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.centerRight,
               end: Alignment.centerLeft,
               colors: [AppColors.accent, AppColors.accentDark],

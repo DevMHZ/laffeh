@@ -1,23 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_colors.dart';
 import 'app_text_styles.dart';
+import 'driver_palette.dart';
 
 class AppTheme {
   AppTheme._();
 
-  static const SystemUiOverlayStyle systemUi = SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-    statusBarBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.surface,
-    systemNavigationBarIconBrightness: Brightness.dark,
-  );
+  /// Status/navigation-bar styling, derived from the active palette's
+  /// brightness so icons stay legible on light and dark themes alike.
+  static SystemUiOverlayStyle get systemUi {
+    final dark = AppColors.active.isDark;
+    return SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: AppColors.surface,
+      systemNavigationBarIconBrightness: dark
+          ? Brightness.light
+          : Brightness.dark,
+    );
+  }
 
-  static ThemeData get light {
+  /// The active [ThemeData], rebuilt from the current [AppColors] palette.
+  static ThemeData get data {
     final scheme = ColorScheme(
-      brightness: Brightness.light,
+      brightness: AppColors.active.brightness,
       primary: AppColors.primary,
       onPrimary: AppColors.white,
       secondary: AppColors.accent,
@@ -37,13 +47,6 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       useMaterial3: true,
       visualDensity: VisualDensity.adaptivePlatformDensity,
-      // pageTransitionsTheme: const PageTransitionsTheme(
-      //   builders: {
-      //     TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-      //     TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-      //     TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-      //   },
-      // ),
 
       // iOS-style: no ripple, subtle highlight on press
       splashFactory: NoSplash.splashFactory,
@@ -58,13 +61,13 @@ class AppTheme {
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: AppTextStyles.h3,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
         systemOverlayStyle: systemUi,
       ),
 
-      iconTheme: const IconThemeData(color: AppColors.textSecondary),
+      iconTheme: IconThemeData(color: AppColors.textSecondary),
 
-      dividerTheme: const DividerThemeData(
+      dividerTheme: DividerThemeData(
         color: AppColors.divider,
         thickness: 0.5,
         space: 0.5,
@@ -77,7 +80,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.border, width: 0.5),
+          side: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
 
@@ -97,7 +100,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.borderStrong, width: 0.8),
+          side: BorderSide(color: AppColors.borderStrong, width: 0.8),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -126,33 +129,33 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+          borderSide: BorderSide(color: AppColors.border, width: 0.5),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border, width: 0.5),
+          borderSide: BorderSide(color: AppColors.border, width: 0.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1),
+          borderSide: BorderSide(color: AppColors.primary, width: 1),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.danger, width: 0.5),
+          borderSide: BorderSide(color: AppColors.danger, width: 0.5),
         ),
       ),
 
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.white,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: AppColors.surface,
         foregroundColor: AppColors.primary,
         elevation: 0,
       ),
 
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         showDragHandle: false,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
         ),
       ),
@@ -171,12 +174,12 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
 
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
+      progressIndicatorTheme: ProgressIndicatorThemeData(
         color: AppColors.accent,
         circularTrackColor: AppColors.surfaceDim,
       ),
 
-      sliderTheme: const SliderThemeData(
+      sliderTheme: SliderThemeData(
         activeTrackColor: AppColors.accent,
         inactiveTrackColor: AppColors.surfaceDim,
         thumbColor: AppColors.primary,
@@ -188,9 +191,45 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border, width: 0.5),
+          side: BorderSide(color: AppColors.border, width: 0.5),
         ),
       ),
     );
+  }
+
+  // ── Live theme switching ─────────────────────────────────
+  static const String _prefsKey = 'laffeh.theme';
+
+  /// Rebuilds the app when the active palette changes (mirrors the locale
+  /// notifier pattern in `app.dart`).
+  static final ValueNotifier<DriverPalette> notifier =
+      ValueNotifier<DriverPalette>(AppColors.active);
+
+  /// Loads the persisted palette (if any) before first paint.
+  static Future<void> init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final id = prefs.getString(_prefsKey);
+      if (id != null) {
+        final palette = DriverPalette.byId(id);
+        AppColors.active = palette;
+        notifier.value = palette;
+      }
+    } catch (_) {
+      // Keep the default palette on any storage error.
+    }
+  }
+
+  /// Switches the active palette live and persists the choice.
+  static Future<void> setPalette(DriverPalette palette) async {
+    if (palette.id == AppColors.active.id) return;
+    AppColors.active = palette;
+    notifier.value = palette;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, palette.id);
+    } catch (_) {
+      // Non-fatal: the theme still applies for this session.
+    }
   }
 }

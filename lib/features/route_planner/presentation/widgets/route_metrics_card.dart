@@ -8,19 +8,20 @@ class RouteMetricsCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String? value;
-  final Color color;
+  final Color? color;
 
   const RouteMetricsCard({
     super.key,
     required this.icon,
     required this.label,
     required this.value,
-    this.color = AppColors.primary,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasValue = value != null && value!.isNotEmpty;
+    final c = color ?? AppColors.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
@@ -37,10 +38,10 @@ class RouteMetricsCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: c.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 18),
+                child: Icon(icon, color: c, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(

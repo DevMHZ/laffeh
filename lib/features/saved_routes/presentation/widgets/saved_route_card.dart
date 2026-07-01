@@ -72,7 +72,7 @@ class SavedRouteCard extends StatelessWidget {
                         color: AppColors.primarySoft,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Iconsax.routing_2,
                         color: AppColors.primary,
                         size: 22,
@@ -237,7 +237,7 @@ class _OverflowMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_MenuAction>(
-      icon: const Icon(Iconsax.more, size: 20, color: AppColors.textSecondary),
+      icon: Icon(Iconsax.more, size: 20, color: AppColors.textSecondary),
       onSelected: (a) {
         switch (a) {
           case _MenuAction.rename:
@@ -253,7 +253,7 @@ class _OverflowMenu extends StatelessWidget {
           value: _MenuAction.rename,
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Iconsax.edit,
                 size: 18,
                 color: AppColors.textSecondary,
@@ -267,11 +267,11 @@ class _OverflowMenu extends StatelessWidget {
           value: _MenuAction.delete,
           child: Row(
             children: [
-              const Icon(Iconsax.trash, size: 18, color: AppColors.danger),
+              Icon(Iconsax.trash, size: 18, color: AppColors.danger),
               const SizedBox(width: 10),
               Text(
                 AppStrings.remove,
-                style: const TextStyle(color: AppColors.danger),
+                style: TextStyle(color: AppColors.danger),
               ),
             ],
           ),

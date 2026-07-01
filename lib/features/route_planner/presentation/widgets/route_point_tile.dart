@@ -257,7 +257,7 @@ class _OverflowMenu extends StatelessWidget {
         !point.isDepot && point.optional && onToggleActive != null;
 
     return PopupMenuButton<_Action>(
-      icon: const Icon(Iconsax.more, color: AppColors.textMuted, size: 20),
+      icon: Icon(Iconsax.more, color: AppColors.textMuted, size: 20),
       onSelected: (value) {
         switch (value) {
           case _Action.rename:
@@ -327,7 +327,7 @@ class _OverflowMenu extends StatelessWidget {
           Text(
             label,
             style: value == _Action.remove
-                ? const TextStyle(color: AppColors.danger)
+                ? TextStyle(color: AppColors.danger)
                 : null,
           ),
         ],

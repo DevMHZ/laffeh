@@ -196,7 +196,7 @@ class _ResultTile extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Iconsax.location,
                   color: AppColors.primary,
                   size: 20,
@@ -212,7 +212,7 @@ class _ResultTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
+              Icon(
                 Iconsax.add_circle,
                 size: 20,
                 color: AppColors.primary,

@@ -20,7 +20,7 @@ class _OnbPlanDemoState extends State<OnbPlanDemo>
     Offset(0.64, 0.40),
     Offset(0.50, 0.66),
   ];
-  static const _colors = [
+  static final _colors = [
     AppColors.pinBlue,
     AppColors.pinRed,
     AppColors.pinOrange,
@@ -342,7 +342,7 @@ class _OnbWhatsappDemoState extends State<OnbWhatsappDemo>
                 alignment: Alignment.center,
                 children: [
                   Positioned.fill(child: CustomPaint(painter: _MapBackdrop())),
-                  const _MockPin(color: AppColors.pinRed, size: 26),
+                  _MockPin(color: AppColors.pinRed, size: 26),
                 ],
               ),
             ),
@@ -466,7 +466,7 @@ class _OnbWhatsappDemoState extends State<OnbWhatsappDemo>
               top: c.maxHeight * 0.5 - 34 + dy,
               child: Opacity(
                 opacity: (dropT * 3).clamp(0.0, 1.0),
-                child: const _MockPin(color: AppColors.primary, size: 34),
+                child: _MockPin(color: AppColors.primary, size: 34),
               ),
             ),
             if (toastT > 0)

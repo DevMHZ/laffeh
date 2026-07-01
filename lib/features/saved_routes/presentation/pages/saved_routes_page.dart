@@ -44,7 +44,7 @@ class _SavedRoutesView extends StatelessWidget {
               if (state.routes.isEmpty) return const SizedBox.shrink();
               return IconButton(
                 tooltip: AppStrings.clearAll,
-                icon: const Icon(Iconsax.trash, color: AppColors.danger),
+                icon: Icon(Iconsax.trash, color: AppColors.danger),
                 onPressed: () => _confirmClearAll(context),
               );
             },

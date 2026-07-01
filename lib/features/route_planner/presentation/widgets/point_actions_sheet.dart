@@ -81,7 +81,7 @@ Future<void> confirmRemovePoint(BuildContext context, String pointId) {
               color: AppColors.danger.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Iconsax.trash, color: AppColors.danger, size: 26),
+            child: Icon(Iconsax.trash, color: AppColors.danger, size: 26),
           ),
           const SizedBox(height: 14),
           Text(
@@ -263,7 +263,7 @@ class _PointActionsSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            const Divider(height: 1, color: AppColors.divider),
+            Divider(height: 1, color: AppColors.divider),
             _ActionRow(
               icon: Iconsax.edit,
               label: AppStrings.rename,

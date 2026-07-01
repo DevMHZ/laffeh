@@ -96,11 +96,14 @@ class _TripScrubberState extends State<_TripScrubber> {
                         duration: const Duration(milliseconds: 140),
                         curve: Curves.easeOut,
                         child: Transform.rotate(
-                          angle: math.pi / 2, // nose points along travel (right)
-                          child: const SizedBox(
+                          angle:
+                              math.pi / 2, // nose points along travel (right)
+                          child: SizedBox(
                             width: _carSize,
                             height: _carSize,
-                            child: CustomPaint(painter: TopViewCarPainter()),
+                            child: CustomPaint(
+                              painter: VehiclePrefs.current.painter(),
+                            ),
                           ),
                         ),
                       ),
@@ -130,10 +133,7 @@ class _ScrubberTrackPainter extends CustomPainter {
 
     // Unplayed track.
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, cy - h / 2, size.width, h),
-        r,
-      ),
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, cy - h / 2, size.width, h), r),
       Paint()..color = AppColors.surfaceDim,
     );
 
@@ -150,15 +150,12 @@ class _ScrubberTrackPainter extends CustomPainter {
     for (final f in stops) {
       final x = f * size.width;
       final passed = f <= progress;
-      canvas.drawCircle(
-        Offset(x, cy),
-        3.4,
-        Paint()..color = AppColors.white,
-      );
+      canvas.drawCircle(Offset(x, cy), 3.4, Paint()..color = AppColors.white);
       canvas.drawCircle(
         Offset(x, cy),
         2.2,
-        Paint()..color = passed ? AppColors.primaryDark : AppColors.borderStrong,
+        Paint()
+          ..color = passed ? AppColors.primaryDark : AppColors.borderStrong,
       );
     }
   }
