@@ -71,7 +71,7 @@ class RouteMapView extends StatefulWidget {
 }
 
 class RouteMapViewState extends State<RouteMapView>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   MapLibreMapController? _controller;
   bool _styleLoaded = false;
 
@@ -325,7 +325,30 @@ class RouteMapViewState extends State<RouteMapView>
   bool _maneuverHlVisible = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Orientation / window-size change: the drive camera's look-ahead is
+  /// viewport-dependent, and GPS only ticks after ~5 m of movement — so a
+  /// rotation while stopped would leave the car mis-framed until the next
+  /// fix. Re-aim as soon as the new layout settles.
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = context.read<RoutePlannerCubit>().state;
+      if (state.navigationActive && state.optimizedRoute != null) {
+        unawaited(_syncNavigationCamera(state));
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _vehicleTicker
       ?..stop()
       ..dispose();
@@ -1499,11 +1522,13 @@ class RouteMapViewState extends State<RouteMapView>
               (zoomTarget - _navZoom!) * NavigationConfig.zoomSmoothingFactor;
     final zoom = _navZoom!;
 
-    final target = MapGeometry.destinationPoint(
-      anchor,
-      heading,
-      NavigationConfig.lookaheadMeters,
-    );
+    // The look-ahead offset scales with the viewport: landscape screens
+    // are short, so the portrait offset would leave the car off-screen.
+    final viewport = MediaQuery.sizeOf(context);
+    final lookahead = viewport.width > viewport.height
+        ? NavigationConfig.lookaheadMetersLandscape
+        : NavigationConfig.lookaheadMeters;
+    final target = MapGeometry.destinationPoint(anchor, heading, lookahead);
     DebugLog.cam(
       'navCamera anchor=${anchor.latitude.toStringAsFixed(6)},'
       '${anchor.longitude.toStringAsFixed(6)} '

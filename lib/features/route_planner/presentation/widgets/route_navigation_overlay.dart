@@ -42,14 +42,14 @@ class RouteNavigationOverlay extends StatefulWidget {
 }
 
 class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
-  /// Portrait-only — the app's default everywhere outside focus mode.
+  /// Portrait-only — the app's default everywhere outside drive mode.
   static const _portraitOnly = <DeviceOrientation>[
     DeviceOrientation.portraitUp,
   ];
 
-  /// All orientations — focus mode lets the driver turn a mounted phone
-  /// sideways for a wide map. Rotation stays the user's choice; we only
-  /// permit it, never force it.
+  /// All orientations — drive mode lets the driver turn a mounted phone
+  /// sideways for a wide map at any time (not just in focus mode).
+  /// Rotation stays the user's choice; we only permit it, never force it.
   static const _allOrientations = <DeviceOrientation>[
     DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
@@ -61,24 +61,26 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
   /// screen.
   bool _focusMode = false;
 
-  /// Enters/leaves focus mode and unlocks/relocks landscape with it. Leaving
-  /// focus forces the device back to portrait even if held sideways.
   void _setFocusMode(bool enabled) {
     if (_focusMode == enabled) return;
     setState(() => _focusMode = enabled);
-    SystemChrome.setPreferredOrientations(
-      enabled ? _allOrientations : _portraitOnly,
-    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // The whole drive is rotatable: this overlay is only mounted while
+    // navigation is active, so unlocking here scopes landscape to drive
+    // mode exactly.
+    SystemChrome.setPreferredOrientations(_allOrientations);
   }
 
   @override
   void dispose() {
-    // Navigation can end while focus mode is still on (arrival auto-ends the
-    // trip, or End Trip is tapped). Always restore the portrait lock so the
-    // rest of the app is never left rotatable.
-    if (_focusMode) {
-      SystemChrome.setPreferredOrientations(_portraitOnly);
-    }
+    // The trip can end from anywhere (Point Served at the last stop, End
+    // Trip, a stream error). Always restore the portrait lock so the rest
+    // of the app is never left rotatable.
+    SystemChrome.setPreferredOrientations(_portraitOnly);
     super.dispose();
   }
 
@@ -134,29 +136,84 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
             : '${AppStrings.nextStop} · '
                   '${AppStrings.stopNofM(_stopNumber(route, targetIndex), _stopCount(route))}';
 
-        // Landscape only happens inside focus mode (the app is portrait-locked
-        // otherwise). A full-width banner across a wide screen would bury the
-        // map, so the HUD becomes a super-thin vertical rail instead.
+        // Landscape is available for the whole drive. A full-width banner
+        // across a wide screen would bury the map, so the HUD docks on the
+        // leading edge instead: a full column of the same cards outside
+        // focus mode, or the super-thin rail inside it.
         final isLandscape =
             MediaQuery.orientationOf(context) == Orientation.landscape;
         if (isLandscape) {
+          if (_focusMode) {
+            return Positioned.fill(
+              child: SafeArea(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 8),
+                    child: _LandscapeHudRail(
+                      isReturn: isReturn,
+                      subtitle: subtitle,
+                      label: target.label,
+                      address: target.address,
+                      instruction: instruction,
+                      distanceToTarget: distanceToTarget,
+                      remainingKm: remainingKm,
+                      arrived: state.navigationArrived,
+                      onServe: cubit.servePoint,
+                      onExitFocus: () => _setFocusMode(false),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+          // Landscape, full HUD: everything the portrait layout offers,
+          // stacked in a side column so the map keeps most of the width.
           return Positioned.fill(
             child: SafeArea(
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 8),
-                  child: _LandscapeHudRail(
-                    isReturn: isReturn,
-                    subtitle: subtitle,
-                    label: target.label,
-                    address: target.address,
-                    instruction: instruction,
-                    distanceToTarget: distanceToTarget,
-                    remainingKm: remainingKm,
-                    arrived: state.navigationArrived,
-                    onServe: cubit.servePoint,
-                    onExitFocus: () => _setFocusMode(false),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 8),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 330),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (instruction != null)
+                          _InstructionBanner(instruction: instruction),
+                        const SizedBox(height: 6),
+                        _NextStopBar(
+                          isReturn: isReturn,
+                          subtitle: subtitle,
+                          label: target.label,
+                          distanceToTarget: distanceToTarget,
+                          onLongPress: cubit.servePoint,
+                        ),
+                        const _AutoServeNotice(),
+                        const Spacer(),
+                        _ServedButton(
+                          visible: state.navigationArrived,
+                          label: isReturn
+                              ? AppStrings.endTrip
+                              : AppStrings.pointServed,
+                          icon: isReturn
+                              ? Iconsax.flag
+                              : Iconsax.tick_circle,
+                          onTap: cubit.servePoint,
+                        ),
+                        _BottomPanel(
+                          remainingKm: remainingKm,
+                          remainingMinutes: remainingMinutes,
+                          speedMps: state.navigationSpeedMps,
+                          onFocus: () => _setFocusMode(true),
+                          onOpenGoogleMaps: widget.onOpenGoogleMaps,
+                          onEndTrip: cubit.stopNavigation,
+                          debugStep:
+                              kDebugMode ? cubit.debugStepForward : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

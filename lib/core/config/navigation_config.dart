@@ -10,6 +10,11 @@ class NavigationConfig {
   /// sits in the lower-middle of the screen.
   static const double lookaheadMeters = 115.0;
 
+  /// Landscape look-ahead — the viewport is much shorter, so the portrait
+  /// offset would push the car off the bottom edge; this keeps it in the
+  /// lower-middle of the rotated view.
+  static const double lookaheadMetersLandscape = 55.0;
+
   /// Distance ahead on the route used to orient the camera bearing, so it
   /// rotates *into* a turn before the car reaches it (the road ahead stays
   /// pointing up) instead of swinging sideways mid-bend. Larger = more
