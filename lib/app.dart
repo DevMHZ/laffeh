@@ -25,13 +25,16 @@ class LaffahApp extends StatelessWidget {
               valueListenable: AppStrings.localeNotifier,
               builder: (_, locale, __) {
                 return MaterialApp(
-                  // Re-key on locale only: changing the language needs a full
-                  // rebuild for text direction to flip cleanly. Theme changes
-                  // don't need this — AppColors getters are read live in every
-                  // build(), and NOT re-keying on palette.id keeps the
-                  // Navigator (and any mounted platform views, e.g. the map)
-                  // alive instead of tearing them down on every theme tap.
-                  key: ValueKey('app-${locale.languageCode}'),
+                  // Deliberately NOT re-keyed on locale. Re-keying tore down
+                  // the whole tree — including the live MapLibre native map
+                  // (a platform view) — which crashes iOS when it's disposed
+                  // mid-flight during a language switch. Text direction still
+                  // flips cleanly without it: MaterialApp re-resolves the
+                  // locale and updates its Directionality in place, and every
+                  // string is read live via AppStrings, so the rebuild
+                  // triggered by localeNotifier is all that's needed. Bonus:
+                  // the user stays on their current screen instead of being
+                  // bounced back to the splash page.
                   onGenerateTitle: (_) => AppStrings.appName,
                   debugShowCheckedModeBanner: false,
                   theme: AppTheme.data,

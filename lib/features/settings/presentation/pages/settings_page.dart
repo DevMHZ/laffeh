@@ -20,6 +20,22 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild the whole page in place the instant the language or
+    // appearance changes, so the selection applies immediately instead of
+    // only after leaving and reopening Settings. The app no longer re-keys
+    // on locale (that used to crash the native map), so a pushed route like
+    // this one has to listen for the change itself — its text is read from
+    // AppStrings/AppColors, which don't trigger a rebuild on their own.
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        AppStrings.localeNotifier,
+        AppTheme.notifier,
+      ]),
+      builder: (context, _) => _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.settings)),
       body: ListView(
@@ -177,23 +193,28 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // NB: the section widgets are intentionally NOT const. A parent rebuild
+    // (e.g. the page-level refresh on a language/appearance change) can only
+    // propagate into children that are fresh instances — const children are
+    // canonicalised and skipped, which used to leave every section's text
+    // stale until Settings was reopened.
     return AppSectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _AboutSection(),
+          _AboutSection(),
           const SizedBox(height: 14),
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
-          const _ThemeSection(),
+          _ThemeSection(),
           const SizedBox(height: 14),
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
-          const _VehicleSection(),
+          _VehicleSection(),
           const SizedBox(height: 14),
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
-          const _LanguageSection(),
+          _LanguageSection(),
           const SizedBox(height: 14),
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
