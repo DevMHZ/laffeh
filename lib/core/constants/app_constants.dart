@@ -184,6 +184,7 @@ class AppStrings {
   static String get apiBaseUrl => _t('apiBaseUrl');
   static String get officialWebsite => _t('officialWebsite');
   static String get visitWebsite => _t('visitWebsite');
+  static String get aboutUs => _t('aboutUs');
   static String get aboutDescription => _t('aboutDescription');
   static String get language => _t('language');
   static String get appearance => _t('appearance');
@@ -586,6 +587,7 @@ const Map<String, Map<String, String>> _copy = {
     'apiBaseUrl': 'AI API URL',
     'officialWebsite': 'Official website',
     'visitWebsite': 'Visit website',
+    'aboutUs': 'About us',
     'language': 'Language',
     'appearance': 'Appearance',
     'vehicleIcon': 'Vehicle icon',
@@ -598,7 +600,7 @@ const Map<String, Map<String, String>> _copy = {
     'languageArabic': 'Arabic',
     'languageFrench': 'French',
     'aboutDescription':
-        'A smart app for optimizing delivery routes and daily visits using Afdal Vehicle Routing optimization, with a full route simulation after results are ready.',
+        'A multistop navigator optimizing routes and visits using Afdal\'s solver, with a full route simulation and driving options.',
     'addPointHere': 'Add point here',
     'pasteAddresses': 'Paste addresses',
     'pasteAddressesHint':
@@ -880,6 +882,7 @@ const Map<String, Map<String, String>> _copy = {
     'apiBaseUrl': 'عنوان واجهة الذكاء الاصطناعي',
     'officialWebsite': 'الموقع الرسمي',
     'visitWebsite': 'زيارة الموقع',
+    'aboutUs': 'من نحن',
     'language': 'اللغة',
     'appearance': 'المظهر',
     'vehicleIcon': 'أيقونة المركبة',
@@ -892,7 +895,7 @@ const Map<String, Map<String, String>> _copy = {
     'languageArabic': 'العربية',
     'languageFrench': 'الفرنسية',
     'aboutDescription':
-        'تطبيق ذكي لتحسين مسارات التوصيل والزيارات اليومية باستخدام نموذج تحسين Vehicle Routing من Afdal، مع إمكانية محاكاة المسار كاملاً بعد ظهور النتيجة.',
+        'ملاح متعدد المحطات يحسّن المسارات والزيارات باستخدام حلّال Afdal، مع محاكاة كاملة للمسار وخيارات قيادة.',
     'addPointHere': 'أضف نقطة هنا',
     'pasteAddresses': 'لصق عناوين',
     'pasteAddressesHint':
@@ -1181,6 +1184,7 @@ const Map<String, Map<String, String>> _copy = {
     'apiBaseUrl': 'URL de l\'API IA',
     'officialWebsite': 'Site officiel',
     'visitWebsite': 'Visiter le site',
+    'aboutUs': 'À propos',
     'language': 'Langue',
     'appearance': 'Apparence',
     'vehicleIcon': 'Icône du véhicule',
@@ -1193,7 +1197,7 @@ const Map<String, Map<String, String>> _copy = {
     'languageArabic': 'Arabe',
     'languageFrench': 'Francais',
     'aboutDescription':
-        'Une application intelligente pour optimiser les tournees de livraison et les visites quotidiennes avec l\'optimisation Vehicle Routing d\'Afdal, avec une simulation complete du trajet une fois le resultat pret.',
+        'Un navigateur multi-etapes optimisant les itineraire et les visites grace au solveur d\'Afdal, avec une simulation complete et des options de conduite.',
     'addPointHere': 'Ajouter un point ici',
     'pasteAddresses': 'Coller des adresses',
     'pasteAddressesHint':
