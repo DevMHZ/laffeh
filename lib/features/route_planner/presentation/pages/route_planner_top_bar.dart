@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -50,6 +51,23 @@ class TopBar extends StatelessWidget {
                       icon: Iconsax.archive_book,
                       onPressed: () =>
                           RoutePlannerActions.openSavedRoutes(context),
+                      // DEBUG: long-press loads a reproducible 3-stop
+                      // Beirut demo route — the playground for the drive
+                      // simulator.
+                      onLongPress: kDebugMode
+                          ? () {
+                              HapticFeedback.heavyImpact();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تحميل مسار بيروت التجريبي…'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              context
+                                  .read<RoutePlannerCubit>()
+                                  .debugLoadBeirutDemo();
+                            }
+                          : null,
                     ),
                   ),
                   Expanded(
@@ -202,17 +220,23 @@ class TopIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
 
+  /// Optional long-press action (used for debug shortcuts). When set, the
+  /// Material tooltip is dropped: on touch devices Tooltip itself claims
+  /// the long-press gesture to show its label, which would swallow this.
+  final VoidCallback? onLongPress;
+
   const TopIconButton({
     super.key,
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
+    final button = IconButton(
+      tooltip: onLongPress == null ? tooltip : null,
       style: IconButton.styleFrom(
         fixedSize: const Size.square(48),
         minimumSize: const Size.square(48),
@@ -224,5 +248,7 @@ class TopIconButton extends StatelessWidget {
       },
       icon: Icon(icon, color: AppColors.textPrimary, size: 22),
     );
+    if (onLongPress == null) return button;
+    return GestureDetector(onLongPress: onLongPress, child: button);
   }
 }

@@ -75,6 +75,7 @@ flutter:
     - assets/whatsapp.svg
     - assets/google.svg
     - assets/animations/
+    - assets/vehicles/
 
   fonts:
     - family: Almarai

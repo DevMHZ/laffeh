@@ -123,255 +123,37 @@ class MarkerFactory {
   );
 }
 
-/// Speed lines trailing behind a top-down vehicle (below the tail) — the
-/// shared "motion cue" every [VehicleKind] painter uses.
-void _paintSpeedLines(Canvas canvas, Offset c, double len, double w) {
-  final lines = Paint()
-    ..color = AppColors.asphalt.withValues(alpha: 0.45)
-    ..strokeWidth = 2
-    ..strokeCap = StrokeCap.round;
-  for (final (dx, l) in [(-w * 0.22, 5.0), (0.0, 7.5), (w * 0.22, 5.0)]) {
-    final y0 = c.dy + len * 0.62;
-    canvas.drawLine(Offset(c.dx + dx, y0), Offset(c.dx + dx, y0 + l), lines);
-  }
-}
-
-/// Cute top-view VW-bus-style microbus pointing "up" (north at bearing 0):
-/// boxy two-tone body (blue over cream), split-windshield hint, and all
-/// four wheel arches peeking out at the corners — the boxier stance that
-/// tells it apart from a regular car at a glance.
-class TopViewVwBusPainter extends CustomPainter {
-  const TopViewVwBusPainter();
+/// Classic minimal navigation dart pointing "up" (north at bearing 0):
+/// a white-rimmed chevron in the brand green over a soft drop shadow —
+/// the "basic" avatar option alongside the pre-rendered 3D sprites.
+class TopViewArrowPainter extends CustomPainter {
+  const TopViewArrowPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final len = size.height * 0.68;
-    final w = len * 0.62;
-
-    _paintSpeedLines(canvas, c, len, w);
-
-    // Ground shadow.
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: c.translate(0, len * 0.05),
-        width: w * 1.2,
-        height: len * 1.02,
-      ),
-      Paint()..color = AppColors.asphaltDark.withValues(alpha: 0.22),
-    );
-
-    // Wheel arches at all four corners (boxier stance than a car).
-    final wheel = Paint()..color = AppColors.asphalt;
-    for (final dy in [-len * 0.32, len * 0.32]) {
-      for (final dx in [-w * 0.52, w * 0.52]) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: c.translate(dx, dy),
-              width: w * 0.16,
-              height: len * 0.22,
-            ),
-            Radius.circular(w * 0.04),
-          ),
-          wheel,
-        );
-      }
-    }
-
-    // Body — flat-fronted rounded rectangle (the classic boxy microbus).
-    final body = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: c, width: w, height: len),
-      Radius.circular(w * 0.16),
-    );
-    canvas.drawRRect(body, Paint()..color = AppColors.pinBlue);
-    canvas.drawRRect(
-      body,
-      Paint()
-        ..color = AppColors.asphalt
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
-    );
-
-    // Classic two-tone waistline: a cream band across the middle.
-    canvas.drawRect(
-      Rect.fromCenter(center: c, width: w * 0.98, height: len * 0.22),
-      Paint()..color = AppColors.white.withValues(alpha: 0.92),
-    );
-
-    // Split-windshield hint — two front quarter windows.
-    final glass = Paint()..color = AppColors.pinBlue.withValues(alpha: 0.85);
-    for (final dx in [-w * 0.19, w * 0.19]) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: c.translate(dx, -len * 0.34),
-            width: w * 0.30,
-            height: len * 0.14,
-          ),
-          const Radius.circular(2),
-        ),
-        glass,
-      );
-    }
-    // Rear window.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: c.translate(0, len * 0.34),
-          width: w * 0.62,
-          height: len * 0.12,
-        ),
-        const Radius.circular(2),
-      ),
-      Paint()..color = AppColors.pinBlue.withValues(alpha: 0.55),
-    );
-
-    // Plain front badge (a roundel, no logo mark).
-    canvas.drawCircle(
-      c.translate(0, -len * 0.46),
-      w * 0.09,
-      Paint()..color = AppColors.white,
-    );
-    canvas.drawCircle(
-      c.translate(0, -len * 0.46),
-      w * 0.09,
-      Paint()
-        ..color = AppColors.asphalt
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-
-    // Headlights.
-    final light = Paint()..color = AppColors.pinOrange;
-    canvas.drawCircle(c.translate(-w * 0.36, -len * 0.46), w * 0.07, light);
-    canvas.drawCircle(c.translate(w * 0.36, -len * 0.46), w * 0.07, light);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Cute top-view Vespa scooter pointing "up" (north at bearing 0): a narrow
-/// single-track silhouette (wide front leg-shield tapering to a slim tail),
-/// mirror "wings" up front, and a round headlight — the shape alone reads
-/// as "scooter", never "car", at a glance.
-class TopViewVespaPainter extends CustomPainter {
-  const TopViewVespaPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final len = size.height * 0.64;
-    final w = len * 0.34;
-
-    _paintSpeedLines(canvas, c, len, w * 1.6);
-
-    // Ground shadow.
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: c.translate(0, len * 0.06),
-        width: w * 1.8,
-        height: len,
-      ),
-      Paint()..color = AppColors.asphaltDark.withValues(alpha: 0.2),
-    );
-
-    // Single front + rear wheel (no paired wheels — a single-track vehicle).
-    final wheel = Paint()..color = AppColors.asphalt;
-    for (final dy in [-len * 0.42, len * 0.4]) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: c.translate(0, dy),
-            width: w * 0.5,
-            height: len * 0.13,
-          ),
-          Radius.circular(w * 0.1),
-        ),
-        wheel,
-      );
-    }
-
-    // Body — front leg-shield flares wide, tapering to a narrow tail.
-    final body = Path()
-      ..moveTo(c.dx - w * 0.75, c.dy - len * 0.30)
-      ..quadraticBezierTo(
-        c.dx - w * 0.9,
-        c.dy - len * 0.05,
-        c.dx - w * 0.42,
-        c.dy + len * 0.38,
-      )
-      ..quadraticBezierTo(
-        c.dx,
-        c.dy + len * 0.48,
-        c.dx + w * 0.42,
-        c.dy + len * 0.38,
-      )
-      ..quadraticBezierTo(
-        c.dx + w * 0.9,
-        c.dy - len * 0.05,
-        c.dx + w * 0.75,
-        c.dy - len * 0.30,
-      )
-      ..quadraticBezierTo(
-        c.dx,
-        c.dy - len * 0.5,
-        c.dx - w * 0.75,
-        c.dy - len * 0.30,
-      )
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(w * 0.50, h * 0.08) // nose
+      ..lineTo(w * 0.88, h * 0.88) // rear right
+      ..lineTo(w * 0.50, h * 0.66) // tail notch
+      ..lineTo(w * 0.12, h * 0.88) // rear left
       ..close();
-    canvas.drawPath(body, Paint()..color = AppColors.pinRed);
+
     canvas.drawPath(
-      body,
+      path.shift(Offset(0, h * 0.045)),
       Paint()
-        ..color = AppColors.asphalt
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
+        ..color = Colors.black.withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
     );
-
-    // Cream seat strip down the spine.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: c.translate(0, len * 0.08),
-          width: w * 0.5,
-          height: len * 0.55,
-        ),
-        Radius.circular(w * 0.2),
-      ),
-      Paint()..color = AppColors.white.withValues(alpha: 0.85),
-    );
-
-    // Handlebar "wings" — mirrors sticking out to the sides up front.
-    final chrome = Paint()..color = AppColors.textMuted;
-    for (final side in [-1.0, 1.0]) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: c.translate(side * w * 1.05, -len * 0.28),
-            width: w * 0.5,
-            height: w * 0.22,
-          ),
-          Radius.circular(w * 0.1),
-        ),
-        chrome,
-      );
-    }
-
-    // Round Vespa headlight up front.
-    canvas.drawCircle(
-      c.translate(0, -len * 0.40),
-      w * 0.24,
-      Paint()..color = AppColors.pinOrange,
-    );
-    canvas.drawCircle(
-      c.translate(0, -len * 0.40),
-      w * 0.24,
+    canvas.drawPath(path, Paint()..color = AppColors.primary);
+    canvas.drawPath(
+      path,
       Paint()
-        ..color = AppColors.asphalt
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
+        ..strokeWidth = w * 0.05
+        ..strokeJoin = StrokeJoin.round
+        ..color = AppColors.white,
     );
   }
 

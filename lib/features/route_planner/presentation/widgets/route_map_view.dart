@@ -320,6 +320,39 @@ class RouteMapViewState extends State<RouteMapView>
   bool _puckProjecting = false;
   DateTime _lastPuckProjection = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // ── Nav vehicle render loop (vsync) ─────────────────────────────────────────
+  // GPS fixes land ~once a second; drawing the car straight off them makes
+  // it teleport fix-to-fix while the camera glides. This ticker renders the
+  // car every display frame instead: the fix is dead-reckoned forward at
+  // the vehicle's speed and the rendered arc-length progress chases it with
+  // an exponential smoother — continuous, forward-only motion.
+  Ticker? _navTicker;
+  Duration _navTickerLast = Duration.zero;
+  double _navRenderProgress = 0.0;
+  double _navTargetProgress = 0.0;
+  DateTime _navTargetAt = DateTime.fromMillisecondsSinceEpoch(0);
+  double _navProgressRatePerSec = 0.0;
+  OptimizedRoute? _navRoute;
+  double _navRouteTotalKm = 0.0;
+  // Last projection inputs, so a parked car under an idle camera costs
+  // zero platform traffic.
+  ll.LatLng? _lastProjAnchor;
+  CameraPosition? _lastProjCamera;
+
+  // ── Explore-mode native vehicle ─────────────────────────────────────────────
+  // While the user pans/zooms mid-drive the Flutter puck (an async screen
+  // projection) inevitably lags the natively-rendered tiles and looks
+  // dragged by the camera. So for the whole explore session — and the
+  // glide back to follow — the car is a geo-anchored native symbol
+  // instead: glued to the road by construction, moving only on GPS.
+  Symbol? _navExploreSymbol;
+  bool _creatingNavExploreSymbol = false;
+  final ValueNotifier<bool> _navPuckHidden = ValueNotifier(false);
+  Timer? _followSwapTimer;
+  ll.LatLng? _navExplorePosApplied;
+  double? _navExploreRotApplied;
+  bool _navExploreUpdating = false;
+
   /// Whether the maneuver-highlight layer currently holds geometry, so
   /// non-drive modes can clear it exactly once instead of every frame.
   bool _maneuverHlVisible = false;
@@ -352,8 +385,13 @@ class RouteMapViewState extends State<RouteMapView>
     _vehicleTicker
       ?..stop()
       ..dispose();
+    _navTicker
+      ?..stop()
+      ..dispose();
     _puck.dispose();
     _exploreResumeTimer?.cancel();
+    _followSwapTimer?.cancel();
+    _navPuckHidden.dispose();
     _navExploring.dispose();
     _controller?.onSymbolTapped.remove(_onSymbolTapped);
     _bearing.dispose();
@@ -401,10 +439,10 @@ class RouteMapViewState extends State<RouteMapView>
     // a point is accurate even if onCameraIdle is unreliable on a device.
     _mapCenter = ll.LatLng(position.target.latitude, position.target.longitude);
 
-    // Drive mode: the camera glides between GPS fixes (and the user can
-    // pan freely in explore mode) — keep the car pinned to the road
-    // through every intermediate frame.
-    if (_wasNavigationActive) _maybeReprojectNavPuck();
+    // Drive mode without the render ticker (no road geometry): keep the
+    // car pinned through camera animations the legacy way. With the ticker
+    // running, projection happens every display frame already.
+    if (_wasNavigationActive && !_navTickerActive) _maybeReprojectNavPuck();
 
     // Toggle the "return to my location" control as the user pans away from
     // their current position. The threshold scales with zoom so it triggers
@@ -1293,7 +1331,12 @@ class RouteMapViewState extends State<RouteMapView>
         _navZoom = null;
         _navCamSnapped = false;
         _navAnchor = null;
+        _navRoute = null;
+        _navRenderProgress = state.navigationProgress;
+        _lastProjAnchor = null;
+        _lastProjCamera = null;
         _stopExploring(resumeCamera: false);
+        _restoreFollowPuck();
       }
       _wasNavigationActive = true;
       await _syncNavigationCamera(state);
@@ -1316,6 +1359,13 @@ class RouteMapViewState extends State<RouteMapView>
       _navPuckPos.value = null;
       _navTangent.value = null;
       _stopExploring(resumeCamera: false);
+      _stopNavTicker();
+      _navRoute = null;
+      _navRouteTotalKm = 0.0;
+      _navRenderProgress = 0.0;
+      _lastProjAnchor = null;
+      _lastProjCamera = null;
+      _restoreFollowPuck();
       await _moveCamera(CameraUpdate.tiltTo(0));
       await _moveCamera(CameraUpdate.bearingTo(0));
     }
@@ -1464,6 +1514,10 @@ class RouteMapViewState extends State<RouteMapView>
     _lastSimCameraMode = null;
     _northLock = false;
 
+    // Retarget the vsync render loop (and absorb a reroute's new geometry
+    // without moving the car) before any camera work.
+    _syncNavRenderTargets(state);
+
     final polyline = state.optimizedRoute?.fullPolyline ?? const <ll.LatLng>[];
     final tangent = PolylineUtils.sampleAt(
       polyline,
@@ -1495,22 +1549,33 @@ class RouteMapViewState extends State<RouteMapView>
         ? PolylineUtils.interpolateByLength(polyline, state.navigationProgress)
         : null;
     final anchor = onRoute ?? loc;
-    _navAnchor = anchor;
 
-    // The road direction the *car* is on right now — a short chord, unlike
-    // the camera's long anticipation window — drives the avatar's rotation.
-    _navTangent.value = polyline.length >= 2
-        ? PolylineUtils.lookAheadBearing(
-            polyline,
-            state.navigationProgress,
-            NavigationConfig.avatarTangentMeters,
-          )
-        : state.navigationHeading;
+    // With the render ticker running, the car's anchor/tangent are owned
+    // by the per-frame interpolator — writing the (slightly ahead) GPS
+    // values here would make the car twitch forward on every fix.
+    if (!_navTickerActive) {
+      _navAnchor = anchor;
+      // The road direction the *car* is on right now — a short chord,
+      // unlike the camera's long anticipation window — drives the
+      // avatar's rotation.
+      _navTangent.value = polyline.length >= 2
+          ? PolylineUtils.lookAheadBearing(
+              polyline,
+              state.navigationProgress,
+              NavigationConfig.avatarTangentMeters,
+            )
+          : state.navigationHeading;
+    }
 
     // While the driver explores the map, guidance continues but the camera
-    // is theirs — only the puck keeps tracking (via onCameraMove).
+    // is theirs — the geo-anchored explore symbol keeps tracking via the
+    // render ticker. Geometry-less routes have no ticker, so nudge the
+    // symbol (and the fallback puck) straight off the fix instead.
     if (_navExploring.value) {
-      unawaited(_projectNavPuck(anchor));
+      if (!_navTickerActive) {
+        _updateNavExploreSymbol(anchor, _navTangent.value);
+        unawaited(_projectNavPuck(anchor));
+      }
       return;
     }
 
@@ -1566,10 +1631,145 @@ class RouteMapViewState extends State<RouteMapView>
     // Drop the car where the on-route anchor projects on screen (the camera
     // centres the look-ahead point, so the anchor sits lower). The map's own
     // projection handles perspective + the Android native/Flutter offset, so
-    // the car rides the road instead of a fixed slot. onCameraMove keeps
-    // re-projecting it while the animation runs.
-    await _projectNavPuck(anchor);
+    // the car rides the road instead of a fixed slot. With road geometry the
+    // render ticker re-projects every display frame; this per-fix fallback
+    // only serves geometry-less routes.
+    if (!_navTickerActive) await _projectNavPuck(anchor);
   }
+
+  // ── Nav vehicle render loop ─────────────────────────────────────────────────
+
+  bool get _navTickerActive => _navTicker?.isActive ?? false;
+
+  /// Feeds the render loop the newest cubit frame: the target progress,
+  /// the dead-reckoning rate, and — when a reroute swapped the polyline —
+  /// a rendered-progress rescale that keeps the car exactly where it is
+  /// (the driven prefix is preserved verbatim, so fractions convert by
+  /// arc length).
+  void _syncNavRenderTargets(RoutePlannerState state) {
+    final route = state.optimizedRoute;
+    if (route == null || route.fullPolyline.length < 2) {
+      _stopNavTicker();
+      _navRoute = null;
+      _navRouteTotalKm = 0.0;
+      return;
+    }
+    if (!identical(route, _navRoute)) {
+      final newTotalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
+      if (_navRoute != null && _navRouteTotalKm > 0 && newTotalKm > 0) {
+        _navRenderProgress = (_navRenderProgress * _navRouteTotalKm / newTotalKm)
+            .clamp(0.0, 1.0);
+      } else {
+        _navRenderProgress = state.navigationProgress;
+      }
+      _navRoute = route;
+      _navRouteTotalKm = newTotalKm;
+    }
+    // The cubit's progress is monotonic within a trip, so a target behind
+    // the rendered car is a deliberate restart (e.g. the debug simulator
+    // taking over mid-drive) — snap back instead of freezing forward-only.
+    if (state.navigationProgress < _navRenderProgress - 1e-6) {
+      _navRenderProgress = state.navigationProgress;
+    }
+    _navTargetProgress = state.navigationProgress;
+    _navTargetAt = DateTime.now();
+    final routeMeters = _navRouteTotalKm * 1000;
+    _navProgressRatePerSec = routeMeters > 0
+        ? (state.navigationSpeedMps ?? 0.0) / routeMeters
+        : 0.0;
+    _startNavTicker();
+  }
+
+  void _startNavTicker() {
+    final ticker = _navTicker ??= createTicker(_onNavTick);
+    if (!ticker.isActive) {
+      _navTickerLast = Duration.zero;
+      ticker.start();
+    }
+  }
+
+  void _stopNavTicker() {
+    _navTicker?.stop();
+    _navTickerLast = Duration.zero;
+  }
+
+  /// One display frame of vehicle motion: dead-reckon the last fix forward
+  /// at the vehicle's speed, chase it with an exponential smoother
+  /// (forward-only — you can't un-drive a road), then move whichever car
+  /// representation is active (screen-projected puck, or the geo-anchored
+  /// explore symbol).
+  void _onNavTick(Duration elapsed) {
+    final dt = _navTickerLast == Duration.zero
+        ? 1 / 60.0
+        : ((elapsed - _navTickerLast).inMicroseconds / 1e6).clamp(0.001, 0.1);
+    _navTickerLast = elapsed;
+
+    final route = _navRoute;
+    if (route == null || route.fullPolyline.length < 2) return;
+
+    final sinceFix =
+        (DateTime.now().difference(_navTargetAt).inMicroseconds / 1e6).clamp(
+          0.0,
+          NavigationConfig.markerMaxExtrapolationSeconds,
+        );
+    final predicted = math.min(
+      _navTargetProgress + _navProgressRatePerSec * sinceFix,
+      1.0,
+    );
+
+    final diff = predicted - _navRenderProgress;
+    if (diff > 0) {
+      final k =
+          1 - math.exp(-dt / NavigationConfig.markerSmoothingTauSeconds);
+      _navRenderProgress = math.min(_navRenderProgress + diff * k, predicted);
+    }
+
+    final polyline = route.fullPolyline;
+    final anchor = PolylineUtils.interpolateByLength(
+      polyline,
+      _navRenderProgress,
+    );
+    if (anchor == null) return;
+    _navAnchor = anchor;
+    final tangent = PolylineUtils.lookAheadBearing(
+      polyline,
+      _navRenderProgress,
+      NavigationConfig.avatarTangentMeters,
+    );
+    if (_navTangent.value != tangent) _navTangent.value = tangent;
+
+    if (_navPuckHidden.value) {
+      // Exploring (or gliding back to follow): the geo-anchored native
+      // symbol owns the car — nudge it along the road and keep it aligned
+      // to the current camera bearing.
+      _updateNavExploreSymbol(anchor, tangent);
+      return;
+    }
+
+    // Follow mode: project the anchor to its on-screen slot. One in-flight
+    // platform call at a time — effectively frame-rate minus channel
+    // latency — and none at all while parked under an idle camera.
+    final cam = _controller?.cameraPosition;
+    if (_puckProjecting ||
+        (anchor == _lastProjAnchor && _sameCamera(cam, _lastProjCamera))) {
+      return;
+    }
+    _lastProjAnchor = anchor;
+    _lastProjCamera = cam;
+    _puckProjecting = true;
+    unawaited(
+      _projectNavPuck(anchor).whenComplete(() => _puckProjecting = false),
+    );
+  }
+
+  bool _sameCamera(CameraPosition? a, CameraPosition? b) =>
+      a != null &&
+      b != null &&
+      a.target.latitude == b.target.latitude &&
+      a.target.longitude == b.target.longitude &&
+      a.zoom == b.zoom &&
+      a.bearing == b.bearing &&
+      a.tilt == b.tilt;
 
   /// Zoom for the current speed: piecewise-linear between the config
   /// bands so it changes continuously, never in steps.
@@ -1605,15 +1805,22 @@ class RouteMapViewState extends State<RouteMapView>
   // ── Free exploration during drive mode ──────────────────────────────────────
 
   /// First touch on the map mid-drive hands the camera to the user:
-  /// follow pauses (navigation continues), the Re-center pill appears.
+  /// follow pauses (navigation continues), the Re-center pill appears, and
+  /// the car swaps to a geo-anchored native symbol — glued to the road by
+  /// construction, so no amount of panning or zooming can drag it.
   void _onNavPointerDown() {
     if (!mounted) return;
     if (!context.read<RoutePlannerCubit>().state.navigationActive) return;
     _exploreResumeTimer?.cancel();
+    // Touching again mid-glide re-enters exploration with the symbol
+    // still in place — never swap back under the user's finger.
+    _followSwapTimer?.cancel();
+    _followSwapTimer = null;
     if (!_navExploring.value) {
       DebugLog.cam('explore: user touched map — follow paused');
       _navExploring.value = true;
     }
+    if (_navExploreSymbol == null) unawaited(_showNavExploreSymbol());
   }
 
   /// Touch lifted: arm the auto-resume. If the user stays hands-off for
@@ -1629,6 +1836,9 @@ class RouteMapViewState extends State<RouteMapView>
 
   /// Leaves exploration; when [resumeCamera] the follow camera glides
   /// straight back to the vehicle. Also the Re-center pill's tap action.
+  /// The geo-anchored car stays through the glide (it tracks the road
+  /// perfectly while the camera animates) and hands back to the
+  /// screen-projected puck once the follow view has settled.
   void _stopExploring({required bool resumeCamera}) {
     _exploreResumeTimer?.cancel();
     _exploreResumeTimer = null;
@@ -1639,7 +1849,118 @@ class RouteMapViewState extends State<RouteMapView>
       unawaited(
         _syncNavigationCamera(context.read<RoutePlannerCubit>().state),
       );
+      _followSwapTimer?.cancel();
+      _followSwapTimer = Timer(
+        NavigationConfig.cameraAnimDuration + const Duration(milliseconds: 120),
+        _restoreFollowPuck,
+      );
+    } else {
+      _restoreFollowPuck();
     }
+  }
+
+  /// Swaps the car back from the explore symbol to the screen-projected
+  /// follow puck (idempotent).
+  void _restoreFollowPuck() {
+    _followSwapTimer?.cancel();
+    _followSwapTimer = null;
+    _navPuckHidden.value = false;
+    unawaited(_removeNavExploreSymbol());
+  }
+
+  /// Explore-symbol image id, namespaced by the picked vehicle like
+  /// [_vehicleImageId] so switching vehicles re-registers a fresh icon.
+  String get _navVehicleImageId => 'img-nav-vehicle-${VehiclePrefs.current.id}';
+
+  /// Creates the geo-anchored explore car at the vehicle's current on-route
+  /// anchor. The Flutter puck is hidden only after the symbol is actually
+  /// on the map, so the car never blinks out during the swap.
+  Future<void> _showNavExploreSymbol() async {
+    final c = _controller;
+    if (c == null ||
+        !_styleLoaded ||
+        _navExploreSymbol != null ||
+        _creatingNavExploreSymbol) {
+      return;
+    }
+    _creatingNavExploreSymbol = true;
+    try {
+      final imgId = await _ensureImage(
+        _navVehicleImageId,
+        MapMarkerRenderer.navVehicle,
+      );
+      if (!mounted || _navExploreSymbol != null) return;
+      final anchor = _navAnchor;
+      if (anchor == null) return;
+      final tangent = _navTangent.value;
+      final rot = tangent == null
+          ? 0.0
+          : ((tangent - _bearing.value) % 360 + 360) % 360;
+      final sym = await c.addSymbol(
+        SymbolOptions(
+          geometry: _ml(anchor),
+          iconImage: imgId,
+          iconSize: _dpr,
+          iconAnchor: 'center',
+          iconRotate: rot,
+        ),
+      );
+      // The touch may have ended (and follow fully resumed) mid-await.
+      if (!mounted || !_navExploring.value) {
+        try {
+          await c.removeSymbol(sym);
+        } catch (_) {}
+        return;
+      }
+      _navExploreSymbol = sym;
+      _navExplorePosApplied = anchor;
+      _navExploreRotApplied = rot;
+      _navPuckHidden.value = true;
+    } catch (_) {
+      // Symbol creation can fail mid style reload; the puck stays visible.
+    } finally {
+      _creatingNavExploreSymbol = false;
+    }
+  }
+
+  Future<void> _removeNavExploreSymbol() async {
+    final sym = _navExploreSymbol;
+    _navExploreSymbol = null;
+    _navExplorePosApplied = null;
+    _navExploreRotApplied = null;
+    if (sym == null) return;
+    try {
+      await _controller?.removeSymbol(sym);
+    } catch (_) {}
+  }
+
+  /// Per-frame nudge of the explore car: geometry follows the interpolated
+  /// on-route anchor (true GPS-driven motion only), rotation keeps the car
+  /// lying along its road under the current camera bearing (which only
+  /// changes during the resume glide — rotate gestures are disabled).
+  void _updateNavExploreSymbol(ll.LatLng anchor, double? tangent) {
+    final c = _controller;
+    final sym = _navExploreSymbol;
+    if (c == null || sym == null || _navExploreUpdating) return;
+    final rot = tangent == null
+        ? (_navExploreRotApplied ?? 0.0)
+        : ((tangent - _bearing.value) % 360 + 360) % 360;
+    final lastPos = _navExplorePosApplied;
+    final lastRot = _navExploreRotApplied;
+    if (lastPos != null &&
+        lastRot != null &&
+        (lastPos.latitude - anchor.latitude).abs() < 1e-7 &&
+        (lastPos.longitude - anchor.longitude).abs() < 1e-7 &&
+        (lastRot - rot).abs() < 0.3) {
+      return; // parked & camera bearing stable — nothing to push
+    }
+    _navExplorePosApplied = anchor;
+    _navExploreRotApplied = rot;
+    _navExploreUpdating = true;
+    c
+        .updateSymbol(sym, SymbolOptions(geometry: _ml(anchor), iconRotate: rot))
+        .catchError((_) {})
+        .whenComplete(() => _navExploreUpdating = false);
   }
 
   /// Throttled nav-puck re-projection driven by [_onCameraMove]: keeps the
@@ -1665,14 +1986,9 @@ class RouteMapViewState extends State<RouteMapView>
     try {
       final sp = await c.toScreenLocation(_ml(loc));
       if (!mounted) return;
-      final pos = Offset(sp.x / _aimScale, sp.y / _aimScale);
-      _navPuckPos.value = pos;
-      DebugLog.cam(
-        'navPuck loc=${loc.latitude.toStringAsFixed(6)},'
-        '${loc.longitude.toStringAsFixed(6)} → screen '
-        '${pos.dx.toStringAsFixed(1)},${pos.dy.toStringAsFixed(1)} logical px '
-        '(scale=$_aimScale)',
-      );
+      // No per-projection logging here: the render ticker projects every
+      // display frame, which would flood the debug log.
+      _navPuckPos.value = Offset(sp.x / _aimScale, sp.y / _aimScale);
     } catch (_) {
       // Projection can momentarily fail mid-move; keep the last position.
     }
@@ -1794,28 +2110,38 @@ class RouteMapViewState extends State<RouteMapView>
                           },
                         ),
                   );
-                  return ValueListenableBuilder<Offset?>(
-                    valueListenable: _navPuckPos,
-                    builder: (_, pos, __) {
-                      if (pos == null) {
-                        // First frame, before the projection lands: an
-                        // approximate lower-middle slot.
-                        return Align(
-                          alignment: const Alignment(0, 0.34),
-                          child: puck,
-                        );
-                      }
-                      return Stack(
-                        children: [
-                          Positioned(
-                            left: pos.dx,
-                            top: pos.dy,
-                            child: FractionalTranslation(
-                              translation: const Offset(-0.5, -0.5),
+                  // While exploring (and through the glide back) the car is
+                  // a geo-anchored native symbol instead — hide the
+                  // screen-projected puck so there's never a doubled or
+                  // camera-dragged vehicle.
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: _navPuckHidden,
+                    builder: (_, hidden, __) {
+                      if (hidden) return const SizedBox.shrink();
+                      return ValueListenableBuilder<Offset?>(
+                        valueListenable: _navPuckPos,
+                        builder: (_, pos, __) {
+                          if (pos == null) {
+                            // First frame, before the projection lands: an
+                            // approximate lower-middle slot.
+                            return Align(
+                              alignment: const Alignment(0, 0.34),
                               child: puck,
-                            ),
-                          ),
-                        ],
+                            );
+                          }
+                          return Stack(
+                            children: [
+                              Positioned(
+                                left: pos.dx,
+                                top: pos.dy,
+                                child: FractionalTranslation(
+                                  translation: const Offset(-0.5, -0.5),
+                                  child: puck,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   );

@@ -107,6 +107,11 @@ class RoutePlannerState extends Equatable {
   final int autoServeCount;
   final String? autoServedStopLabel;
 
+  /// True while a deviation-triggered route recalculation is in flight.
+  /// Navigation keeps running off the old geometry until the new route
+  /// lands; the HUD shows a subtle "recalculating" notice meanwhile.
+  final bool isRerouting;
+
   /// True when the last connectivity probe found no internet. Drives the
   /// offline banner; edits keep saving locally regardless.
   final bool isOffline;
@@ -150,6 +155,7 @@ class RoutePlannerState extends Equatable {
     this.maneuverFractions = const [],
     this.autoServeCount = 0,
     this.autoServedStopLabel,
+    this.isRerouting = false,
     this.isOffline = false,
     this.draftRestored = false,
     this.movingPointId,
@@ -193,6 +199,7 @@ class RoutePlannerState extends Equatable {
     List<double>? maneuverFractions,
     int? autoServeCount,
     String? autoServedStopLabel,
+    bool? isRerouting,
     bool? isOffline,
     bool? draftRestored,
     String? movingPointId,
@@ -236,6 +243,7 @@ class RoutePlannerState extends Equatable {
       maneuverFractions: maneuverFractions ?? this.maneuverFractions,
       autoServeCount: autoServeCount ?? this.autoServeCount,
       autoServedStopLabel: autoServedStopLabel ?? this.autoServedStopLabel,
+      isRerouting: isRerouting ?? this.isRerouting,
       isOffline: isOffline ?? this.isOffline,
       draftRestored: draftRestored ?? this.draftRestored,
       movingPointId: clearMovingPoint
@@ -270,6 +278,7 @@ class RoutePlannerState extends Equatable {
     maneuverFractions,
     autoServeCount,
     autoServedStopLabel,
+    isRerouting,
     isOffline,
     draftRestored,
     movingPointId,

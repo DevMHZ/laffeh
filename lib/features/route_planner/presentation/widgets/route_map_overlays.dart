@@ -23,7 +23,7 @@ class SimPuck extends StatelessWidget {
       child: SizedBox(
         width: 44,
         height: 44,
-        child: CustomPaint(painter: VehiclePrefs.current.painter()),
+        child: Center(child: VehiclePrefs.current.avatar(size: 44)),
       ),
     );
   }
@@ -47,17 +47,25 @@ class NavigationPuck extends StatelessWidget {
   Widget build(BuildContext context) {
     return Transform.rotate(
       angle: rotationDegrees * math.pi / 180.0,
-      child: const SizedBox(
+      child: SizedBox(
         width: 54,
         height: 54,
-        child: CustomPaint(painter: _NavigationPuckPainter()),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const CustomPaint(painter: _NavigationPuckHaloPainter()),
+            Center(child: VehiclePrefs.current.avatar(size: 54)),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _NavigationPuckPainter extends CustomPainter {
-  const _NavigationPuckPainter();
+/// Halo + ground shadow under the drive avatar (the vehicle itself is a
+/// separate widget layered on top — see [NavigationPuck]).
+class _NavigationPuckHaloPainter extends CustomPainter {
+  const _NavigationPuckHaloPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -73,7 +81,6 @@ class _NavigationPuckPainter extends CustomPainter {
         ..color = Colors.black.withValues(alpha: 0.22)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    VehiclePrefs.current.painter().paint(canvas, size);
   }
 
   @override

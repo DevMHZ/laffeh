@@ -4,7 +4,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/vehicle_kind.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
+import '../../../../core/theme/vehicle_sprites.dart';
 import '../../../../core/utils/marker_factory.dart';
 
 /// Renders the map's marker icons as canvas-drawn PNG bytes, ready to be
@@ -104,8 +106,55 @@ class MapMarkerRenderer {
 
   /// The animated playback / drive vehicle — whichever [VehicleKind] the
   /// user picked in Settings (top-down, drawn pointing north).
-  static Future<Uint8List> vehicle() =>
-      _toPng(40, 40, (c, sz) => VehiclePrefs.current.painter().paint(c, sz));
+  static Future<Uint8List> vehicle() async {
+    final kind = VehiclePrefs.current;
+    final sprite = await VehicleSprites.of(kind);
+    return _toPng(44, 44, (c, sz) => _paintVehicle(c, sz, kind, sprite));
+  }
+
+  /// Geo-anchored drive vehicle used while the user freely explores the map
+  /// mid-navigation. Drawn exactly like the screen-fixed `NavigationPuck`
+  /// (halo + soft shadow + the picked vehicle) so swapping between the two
+  /// is invisible.
+  static Future<Uint8List> navVehicle() async {
+    final kind = VehiclePrefs.current;
+    final sprite = await VehicleSprites.of(kind);
+    return _toPng(54, 54, (c, sz) {
+      final center = Offset(sz.width / 2, sz.height / 2);
+      c.drawCircle(
+        center,
+        26,
+        ui.Paint()..color = AppColors.primary.withValues(alpha: 0.10),
+      );
+      c.drawOval(
+        Rect.fromCenter(center: center.translate(0, 6), width: 34, height: 38),
+        ui.Paint()
+          ..color = Colors.black.withValues(alpha: 0.22)
+          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+      );
+      _paintVehicle(c, sz, kind, sprite);
+    });
+  }
+
+  /// Draws [kind]'s avatar into the full [sz] square: the decoded 3D
+  /// sprite when available, else its code painter (the arrow).
+  static void _paintVehicle(
+    Canvas c,
+    Size sz,
+    VehicleKind kind,
+    ui.Image? sprite,
+  ) {
+    if (sprite == null) {
+      kind.painter()?.paint(c, sz);
+      return;
+    }
+    c.drawImageRect(
+      sprite,
+      Rect.fromLTWH(0, 0, sprite.width.toDouble(), sprite.height.toDouble()),
+      Rect.fromLTWH(0, 0, sz.width, sz.height),
+      ui.Paint()..filterQuality = ui.FilterQuality.high,
+    );
+  }
 
   /// The user's current location — a haloed blue dot.
   static Future<Uint8List> userLocation() => _toPng(32, 32, (c, sz) {

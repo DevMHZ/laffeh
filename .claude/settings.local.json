@@ -76,7 +76,26 @@
       "Bash(pkill -f \"flutter_tools\")",
       "Bash(pkill -f \"laffeh\")",
       "Bash(screencapture -x /tmp/laffeh_screenshot.png)",
-      "Bash(grep -E \"\\\\.dart$\")"
+      "Bash(grep -E \"\\\\.dart$\")",
+      "Bash(dart format *)",
+      "Bash(flutter devices *)",
+      "Bash(xcrun simctl *)",
+      "Bash(open -a Simulator)",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/ee94d86e-6c97-4ef3-9a27-c6143e87539b/scratchpad/flutter_run.log)",
+      "Bash(osascript *)",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/ee94d86e-6c97-4ef3-9a27-c6143e87539b/scratchpad/flutter_run2.log)",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/ee94d86e-6c97-4ef3-9a27-c6143e87539b/scratchpad/flutter_run3.log)",
+      "Bash(curl -sIL \"https://maps.app.goo.gl/xDD9DJGGYQ9E3H54A\")",
+      "Bash(dart run *)",
+      "Bash(pkill -f \"flutter run -d C625A6D8\")",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/ee94d86e-6c97-4ef3-9a27-c6143e87539b/scratchpad/flutter_run5.log)",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/ee94d86e-6c97-4ef3-9a27-c6143e87539b/scratchpad/flutter_run6.log)",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/ee94d86e-6c97-4ef3-9a27-c6143e87539b/scratchpad/flutter_run7.log)",
+      "Bash(git *)",
+      "Bash(git -C /Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh diff --stat)",
+      "Bash(git -C /Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh status --short)",
+      "Bash(git -C /Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh diff lib/features/route_planner/presentation/cubit/route_planner_cubit.dart)",
+      "Bash(git stash *)"
     ]
   }
 }

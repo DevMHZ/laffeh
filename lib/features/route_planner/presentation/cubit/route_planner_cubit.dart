@@ -26,11 +26,13 @@ import '../../../../core/utils/location_utils.dart';
 import '../../../saved_routes/domain/entities/saved_route.dart';
 import '../../../saved_routes/domain/repositories/saved_routes_repository.dart';
 import '../../data/datasources/osm_geocoding_datasource.dart';
+import '../../data/datasources/osrm_routing_datasource.dart';
 import '../../data/datasources/planner_draft_local_datasource.dart';
 import '../../data/models/planner_draft_model.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/usecases/optimize_route_usecase.dart';
+import '../widgets/map_geometry.dart';
 import 'route_planner_state.dart';
 
 class RoutePlannerCubit extends Cubit<RoutePlannerState> {
@@ -39,6 +41,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   final OsmGeocodingDataSource _geocoding;
   final PlannerDraftLocalDataSource _draft;
   final NetworkInfo _network;
+  final OsrmRoutingDataSource _routing;
 
   /// Drives the simulation marker forward; cancelled on stop / reset / close.
   Timer? _simTimer;
@@ -60,12 +63,28 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// [NavigationConfig.autoServeExitMeters] auto-completes the point.
   bool _enteredServiceRadius = false;
 
+  // ── Deviation → automatic reroute state ──
+  /// Consecutive deviating fixes (spaced by real movement) seen so far.
+  int _offRouteFixCount = 0;
+
+  /// The last fix the deviation counter accepted, enforcing
+  /// [NavigationConfig.rerouteFixSpacingMeters] between counted fixes.
+  LatLng? _lastOffRouteCounted;
+
+  /// True while a reroute fetch is in flight — only ever one at a time.
+  bool _rerouting = false;
+
+  /// No reroute may start before this instant (cooldown between attempts
+  /// and backoff after a failed fetch).
+  DateTime? _rerouteBackoffUntil;
+
   RoutePlannerCubit(
     this._optimize,
     this._savedRoutes,
     this._geocoding,
     this._draft,
     this._network,
+    this._routing,
   ) : super(const RoutePlannerState());
 
   /// Coalesces rapid draft writes into one debounced disk write.
@@ -856,16 +875,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         ),
       );
 
-      const settings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: NavigationConfig.distanceFilterMeters,
-      );
       _navSub = Geolocator.getPositionStream(
-        locationSettings: settings,
+        locationSettings: _navLocationSettings(),
       ).listen(_onNavigationPosition, onError: _onNavigationError);
       DebugLog.nav(
         'startNavigation() ✅ subscribed to position stream '
-        '(accuracy=high, distanceFilter=5m). Waiting for GPS ticks…',
+        '(navigation accuracy, distanceFilter='
+        '${NavigationConfig.distanceFilterMeters}m). Waiting for GPS ticks…',
       );
     } on LocationException catch (e) {
       DebugLog.nav('startNavigation() ✋ LocationException: ${e.message}');
@@ -893,6 +909,32 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     }
   }
 
+  /// Navigation-grade stream settings per platform. The zero distance
+  /// filter keeps fixes coming (~1 Hz) even while slowing to a stop — the
+  /// map's render interpolator depends on that steady cadence.
+  LocationSettings _navLocationSettings() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: NavigationConfig.distanceFilterMeters,
+        intervalDuration: NavigationConfig.androidUpdateInterval,
+      );
+    }
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: NavigationConfig.distanceFilterMeters,
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: NavigationConfig.distanceFilterMeters,
+    );
+  }
+
   void stopNavigation() {
     _cancelNavigationStream();
     emit(
@@ -901,6 +943,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationProgress: 0.0,
         navigationStopIndex: 1,
         navigationArrived: false,
+        isRerouting: false,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
         clearNavigationStopDistance: true,
@@ -919,6 +962,82 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   /// Back-compat alias for [servePoint].
   void markCurrentStopDone() => servePoint();
+
+  /// Mid-trip re-plan: the trip went sideways (wrong turns, traffic, a
+  /// manual detour) — re-run the optimizer for the *unserved* stops from
+  /// the driver's current position, then jump straight back into the
+  /// drive. Served stops stay served (they're dropped from the new plan);
+  /// deactivated optional points survive on the map; a simulated debug
+  /// drive restarts simulated so desk testing keeps working.
+  Future<void> reoptimizeRemaining() async {
+    final route = state.optimizedRoute;
+    if (route == null || !state.navigationActive || state.isOptimizing) {
+      return;
+    }
+
+    final from = state.userLocation ?? route.orderedPoints.first.latLng;
+    final idx = state.navigationStopIndex.clamp(
+      0,
+      route.orderedPoints.length - 1,
+    );
+    // Everything still ahead of the driver, minus depot entries — the new
+    // plan gets its own departure (and return) at the current position,
+    // matching the app's "routes anchor to where you are now" model.
+    final unserved = route.orderedPoints
+        .sublist(idx)
+        .where((p) => !p.isDepot)
+        .toList();
+    if (unserved.isEmpty) return; // only the return leg left — nothing to plan
+    final deactivated = state.points.where((p) => p.isDeactivated).toList();
+    final wasSim = kDebugMode && debugDriveSimActive;
+
+    DebugLog.nav(
+      'reoptimizeRemaining() from='
+      '${from.latitude.toStringAsFixed(6)},${from.longitude.toStringAsFixed(6)} '
+      'unserved=${unserved.length} wasSim=$wasSim',
+    );
+    _cancelNavigationStream();
+    emit(
+      state.copyWith(
+        status: RoutePlannerStatus.pointsUpdated,
+        userLocation: from,
+        points: [
+          RoutePoint(
+            id: 'depot_current',
+            latitude: from.latitude,
+            longitude: from.longitude,
+            label: AppStrings.departure,
+            weight: RoutingConfig.defaultStopWeight,
+            kind: RoutePointKind.depot,
+          ),
+          ...unserved,
+          ...deactivated,
+        ],
+        navigationActive: false,
+        navigationProgress: 0.0,
+        navigationStopIndex: 1,
+        navigationArrived: false,
+        isRerouting: false,
+        clearNavigationHeading: true,
+        clearNavigationSpeed: true,
+        clearNavigationStopDistance: true,
+      ),
+    );
+
+    await optimize();
+    if (isClosed) return;
+    if (state.status != RoutePlannerStatus.optimizedSuccess ||
+        state.optimizedRoute == null) {
+      // optimize() already surfaced its error; the user lands in planning
+      // with all unserved stops intact and can retry from there.
+      return;
+    }
+    if (wasSim) {
+      debugStartDriveSim();
+    } else {
+      await startNavigation();
+    }
+  }
 
   /// Shared completion path for manual + automatic serving. Advances to
   /// the next service point (ending the trip after the final one) and,
@@ -945,6 +1064,258 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         autoServedStopLabel: autoServedLabel,
       ),
     );
+  }
+
+  // ── DEBUG: synthetic drive simulator ───────────────────────
+  //
+  // A desk-testable driver: synthetic fixes are pushed through the exact
+  // same pipeline as real GPS (_onNavigationPosition), so the accuracy
+  // gate, deviation detection, automatic rerouting, the service-point
+  // machine and the marker interpolation all run for real. The driver
+  // follows the *current* route polyline at a configurable speed and can
+  // be shifted laterally off the road to provoke a reroute.
+  // All of it is compiled out of release builds via [kDebugMode].
+
+  Timer? _driveSimTimer;
+  LatLng? _driveSimPos;
+  double _driveSimSpeedKmh = 40;
+
+  /// GTA mode: non-null = the driver left the road and is going straight
+  /// along this bearing (degrees). Null = auto-following the route.
+  double? _driveSimHeading;
+
+  /// True once the free driver has clearly left the road, arming the
+  /// rejoin — otherwise the car would "rejoin" the road it's still on the
+  /// instant after turning.
+  bool _driveSimLeftRoad = false;
+
+  static const Duration _driveSimTick = Duration(milliseconds: 500);
+
+  /// Free driver hops back onto the route once it passes this close —
+  /// which is exactly what happens when a reroute lands under the car.
+  static const double _driveSimRejoinMeters = 20.0;
+
+  bool get debugDriveSimActive => _driveSimTimer != null;
+  double get debugDriveSimSpeedKmh => _driveSimSpeedKmh;
+
+  /// True while the driver is off in GTA mode (not following the route).
+  bool get debugDriveSimFreeDriving => _driveSimHeading != null;
+
+  /// DEBUG ONLY. Loads a reproducible 3-stop Beirut demo (departure at
+  /// Martyrs' Square → Hamra → Sassine → Verdun) and optimizes it, no
+  /// matter where the device really is — the playground for the drive
+  /// simulator.
+  Future<void> debugLoadBeirutDemo() async {
+    if (!kDebugMode) return;
+    _cancelSimTimer();
+    _cancelNavigationStream();
+    const depot = LatLng(33.8938, 35.5018); // ساحة الشهداء
+    const stops = <(double, double, String)>[
+      (33.8965, 35.4780, 'الحمرا'),
+      (33.8869, 35.5131, 'ساسين — الأشرفية'),
+      (33.8791, 35.4884, 'فردان'),
+    ];
+    emit(
+      state.copyWith(
+        status: RoutePlannerStatus.pointsUpdated,
+        userLocation: depot,
+        cameraTarget: depot,
+        points: [
+          RoutePoint(
+            id: 'depot_current',
+            latitude: depot.latitude,
+            longitude: depot.longitude,
+            label: AppStrings.departure,
+            weight: RoutingConfig.defaultStopWeight,
+            kind: RoutePointKind.depot,
+          ),
+          for (var i = 0; i < stops.length; i++)
+            RoutePoint(
+              id: 'demo_beirut_$i',
+              latitude: stops[i].$1,
+              longitude: stops[i].$2,
+              label: stops[i].$3,
+              weight: RoutingConfig.defaultStopWeight,
+              kind: RoutePointKind.stop,
+            ),
+        ],
+        clearOptimizedRoute: true,
+        clearError: true,
+        simulationActive: false,
+        simulationPlaying: false,
+        simulationProgress: 0.0,
+        navigationActive: false,
+        navigationProgress: 0.0,
+        clearNavigationHeading: true,
+        clearNavigationSpeed: true,
+        manualPlacement: false,
+      ),
+    );
+    await optimize();
+  }
+
+  /// DEBUG ONLY. Starts (or restarts) the synthetic drive along the
+  /// current optimized route: real GPS is switched off and the fake
+  /// driver takes over from the route start.
+  void debugStartDriveSim() {
+    if (!kDebugMode) return;
+    final route = state.optimizedRoute;
+    if (route == null || route.fullPolyline.length < 2) return;
+
+    _cancelSimTimer();
+    _cancelNavigationStream(); // also kills any previous sim + real GPS
+    final start = route.fullPolyline.first;
+    _driveSimPos = start;
+    _driveSimHeading = null;
+    _driveSimLeftRoad = false;
+    _lastNavProgress = 0.0;
+    _enteredServiceRadius = false;
+    DebugLog.nav(
+      'driveSim ▶ start speed=${_driveSimSpeedKmh.toStringAsFixed(0)}km/h '
+      '(synthetic fixes every ${_driveSimTick.inMilliseconds}ms)',
+    );
+    emit(
+      state.copyWith(
+        userLocation: start,
+        cameraTarget: start,
+        navigationActive: true,
+        navigationProgress: 0.0,
+        navigationStopIndex: 1,
+        navigationArrived: false,
+        clearNavigationHeading: true,
+        clearNavigationSpeed: true,
+        clearNavigationStopDistance: true,
+        stopFractions: state.stopFractions.length == route.orderedPoints.length
+            ? state.stopFractions
+            : _fractionsFor(route),
+        maneuverFractions:
+            state.maneuverFractions.length == route.maneuvers.length
+            ? state.maneuverFractions
+            : _maneuverFractionsFor(route),
+        simulationActive: false,
+        simulationPlaying: false,
+        simulationProgress: 0.0,
+        displaySegment: RouteSegment.full,
+        clearError: true,
+      ),
+    );
+    _driveSimTimer = Timer.periodic(_driveSimTick, (_) => _onDriveSimTick());
+  }
+
+  /// DEBUG ONLY. Cruise speed of the synthetic driver. 0 = standing still
+  /// (the sim keeps emitting fixes, like a car waiting at a light).
+  void debugSetDriveSimSpeed(double kmh) {
+    if (!kDebugMode) return;
+    _driveSimSpeedKmh = kmh.clamp(0, 130).toDouble();
+  }
+
+  /// DEBUG ONLY. GTA-style steering: rotate the driver by [degrees]
+  /// (+90 = right, −90 = left) and drive straight in that direction. The
+  /// driver leaves the road, the deviation watcher fires a reroute, and
+  /// the moment the recalculated road passes under the car it snaps onto
+  /// it and resumes following automatically.
+  void debugTurnDriveSim(double degrees) {
+    if (!kDebugMode || _driveSimTimer == null) return;
+    final route = state.optimizedRoute;
+    final pos = _driveSimPos;
+    double base;
+    final wasFollowing = _driveSimHeading == null;
+    if (!wasFollowing) {
+      base = _driveSimHeading!;
+    } else if (route != null && route.fullPolyline.length >= 2 && pos != null) {
+      base = PolylineUtils.lookAheadBearing(
+        route.fullPolyline,
+        _progressAlongPath(route.fullPolyline, pos),
+        15,
+      );
+    } else {
+      base = 0;
+    }
+    _driveSimHeading = (base + degrees) % 360;
+    // Arm-reset only when leaving the road for the first time: while the
+    // car is still on it, the rejoin must not fire instantly. Once already
+    // free (e.g. a quick U-turn), stay armed so re-crossing a road grabs it.
+    if (wasFollowing) _driveSimLeftRoad = false;
+    DebugLog.nav(
+      'driveSim ⤳ turn ${degrees > 0 ? 'right' : 'left'} → heading '
+      '${_driveSimHeading!.toStringAsFixed(0)}°',
+    );
+  }
+
+  void _onDriveSimTick() {
+    if (!state.navigationActive) {
+      _cancelDriveSim();
+      return;
+    }
+    final route = state.optimizedRoute;
+    final pos0 = _driveSimPos;
+    if (route == null || route.fullPolyline.length < 2 || pos0 == null) {
+      _cancelDriveSim();
+      return;
+    }
+    final poly = route.fullPolyline;
+    final stepMeters =
+        _driveSimSpeedKmh / 3.6 * (_driveSimTick.inMilliseconds / 1000.0);
+
+    LatLng pos;
+    double heading;
+    final free = _driveSimHeading;
+    if (free != null) {
+      // ── GTA mode: straight along the chosen heading ──
+      pos = stepMeters > 0
+          ? MapGeometry.destinationPoint(pos0, free, stepMeters)
+          : pos0;
+      heading = free;
+      // Rejoin the road once it passes under the car — armed only after
+      // the car has clearly left it, so turning doesn't instantly cancel.
+      final t = _progressAlongPath(poly, pos);
+      final nearest = PolylineUtils.sampleAt(poly, t)?.point;
+      if (nearest != null) {
+        final distM = DistanceUtils.haversineKm(nearest, pos) * 1000;
+        if (distM > _driveSimRejoinMeters * 2) _driveSimLeftRoad = true;
+        if (_driveSimLeftRoad && distM <= _driveSimRejoinMeters) {
+          pos = nearest;
+          heading = PolylineUtils.lookAheadBearing(poly, t, 15);
+          _driveSimHeading = null;
+          _driveSimLeftRoad = false;
+          DebugLog.nav('driveSim ⇤ rejoined the road — following again');
+        }
+      }
+    } else {
+      // ── Auto-follow the current route ──
+      // Re-project onto the *current* polyline every tick, so the driver
+      // hops onto fresh geometry the instant a reroute lands.
+      final totalKm = DistanceUtils.pathLengthKm(poly);
+      if (totalKm <= 0) return;
+      final t0 = _progressAlongPath(poly, pos0);
+      final t = (t0 + stepMeters / 1000.0 / totalKm).clamp(0.0, 1.0);
+      pos = PolylineUtils.interpolateByLength(poly, t) ?? pos0;
+      heading = PolylineUtils.lookAheadBearing(poly, t, 15);
+    }
+    _driveSimPos = pos;
+
+    _onNavigationPosition(
+      Position(
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        timestamp: DateTime.now(),
+        accuracy: 5,
+        altitude: 0,
+        altitudeAccuracy: 5,
+        heading: heading,
+        headingAccuracy: 5,
+        speed: _driveSimSpeedKmh / 3.6,
+        speedAccuracy: 1,
+      ),
+    );
+  }
+
+  void _cancelDriveSim() {
+    _driveSimTimer?.cancel();
+    _driveSimTimer = null;
+    _driveSimPos = null;
+    _driveSimHeading = null;
+    _driveSimLeftRoad = false;
   }
 
   /// Advances the debug driver forward along the planned polyline.
@@ -1086,7 +1457,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     // Off-route fixes would otherwise snap progress to the nearest polyline
     // point (often near the end); when off-route we freeze it and keep
     // whatever the last good value was.
-    final onRouteProg = _onRouteProgress(route.fullPolyline, loc);
+    final projection = _routeProjection(route.fullPolyline, loc);
+    final onRouteProg =
+        (projection != null &&
+            projection.offRouteMeters <=
+                NavigationConfig.onRouteThresholdMeters)
+        ? projection.progress
+        : null;
     var progress = state.navigationProgress;
     if (onRouteProg != null) {
       // Monotonic progress: GPS noise can briefly regress the fraction;
@@ -1163,6 +1540,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       }
     }
 
+    // Deviation watch: enough sustained, clearly-off-route movement kicks
+    // off a background recalculation toward the current service point.
+    _watchForDeviation(
+      offRouteMeters: projection?.offRouteMeters,
+      loc: loc,
+      accuracy: position.accuracy,
+      arrived: arrived,
+    );
+
     DebugLog.nav(
       '→ emit progress=${progress.toStringAsFixed(4)} '
       'smoothedHeading=${_smoothedHeading?.toStringAsFixed(1)} '
@@ -1186,6 +1572,202 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     );
   }
 
+  // ── Automatic rerouting ────────────────────────────────────
+  //
+  // A single stray fix is GPS noise; several clearly-off-route fixes in a
+  // row, spaced by real movement, is a driver who left the planned road.
+  // When that happens we fetch fresh geometry from the current position
+  // through every remaining stop (the active service point first) and
+  // splice it onto the already-driven part of the old route, so the trail,
+  // progress and all navigation state carry over seamlessly.
+
+  /// Counts deviating fixes and fires [_reroute] once the pattern is
+  /// unmistakably a real deviation rather than drift or a lane change.
+  void _watchForDeviation({
+    required double? offRouteMeters,
+    required LatLng loc,
+    required double accuracy,
+    required bool arrived,
+  }) {
+    if (offRouteMeters == null) return;
+
+    // The threshold widens on poor fixes: 40 m off-route means nothing
+    // when the fix itself is only good to ±30 m.
+    final threshold = math.max(
+      NavigationConfig.rerouteDeviationMeters,
+      accuracy.isFinite && accuracy > 0
+          ? accuracy * NavigationConfig.rerouteAccuracyFactor
+          : 0.0,
+    );
+    if (offRouteMeters <= threshold) {
+      _offRouteFixCount = 0;
+      _lastOffRouteCounted = null;
+      return;
+    }
+
+    // Fixes now stream continuously (~1 Hz) even when parked — require
+    // real movement between counted fixes so a car idling off-route
+    // (or serving a stop) can't tick the counter up.
+    final last = _lastOffRouteCounted;
+    if (last != null &&
+        DistanceUtils.haversineKm(last, loc) * 1000 <
+            NavigationConfig.rerouteFixSpacingMeters) {
+      return;
+    }
+    _lastOffRouteCounted = loc;
+    _offRouteFixCount++;
+    DebugLog.nav(
+      'deviation fix #$_offRouteFixCount — '
+      '${offRouteMeters.toStringAsFixed(0)}m from route '
+      '(threshold ${threshold.toStringAsFixed(0)}m)',
+    );
+
+    if (_offRouteFixCount < NavigationConfig.rerouteMinConsecutiveFixes) {
+      return;
+    }
+    if (_rerouting) return;
+    final backoff = _rerouteBackoffUntil;
+    if (backoff != null && DateTime.now().isBefore(backoff)) return;
+    // At the stop itself, being off the road is the point (driveways,
+    // parking) — never reroute around the service radius.
+    if (arrived || _enteredServiceRadius) return;
+
+    unawaited(_reroute(loc));
+  }
+
+  /// Recalculates the route from [from] through every remaining stop and
+  /// swaps it in without touching the rest of the navigation state.
+  Future<void> _reroute(LatLng from) async {
+    final route = state.optimizedRoute;
+    if (route == null || !state.navigationActive || _rerouting) return;
+    final stopIdx = state.navigationStopIndex.clamp(
+      0,
+      route.orderedPoints.length - 1,
+    );
+    final remaining = route.orderedPoints.sublist(stopIdx);
+    if (remaining.isEmpty) return;
+
+    _rerouting = true;
+    emit(state.copyWith(isRerouting: true));
+    DebugLog.nav(
+      'REROUTE start from=${from.latitude.toStringAsFixed(6)},'
+      '${from.longitude.toStringAsFixed(6)} '
+      'remainingStops=${remaining.length}',
+    );
+
+    try {
+      final fresh = await _routing.fetchRoute(
+        origin: from,
+        destination: remaining.last.latLng,
+        waypoints: [
+          for (final p in remaining.take(remaining.length - 1)) p.latLng,
+        ],
+        includeSteps: true,
+      );
+
+      // The world may have moved on during the fetch: trip ended, a stop
+      // was served and re-triggered, or the route was replaced outright.
+      if (isClosed ||
+          !state.navigationActive ||
+          !identical(state.optimizedRoute, route)) {
+        return;
+      }
+      if (fresh.isEmpty || fresh.polyline.length < 2) {
+        DebugLog.nav('REROUTE ✋ router returned no geometry — backing off');
+        _rerouteBackoffUntil = DateTime.now().add(
+          NavigationConfig.rerouteCooldown,
+        );
+        emit(state.copyWith(isRerouting: false));
+        return;
+      }
+
+      // Keep the driven geometry so the trail and the fractions of served
+      // stops stay truthful, and append the fresh road. The short seam
+      // between the frozen on-route point and the router's snapped origin
+      // is the driver's actual departure from the plan.
+      final driven = MapGeometry.subPath(
+        route.fullPolyline,
+        0.0,
+        _lastNavProgress,
+      );
+      final newFull = <LatLng>[...driven, ...fresh.polyline];
+      final drivenKm = DistanceUtils.pathLengthKm(driven);
+      final totalKm = DistanceUtils.pathLengthKm(newFull);
+      if (totalKm <= 0) {
+        _rerouteBackoffUntil = DateTime.now().add(
+          NavigationConfig.rerouteCooldown,
+        );
+        emit(state.copyWith(isRerouting: false));
+        return;
+      }
+      final newProgress = (drivenKm / totalKm).clamp(0.0, 1.0);
+
+      // Maneuver fractions are measured on the fresh segment alone and
+      // offset by the driven arc length. Matching against the merged
+      // polyline instead could snap a maneuver into the driven prefix when
+      // the new route re-traverses old roads (a U-turn reroute — the most
+      // common kind), silently hiding its instruction.
+      final newKm = DistanceUtils.pathLengthKm(fresh.polyline);
+      final maneuverFractions = newKm > 0
+          ? [
+              for (final f in PolylineUtils.orderedFractionsAlong(
+                fresh.polyline,
+                [for (final m in fresh.maneuvers) m.latLng],
+              ))
+                ((drivenKm + f * newKm) / totalKm).clamp(0.0, 1.0),
+            ]
+          : const <double>[];
+
+      // The router just measured the *remaining* duration; express it as a
+      // whole-trip estimate so the HUD's `est × (1 − progress)` readouts
+      // keep meaning "what's left".
+      final remainFrac = (1 - newProgress).clamp(0.01, 1.0);
+      final metrics = route.metrics.copyWith(
+        totalDistanceKm: totalKm,
+        estimatedDurationMinutes: fresh.durationSeconds / 60.0 / remainFrac,
+      );
+
+      final newRoute = OptimizedRoute(
+        orderedPoints: route.orderedPoints,
+        fullPolyline: newFull,
+        goPolyline: route.goPolyline,
+        returnPolyline: route.returnPolyline,
+        metrics: metrics,
+        hasRoadGeometry: true,
+        maneuvers: fresh.maneuvers,
+      );
+
+      _lastNavProgress = newProgress;
+      _offRouteFixCount = 0;
+      _lastOffRouteCounted = null;
+      _rerouteBackoffUntil = DateTime.now().add(
+        NavigationConfig.rerouteCooldown,
+      );
+      DebugLog.nav(
+        'REROUTE ✅ newTotal=${totalKm.toStringAsFixed(2)}km '
+        'progress=${newProgress.toStringAsFixed(4)} '
+        'maneuvers=${fresh.maneuvers.length}',
+      );
+      emit(
+        state.copyWith(
+          optimizedRoute: newRoute,
+          stopFractions: _fractionsFor(newRoute),
+          maneuverFractions: maneuverFractions,
+          navigationProgress: newProgress,
+          isRerouting: false,
+        ),
+      );
+    } catch (e) {
+      DebugLog.nav('REROUTE ✋ error: $e');
+      _rerouteBackoffUntil = DateTime.now().add(
+        NavigationConfig.rerouteCooldown,
+      );
+      if (!isClosed) emit(state.copyWith(isRerouting: false));
+    } finally {
+      _rerouting = false;
+    }
+  }
+
   /// Exponential smoother for [next] toward [prev] along the shortest arc
   /// (handles the 0°/360° wrap).
   double _blendHeading(double? prev, double next) {
@@ -1202,6 +1784,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       state.copyWith(
         errorMessage: AppStrings.errLocationUnavailable,
         navigationActive: false,
+        isRerouting: false,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
       ),
@@ -1209,12 +1792,16 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   }
 
   void _cancelNavigationStream() {
+    _cancelDriveSim();
     _navSub?.cancel();
     _navSub = null;
     _smoothedHeading = null;
     _smoothedSpeed = null;
     _lastNavProgress = 0.0;
     _enteredServiceRadius = false;
+    _offRouteFixCount = 0;
+    _lastOffRouteCounted = null;
+    _rerouteBackoffUntil = null;
   }
 
   // ── Saved routes integration ───────────────────────────────
@@ -1424,6 +2011,22 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   // ── Internals ──────────────────────────────────────────────
 
+  /// Projects [point] onto [path]: the arc-length progress (0..1) of the
+  /// nearest on-route point plus how far off the route the fix sits.
+  /// Progress drives the trail only while the fix is on-route (see
+  /// [_onRouteProgress]); the off-route distance feeds deviation detection.
+  ({double progress, double offRouteMeters})? _routeProjection(
+    List<LatLng> path,
+    LatLng point,
+  ) {
+    if (path.length < 2) return null;
+    final projected = _progressAlongPath(path, point);
+    final nearest = PolylineUtils.sampleAt(path, projected)?.point;
+    if (nearest == null) return null;
+    final offRouteMeters = DistanceUtils.haversineKm(nearest, point) * 1000;
+    return (progress: projected, offRouteMeters: offRouteMeters);
+  }
+
   /// Projected progress (0..1) of [point] along [path] — but only when the
   /// fix is genuinely on the route (within
   /// [NavigationConfig.onRouteThresholdMeters]). Returns null when the fix
@@ -1431,13 +2034,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// reached the start), so callers leave progress where it is instead of
   /// snapping to the nearest polyline point.
   double? _onRouteProgress(List<LatLng> path, LatLng point) {
-    if (path.length < 2) return null;
-    final projected = _progressAlongPath(path, point);
-    final nearest = PolylineUtils.sampleAt(path, projected)?.point;
-    if (nearest == null) return null;
-    final offRouteMeters = DistanceUtils.haversineKm(nearest, point) * 1000;
-    if (offRouteMeters > NavigationConfig.onRouteThresholdMeters) return null;
-    return projected;
+    final projection = _routeProjection(path, point);
+    if (projection == null) return null;
+    if (projection.offRouteMeters > NavigationConfig.onRouteThresholdMeters) {
+      return null;
+    }
+    return projection.progress;
   }
 
   double _progressAlongPath(List<LatLng> path, LatLng point) {

@@ -190,6 +190,9 @@ class AppStrings {
   static String get vehicleIcon => _t('vehicleIcon');
   static String get vehicleVwBus => _t('vehicleVwBus');
   static String get vehicleVespa => _t('vehicleVespa');
+  static String get vehicleTaxi => _t('vehicleTaxi');
+  static String get vehicleCamel => _t('vehicleCamel');
+  static String get vehicleArrow => _t('vehicleArrow');
   static String get languageEnglish => _t('languageEnglish');
   static String get languageArabic => _t('languageArabic');
   static String get languageFrench => _t('languageFrench');
@@ -303,6 +306,8 @@ class AppStrings {
   // Drive mode — service points & turn guidance
   static String get pointServed => _t('pointServed');
   static String get autoServedNotice => _t('autoServedNotice');
+  static String get rerouting => _t('rerouting');
+  static String get reoptimize => _t('reoptimize');
   static String get reCenter => _t('reCenter');
   static String get arrivalLabel => _t('arrivalLabel');
   static String get speedUnitKmh => _t('speedUnitKmh');
@@ -586,6 +591,9 @@ const Map<String, Map<String, String>> _copy = {
     'vehicleIcon': 'Vehicle icon',
     'vehicleVwBus': 'VW Bus',
     'vehicleVespa': 'Vespa',
+    'vehicleTaxi': 'Taxi',
+    'vehicleCamel': 'Camel',
+    'vehicleArrow': 'Arrow',
     'languageEnglish': 'English',
     'languageArabic': 'Arabic',
     'languageFrench': 'French',
@@ -672,6 +680,8 @@ const Map<String, Map<String, String>> _copy = {
     'arrivedHere': 'Arrived',
     'pointServed': 'Point served',
     'autoServedNotice': 'Service point completed. Navigating to next stop.',
+    'rerouting': 'Recalculating route…',
+    'reoptimize': 'Re-optimize',
     'reCenter': 'Re-center',
     'arrivalLabel': 'Arrival',
     'speedUnitKmh': 'km/h',
@@ -875,6 +885,9 @@ const Map<String, Map<String, String>> _copy = {
     'vehicleIcon': 'أيقونة المركبة',
     'vehicleVwBus': 'حافلة فولكسفاغن',
     'vehicleVespa': 'فيسبا',
+    'vehicleTaxi': 'تاكسي',
+    'vehicleCamel': 'جمل',
+    'vehicleArrow': 'سهم',
     'languageEnglish': 'الإنجليزية',
     'languageArabic': 'العربية',
     'languageFrench': 'الفرنسية',
@@ -962,6 +975,8 @@ const Map<String, Map<String, String>> _copy = {
     'arrivedHere': 'تم الوصول',
     'pointServed': 'تمت الخدمة',
     'autoServedNotice': 'اكتملت خدمة النقطة. جارٍ التوجه إلى المحطة التالية.',
+    'rerouting': 'جارٍ إعادة حساب المسار…',
+    'reoptimize': 'إعادة التحسين',
     'reCenter': 'إعادة التمركز',
     'arrivalLabel': 'الوصول',
     'speedUnitKmh': 'كم/س',
@@ -1171,6 +1186,9 @@ const Map<String, Map<String, String>> _copy = {
     'vehicleIcon': 'Icône du véhicule',
     'vehicleVwBus': 'Combi VW',
     'vehicleVespa': 'Vespa',
+    'vehicleTaxi': 'Taxi',
+    'vehicleCamel': 'Chameau',
+    'vehicleArrow': 'Flèche',
     'languageEnglish': 'Anglais',
     'languageArabic': 'Arabe',
     'languageFrench': 'Francais',
@@ -1263,6 +1281,8 @@ const Map<String, Map<String, String>> _copy = {
     'pointServed': 'Point servi',
     'autoServedNotice':
         'Point de service termine. Navigation vers le prochain arret.',
+    'rerouting': 'Recalcul de l\'itineraire…',
+    'reoptimize': 'Reoptimiser',
     'reCenter': 'Recentrer',
     'arrivalLabel': 'Arrivee',
     'speedUnitKmh': 'km/h',

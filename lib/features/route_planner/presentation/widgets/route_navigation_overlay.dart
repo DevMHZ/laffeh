@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui show TextDirection;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -95,7 +96,8 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
           a.navigationSpeedMps != b.navigationSpeedMps ||
           a.maneuverFractions != b.maneuverFractions ||
           a.userLocation != b.userLocation ||
-          a.optimizedRoute != b.optimizedRoute,
+          a.optimizedRoute != b.optimizedRoute ||
+          a.isRerouting != b.isRerouting,
       builder: (context, state) {
         final route = state.optimizedRoute;
         if (route == null || route.orderedPoints.isEmpty) {
@@ -191,6 +193,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           onLongPress: cubit.servePoint,
                         ),
                         const _AutoServeNotice(),
+                        _ReroutingNotice(visible: state.isRerouting),
                         const Spacer(),
                         _ServedButton(
                           visible: state.navigationArrived,
@@ -208,9 +211,8 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           speedMps: state.navigationSpeedMps,
                           onFocus: () => _setFocusMode(true),
                           onOpenGoogleMaps: widget.onOpenGoogleMaps,
+                          onReoptimize: cubit.reoptimizeRemaining,
                           onEndTrip: cubit.stopNavigation,
-                          debugStep:
-                              kDebugMode ? cubit.debugStepForward : null,
                         ),
                       ],
                     ),
@@ -246,6 +248,9 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       // One-shot "service point completed" notice for
                       // automatic completions.
                       const _AutoServeNotice(),
+                      // Subtle live notice while a deviation triggers a
+                      // background route recalculation.
+                      _ReroutingNotice(visible: state.isRerouting),
                       if (!_focusMode) ...[
                         const SizedBox(height: 6),
                         // Timeline strip.
@@ -297,9 +302,8 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                               speedMps: state.navigationSpeedMps,
                               onFocus: () => _setFocusMode(true),
                               onOpenGoogleMaps: widget.onOpenGoogleMaps,
+                              onReoptimize: cubit.reoptimizeRemaining,
                               onEndTrip: cubit.stopNavigation,
-                              debugStep:
-                                  kDebugMode ? cubit.debugStepForward : null,
                             ),
                     ],
                   ),
@@ -600,6 +604,65 @@ class _AutoServeNoticeState extends State<_AutoServeNotice> {
   }
 }
 
+/// Slim live pill shown while a deviation-triggered route recalculation is
+/// in flight: spinner + "recalculating route". Collapses to nothing the
+/// moment the fresh route lands, so a fast reroute barely registers.
+class _ReroutingNotice extends StatelessWidget {
+  final bool visible;
+  const _ReroutingNotice({required this.visible});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      child: !visible
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.asphalt.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.white.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          AppStrings.rerouting,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: AppColors.white.withValues(alpha: 0.92),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
 /// The "Point Served" action: hidden until the driver is inside the
 /// service radius, then springs in as a large, impossible-to-miss button
 /// that's easy to hit while stopped.
@@ -673,8 +736,8 @@ class _BottomPanel extends StatelessWidget {
   final double? speedMps;
   final VoidCallback onFocus;
   final VoidCallback? onOpenGoogleMaps;
+  final VoidCallback onReoptimize;
   final VoidCallback onEndTrip;
-  final VoidCallback? debugStep;
 
   const _BottomPanel({
     required this.remainingKm,
@@ -682,8 +745,8 @@ class _BottomPanel extends StatelessWidget {
     required this.speedMps,
     required this.onFocus,
     required this.onOpenGoogleMaps,
+    required this.onReoptimize,
     required this.onEndTrip,
-    required this.debugStep,
   });
 
   @override
@@ -772,6 +835,18 @@ class _BottomPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
+              // Mid-trip re-plan: re-optimizes the unserved stops from the
+              // current position and drops straight back into the drive.
+              Expanded(
+                child: _BigAction(
+                  icon: Iconsax.refresh,
+                  label: AppStrings.reoptimize,
+                  background: AppColors.primary.withValues(alpha: 0.10),
+                  foreground: AppColors.primary,
+                  onTap: onReoptimize,
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: _BigAction(
                   icon: Iconsax.close_circle,
@@ -784,11 +859,15 @@ class _BottomPanel extends StatelessWidget {
             ],
           ),
 
-          // ── DEBUG ONLY — visible drive-test stepper,
+          // ── DEBUG ONLY — the synthetic drive simulator controls,
           // compiled out of release builds via [kDebugMode].
-          if (debugStep != null) ...[
+          // Deliberately non-const: the steer chips recolour when the
+          // driver leaves/rejoins the road, so the bar must rebuild with
+          // the panel on every tick.
+          if (kDebugMode) ...[
             const SizedBox(height: 6),
-            _DebugStepButton(onStep: debugStep!),
+            // ignore: prefer_const_constructors
+            _DebugSimBar(),
           ],
         ],
       ),
@@ -1051,81 +1130,131 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
   }
 }
 
-/// Debug step button — visible only in debug builds.
+/// DEBUG ONLY — control bar for the synthetic drive simulator.
 ///
-/// Tap once  → advance 100 m along the planned route.
-/// Long-press → auto-step every 250 ms until released (hands-free drive).
-///
-/// When the simulated position crosses a stop's arc-length fraction the
-/// cubit auto-advances the stop index, same as the real GPS logic.
-class _DebugStepButton extends StatefulWidget {
-  final VoidCallback onStep;
-  const _DebugStepButton({required this.onStep});
+/// Inactive: one button that hands the trip to the fake driver (real GPS
+/// off, synthetic fixes through the full pipeline). Active, GTA-style:
+///   * a speed chip cycling 0 → 20 → 40 → 60 → 90 km/h (0 = standing),
+///   * يسار / يمين buttons that steer the driver 90° off its heading —
+///     it leaves the road, the automatic reroute fires, and the car hops
+///     onto the recalculated road as soon as it passes underneath.
+class _DebugSimBar extends StatefulWidget {
+  const _DebugSimBar();
 
   @override
-  State<_DebugStepButton> createState() => _DebugStepButtonState();
+  State<_DebugSimBar> createState() => _DebugSimBarState();
 }
 
-class _DebugStepButtonState extends State<_DebugStepButton> {
-  Timer? _repeat;
-
-  void _startHold() {
-    widget.onStep();
-    _repeat = Timer.periodic(const Duration(milliseconds: 250), (_) {
-      widget.onStep();
-    });
-  }
-
-  void _stopHold() {
-    _repeat?.cancel();
-    _repeat = null;
-  }
-
-  @override
-  void dispose() {
-    _repeat?.cancel();
-    super.dispose();
-  }
+class _DebugSimBarState extends State<_DebugSimBar> {
+  static const _speeds = <double>[0, 20, 40, 60, 90];
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPressStart: (_) => _startHold(),
-      onLongPressEnd: (_) => _stopHold(),
-      onLongPressCancel: _stopHold,
-      child: Material(
-        color: const Color(0xFFB45309), // amber-700
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            HapticFeedback.selectionClick();
-            widget.onStep();
-          },
-          child: SizedBox(
-            height: 44,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'تقدم خطوة',
-                  style: AppTextStyles.titleSm.copyWith(color: Colors.white),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'اضغط مطوّلاً للسير',
+    final cubit = context.read<RoutePlannerCubit>();
+
+    if (!cubit.debugDriveSimActive) {
+      return _chip(
+        background: const Color(0xFF0E7490), // cyan-700
+        expand: true,
+        icon: Icons.smart_toy_outlined,
+        label: 'محاكاة القيادة',
+        onTap: () {
+          cubit.debugStartDriveSim();
+          setState(() {});
+        },
+      );
+    }
+
+    final kmh = cubit.debugDriveSimSpeedKmh;
+    final free = cubit.debugDriveSimFreeDriving;
+    final steerColor = free
+        ? const Color(0xFFB91C1C) // red-700 — off the road
+        : const Color(0xFFB45309); // amber-700
+
+    // Forced LTR so "يسار" sits physically left and "يمين" physically
+    // right regardless of the app's RTL layout — it's a steering wheel.
+    return Row(
+      textDirection: ui.TextDirection.ltr,
+      children: [
+        Expanded(
+          child: _chip(
+            background: steerColor,
+            icon: Icons.turn_left_rounded,
+            label: 'يسار',
+            onTap: () {
+              cubit.debugTurnDriveSim(-90);
+              setState(() {});
+            },
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: _chip(
+            background: const Color(0xFF334155), // slate-700
+            icon: Icons.speed_rounded,
+            label: '${kmh.round()} كم/س',
+            onTap: () {
+              final i = _speeds.indexWhere((s) => s > kmh + 0.5);
+              cubit.debugSetDriveSimSpeed(
+                i >= 0 ? _speeds[i] : _speeds.first,
+              );
+              setState(() {});
+            },
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: _chip(
+            background: steerColor,
+            icon: Icons.turn_right_rounded,
+            label: 'يمين',
+            onTap: () {
+              cubit.debugTurnDriveSim(90);
+              setState(() {});
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _chip({
+    required Color background,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool expand = false,
+  }) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: SizedBox(
+          height: 40,
+          width: expand ? double.infinity : null,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.mutedSm.copyWith(
-                    color: Colors.white.withValues(alpha: 0.60),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

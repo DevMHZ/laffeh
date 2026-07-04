@@ -103,6 +103,7 @@ Future<void> setupServiceLocator() async {
         sl<OsmGeocodingDataSource>(),
         sl<PlannerDraftLocalDataSource>(),
         sl<NetworkInfo>(),
+        sl<OsrmRoutingDataSource>(),
       ),
     );
   }

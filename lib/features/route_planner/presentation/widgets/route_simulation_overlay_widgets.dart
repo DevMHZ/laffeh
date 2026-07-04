@@ -101,8 +101,10 @@ class _TripScrubberState extends State<_TripScrubber> {
                           child: SizedBox(
                             width: _carSize,
                             height: _carSize,
-                            child: CustomPaint(
-                              painter: VehiclePrefs.current.painter(),
+                            child: Center(
+                              child: VehiclePrefs.current.avatar(
+                                size: _carSize,
+                              ),
                             ),
                           ),
                         ),

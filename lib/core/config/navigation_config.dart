@@ -48,8 +48,25 @@ class NavigationConfig {
   static const Duration exploreResumeDelay = Duration(seconds: 3);
 
   // ── GPS stream ───────────────────────────────────────────
-  /// Minimum movement (metres) between position updates.
-  static const int distanceFilterMeters = 5;
+  /// Minimum movement (metres) between position updates. Zero = continuous:
+  /// the platform delivers every fix (~1 Hz on both OSes) so the render
+  /// interpolator always has a fresh target, even at low speed.
+  static const int distanceFilterMeters = 0;
+
+  /// Android fused-provider update interval (iOS streams continuously on
+  /// its own once the distance filter is off).
+  static const Duration androidUpdateInterval = Duration(seconds: 1);
+
+  // ── Marker interpolation (render loop) ───────────────────
+  /// Time constant (seconds) of the exponential chase the rendered vehicle
+  /// runs toward the (dead-reckoned) GPS target each frame. Smaller = a
+  /// tighter, snappier car; larger = smoother but laggier.
+  static const double markerSmoothingTauSeconds = 0.30;
+
+  /// The render target is extrapolated along the route at the vehicle's
+  /// smoothed speed for at most this long past the last fix, so the car
+  /// keeps rolling between 1 Hz updates instead of surging tick-to-tick.
+  static const double markerMaxExtrapolationSeconds = 1.2;
 
   /// Fixes with a worse reported accuracy than this are noise — they can
   /// teleport the car and mis-trigger service radii, so they're dropped.
@@ -94,6 +111,30 @@ class NavigationConfig {
   /// polyline point — which used to jump progress to ~1.0 and fire bogus
   /// arrivals on the Simulator.
   static const double onRouteThresholdMeters = 120.0;
+
+  // ── Automatic rerouting ──────────────────────────────────
+  /// Distance (metres) from the planned route beyond which a fix counts as
+  /// a deviation. ~35 m clears one parallel lane block / GPS drift but
+  /// catches a genuinely wrong turn within a few seconds.
+  static const double rerouteDeviationMeters = 35.0;
+
+  /// The deviation threshold grows to `accuracy × this` on poor fixes, so
+  /// a 30 m-accuracy fix sitting 40 m off the line doesn't trigger a
+  /// reroute the road may not deserve.
+  static const double rerouteAccuracyFactor = 1.5;
+
+  /// Consecutive deviating fixes required before rerouting — one stray fix
+  /// is noise; several in a row while moving is a driver off the route.
+  static const int rerouteMinConsecutiveFixes = 3;
+
+  /// A deviating fix only advances the consecutive counter once the driver
+  /// has moved this far from the previously counted one, so a car parked
+  /// off-route (fixes now stream continuously) can't tick the counter up.
+  static const double rerouteFixSpacingMeters = 5.0;
+
+  /// Minimum wait between reroute attempts (also the retry backoff after a
+  /// failed fetch), so a flaky network or GPS can't hammer the router.
+  static const Duration rerouteCooldown = Duration(seconds: 8);
 
   // ── Turn guidance ────────────────────────────────────────
   /// The upcoming maneuver's road segment is highlighted (bright white)

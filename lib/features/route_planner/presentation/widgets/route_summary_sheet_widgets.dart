@@ -184,7 +184,12 @@ class _ActionTile extends StatelessWidget {
 
 class _StartNavigationButton extends StatelessWidget {
   final VoidCallback onPressed;
-  const _StartNavigationButton({required this.onPressed});
+
+  /// DEBUG ONLY: long-press starts the synthetic drive simulator instead
+  /// of a real GPS trip. Null in release builds.
+  final VoidCallback? onDebugLongPress;
+
+  const _StartNavigationButton({required this.onPressed, this.onDebugLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -197,6 +202,12 @@ class _StartNavigationButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
+        onLongPress: onDebugLongPress == null
+            ? null
+            : () {
+                HapticFeedback.heavyImpact();
+                onDebugLongPress!();
+              },
         borderRadius: BorderRadius.circular(16),
         child: Ink(
           decoration: BoxDecoration(

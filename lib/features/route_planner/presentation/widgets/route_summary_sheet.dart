@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -50,7 +51,12 @@ class RouteSummarySheet extends StatelessWidget {
                 onPressed: cubit.startSimulation,
               ),
               const SizedBox(height: 8),
-              _StartNavigationButton(onPressed: cubit.startNavigation),
+              _StartNavigationButton(
+                onPressed: cubit.startNavigation,
+                // DEBUG: long-press = drive the route with the synthetic
+                // driver (no real GPS needed).
+                onDebugLongPress: kDebugMode ? cubit.debugStartDriveSim : null,
+              ),
               const SizedBox(height: 8),
               AppButton(
                 label: AppStrings.openWithMaps,
@@ -110,6 +116,17 @@ class RouteSummarySheet extends StatelessWidget {
               //    action so the primary trip actions lead the sheet. ───
               Row(
                 children: [
+                  // Fresh plan for the same stops, departure re-anchored to
+                  // the user's current position — for stale saved routes or
+                  // a first result that looks wrong.
+                  Expanded(
+                    child: _ActionTile(
+                      icon: Iconsax.refresh,
+                      label: AppStrings.reoptimize,
+                      onTap: cubit.optimize,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _ActionTile(
                       icon: Iconsax.save_2,
