@@ -25,44 +25,34 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
         children: [
-          // Brand block
-          Center(child: AfdalLogo.full(height: 64)),
-          const SizedBox(height: 14),
+          // Brand block — Laffah app icon + Afdal "Powered by"
           Center(
-            child: Column(
-              children: [
-                Text(AppStrings.appName, style: AppTextStyles.h2),
-                const SizedBox(height: 2),
-                Text(AppStrings.appTagline, style: AppTextStyles.muted),
-                const SizedBox(height: 4),
-                Text(
-                  '${AppStrings.poweredBy} Afdal',
-                  style: AppTextStyles.mutedSm,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 26),
-
-          AppSectionCard(
-            title: AppStrings.about,
-            titleIcon: Iconsax.info_circle,
-            child: Text(
-              AppStrings.aboutDescription,
-              style: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.textSecondary,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Image.asset(
+                'assets/laffeh_logo.png',
+                width: 88,
+                height: 88,
+                fit: BoxFit.contain,
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+          Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${AppStrings.poweredBy} ',
+                  style: AppTextStyles.mutedSm,
+                ),
+                AfdalLogo.compact(height: 24),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
 
-          const _LanguageCard(),
-          const SizedBox(height: 14),
-
-          const _ThemeCard(),
-          const SizedBox(height: 14),
-
-          _WebsiteCard(onTap: () => _openWebsite(context)),
+          _SettingsCard(onAboutUsTap: () => _openWebsite(context)),
         ],
       ),
     );
@@ -80,50 +70,6 @@ class SettingsPage extends StatelessWidget {
         ),
       );
     }
-  }
-}
-
-class _LanguageCard extends StatelessWidget {
-  const _LanguageCard();
-
-  static const _languages = <({String code, String native, String avatar})>[
-    (code: 'en', native: 'English', avatar: 'EN'),
-    (code: 'ar', native: 'العربية', avatar: 'ع'),
-    (code: 'fr', native: 'Français', avatar: 'FR'),
-  ];
-
-  Future<void> _select(String code) async {
-    if (code == AppStrings.languageCode) return;
-    HapticFeedback.selectionClick();
-    AppStrings.setLocale(Locale(code));
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppStrings.localeStorageKey, code);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final current = AppStrings.languageCode;
-    return AppSectionCard(
-      title: AppStrings.language,
-      titleIcon: Iconsax.translate,
-      // Three compact tiles in one row — quicker to scan and far less
-      // vertical weight than a stacked list of radio rows.
-      child: Row(
-        children: [
-          for (final lang in _languages) ...[
-            if (lang != _languages.first) const SizedBox(width: 10),
-            Expanded(
-              child: _LanguageTile(
-                avatar: lang.avatar,
-                native: lang.native,
-                selected: lang.code == current,
-                onTap: () => _select(lang.code),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
   }
 }
 
@@ -223,25 +169,171 @@ class _LanguageTile extends StatelessWidget {
   }
 }
 
-/// "Appearance" card: two independently-collapsible sections (driver theme,
-/// vehicle icon), both collapsed by default so Settings stays compact as
-/// more options get added here later.
-class _ThemeCard extends StatelessWidget {
-  const _ThemeCard();
+/// Single card bundling all collapsible settings (About, Appearance,
+/// Vehicle Icon, Language, About us) so they stick together as one block.
+class _SettingsCard extends StatelessWidget {
+  final VoidCallback onAboutUsTap;
+  const _SettingsCard({required this.onAboutUsTap});
 
   @override
   Widget build(BuildContext context) {
-    return const AppSectionCard(
+    return AppSectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ThemeSection(),
-          SizedBox(height: 14),
-          Divider(height: 1),
-          SizedBox(height: 14),
-          _VehicleSection(),
+          const _AboutSection(),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          const _ThemeSection(),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          const _VehicleSection(),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          const _LanguageSection(),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          _AboutUsRow(onTap: onAboutUsTap),
         ],
       ),
+    );
+  }
+}
+
+/// Collapsible About section — shows the app description and a small
+/// "Powered by Afdal" badge inside the expanded body.
+class _AboutSection extends StatefulWidget {
+  const _AboutSection();
+
+  @override
+  State<_AboutSection> createState() => _AboutSectionState();
+}
+
+class _AboutSectionState extends State<_AboutSection> {
+  bool _expanded = false;
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CollapsibleHeader(
+          icon: Iconsax.info_circle,
+          title: AppStrings.about,
+          valueLabel: '',
+          expanded: _expanded,
+          onTap: _toggle,
+        ),
+        _CollapsibleBody(
+          expanded: _expanded,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppStrings.aboutDescription,
+                style: AppTextStyles.bodyMd.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${AppStrings.poweredBy} ',
+                      style: AppTextStyles.mutedSm,
+                    ),
+                    AfdalLogo.bare(height: 20),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Collapsible Language section — collapsed shows the current language,
+/// expanded shows the three language tiles.
+class _LanguageSection extends StatefulWidget {
+  const _LanguageSection();
+
+  @override
+  State<_LanguageSection> createState() => _LanguageSectionState();
+}
+
+class _LanguageSectionState extends State<_LanguageSection> {
+  bool _expanded = false;
+
+  static const _languages = <({String code, String native, String avatar})>[
+    (code: 'en', native: 'English', avatar: 'EN'),
+    (code: 'ar', native: 'العربية', avatar: 'ع'),
+    (code: 'fr', native: 'Français', avatar: 'FR'),
+  ];
+
+  static const _names = <String, String>{
+    'en': 'English',
+    'ar': 'العربية',
+    'fr': 'Français',
+  };
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+  }
+
+  Future<void> _select(String code) async {
+    if (code == AppStrings.languageCode) return;
+    HapticFeedback.selectionClick();
+    AppStrings.setLocale(Locale(code));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppStrings.localeStorageKey, code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = AppStrings.languageCode;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CollapsibleHeader(
+          icon: Iconsax.translate,
+          title: AppStrings.language,
+          valueLabel: _names[current] ?? current,
+          expanded: _expanded,
+          onTap: _toggle,
+        ),
+        _CollapsibleBody(
+          expanded: _expanded,
+          child: Row(
+            children: [
+              for (final lang in _languages) ...[
+                if (lang != _languages.first) const SizedBox(width: 10),
+                Expanded(
+                  child: _LanguageTile(
+                    avatar: lang.avatar,
+                    native: lang.native,
+                    selected: lang.code == current,
+                    onTap: () => _select(lang.code),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1037,58 +1129,40 @@ class _BusShelter extends StatelessWidget {
   }
 }
 
-class _WebsiteCard extends StatelessWidget {
+/// Tappable "About us" row that matches the collapsible-header style of the
+/// sections above, so the whole settings block reads as one cohesive list.
+class _AboutUsRow extends StatelessWidget {
   final VoidCallback onTap;
-  const _WebsiteCard({required this.onTap});
+  const _AboutUsRow({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-          ),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Iconsax.global_search,
-                  color: AppColors.accent,
-                  size: 22,
+              Icon(Iconsax.heart, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(AppStrings.aboutUs, style: AppTextStyles.titleMd),
+              ),
+              Text(
+                AppStrings.visitWebsite,
+                style: AppTextStyles.mutedSm.copyWith(
+                  color: AppColors.textMuted,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      AppStrings.officialWebsite,
-                      style: AppTextStyles.titleMd,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      AppStrings.afdalWebsiteUrl,
-                      style: AppTextStyles.muted,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_left_rounded,
+                size: 20,
+                color: AppColors.textMuted,
               ),
             ],
           ),

@@ -184,6 +184,7 @@ class AppStrings {
   static String get apiBaseUrl => _t('apiBaseUrl');
   static String get officialWebsite => _t('officialWebsite');
   static String get visitWebsite => _t('visitWebsite');
+  static String get aboutUs => _t('aboutUs');
   static String get aboutDescription => _t('aboutDescription');
   static String get language => _t('language');
   static String get appearance => _t('appearance');
@@ -586,6 +587,7 @@ const Map<String, Map<String, String>> _copy = {
     'apiBaseUrl': 'AI API URL',
     'officialWebsite': 'Official website',
     'visitWebsite': 'Visit website',
+    'aboutUs': 'About us',
     'language': 'Language',
     'appearance': 'Appearance',
     'vehicleIcon': 'Vehicle icon',
@@ -880,6 +882,7 @@ const Map<String, Map<String, String>> _copy = {
     'apiBaseUrl': 'عنوان واجهة الذكاء الاصطناعي',
     'officialWebsite': 'الموقع الرسمي',
     'visitWebsite': 'زيارة الموقع',
+    'aboutUs': 'من نحن',
     'language': 'اللغة',
     'appearance': 'المظهر',
     'vehicleIcon': 'أيقونة المركبة',
@@ -1181,6 +1184,7 @@ const Map<String, Map<String, String>> _copy = {
     'apiBaseUrl': 'URL de l\'API IA',
     'officialWebsite': 'Site officiel',
     'visitWebsite': 'Visiter le site',
+    'aboutUs': 'À propos',
     'language': 'Langue',
     'appearance': 'Apparence',
     'vehicleIcon': 'Icône du véhicule',

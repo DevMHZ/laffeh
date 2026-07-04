@@ -379,8 +379,11 @@ class RouteMapViewState extends State<RouteMapView>
     });
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _vehicleTicker
       ?..stop()
@@ -394,6 +397,8 @@ class RouteMapViewState extends State<RouteMapView>
     _navPuckHidden.dispose();
     _navExploring.dispose();
     _controller?.onSymbolTapped.remove(_onSymbolTapped);
+    _controller = null;
+    _styleLoaded = false;
     _bearing.dispose();
     _showRecenter.dispose();
     aimOffset.dispose();
@@ -657,6 +662,7 @@ class RouteMapViewState extends State<RouteMapView>
   String? _lineStyleKey;
 
   Future<void> _syncPolylines(RoutePlannerState state) async {
+    if (_disposed) return;
     final c = _controller;
     if (c == null || !_styleLoaded) return;
 
@@ -845,6 +851,7 @@ class RouteMapViewState extends State<RouteMapView>
   /// Symbols are rendered as canvas PNG images registered with the map style,
   /// so they move perfectly in sync with map tiles — no overlay lag.
   Future<void> _syncSymbols(RoutePlannerState state) async {
+    if (_disposed) return;
     final c = _controller;
     if (c == null || !_styleLoaded) return;
 
@@ -1285,8 +1292,10 @@ class RouteMapViewState extends State<RouteMapView>
   }
 
   Future<void> _drainApply() async {
+    if (_disposed) return;
     try {
       while (_pendingApply != null) {
+        if (_disposed) return;
         final s = _pendingApply!;
         _pendingApply = null;
         await _syncCamera(s);
@@ -1301,6 +1310,7 @@ class RouteMapViewState extends State<RouteMapView>
   // ── Camera sync ─────────────────────────────────────────────────────────────
 
   Future<void> _syncCamera(RoutePlannerState state) async {
+    if (_disposed) return;
     if (!_styleLoaded) return;
 
     // Moving a point (#9): centre on it once, then let the user pan it
