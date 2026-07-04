@@ -51,25 +51,33 @@ class TopBar extends StatelessWidget {
                       icon: Iconsax.archive_book,
                       onPressed: () =>
                           RoutePlannerActions.openSavedRoutes(context),
-                      // DEBUG: long-press loads a reproducible 3-stop
-                      // Beirut demo route — the playground for the drive
-                      // simulator.
-                      onLongPress: kDebugMode
-                          ? () {
-                              HapticFeedback.heavyImpact();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('تحميل مسار بيروت التجريبي…'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                              context
-                                  .read<RoutePlannerCubit>()
-                                  .debugLoadBeirutDemo();
-                            }
-                          : null,
                     ),
                   ),
+                  // DEBUG-ONLY: loads the reproducible 3-stop Beirut demo
+                  // route — the playground for the drive simulator. Compiled
+                  // out of release builds via [kDebugMode], so it's invisible
+                  // in production.
+                  if (kDebugMode) ...[
+                    const SizedBox(width: 8),
+                    GlassPanel(
+                      padding: EdgeInsets.zero,
+                      radius: 22,
+                      child: _DebugTestButton(
+                        onPressed: () {
+                          HapticFeedback.heavyImpact();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('تحميل مسار بيروت التجريبي…'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          context
+                              .read<RoutePlannerCubit>()
+                              .debugLoadBeirutDemo();
+                        },
+                      ),
+                    ),
+                  ],
                   Expanded(
                     child: Center(
                       // Hidden on the empty first screen, then pops in once
@@ -215,28 +223,49 @@ class StepDot extends StatelessWidget {
   }
 }
 
+/// DEBUG-ONLY test button: a lab flask, tinted amber so it reads clearly
+/// as a developer tool. Loads the Beirut demo route for the drive
+/// simulator. Never shown in release builds (gated by [kDebugMode] at the
+/// call site).
+class _DebugTestButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _DebugTestButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'مسار تجريبي (بيروت)',
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(48),
+        minimumSize: const Size.square(48),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: onPressed,
+      icon: const Icon(
+        Icons.science_rounded,
+        color: Color(0xFFB45309), // amber-700 — obviously a debug affordance
+        size: 22,
+      ),
+    );
+  }
+}
+
 class TopIconButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
-
-  /// Optional long-press action (used for debug shortcuts). When set, the
-  /// Material tooltip is dropped: on touch devices Tooltip itself claims
-  /// the long-press gesture to show its label, which would swallow this.
-  final VoidCallback? onLongPress;
 
   const TopIconButton({
     super.key,
     required this.tooltip,
     required this.icon,
     required this.onPressed,
-    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
-    final button = IconButton(
-      tooltip: onLongPress == null ? tooltip : null,
+    return IconButton(
+      tooltip: tooltip,
       style: IconButton.styleFrom(
         fixedSize: const Size.square(48),
         minimumSize: const Size.square(48),
@@ -248,7 +277,5 @@ class TopIconButton extends StatelessWidget {
       },
       icon: Icon(icon, color: AppColors.textPrimary, size: 22),
     );
-    if (onLongPress == null) return button;
-    return GestureDetector(onLongPress: onLongPress, child: button);
   }
 }
