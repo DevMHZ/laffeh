@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -14,9 +15,13 @@ import '../../../../core/config/env_config.dart';
 import '../../../../core/config/map_config.dart';
 import '../../../../core/config/navigation_config.dart';
 import '../../../../core/config/simulation_config.dart';
+import '../../../../core/config/vehicle_marker_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/vehicle_kind.dart';
+import '../../../../core/theme/vehicle_nav_sheet.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
+import '../../../../core/theme/vehicle_sprites.dart';
 import '../../../../core/utils/debug_log.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/utils/marker_factory.dart';
@@ -274,6 +279,38 @@ class RouteMapViewState extends State<RouteMapView>
   double? _lastVehLat;
   double? _lastVehLon;
   double? _lastVehRot;
+
+  // ── Pseudo-3D vehicle frames ────────────────────────────────────────────────
+  // The decoded nav sheet for the picked vehicle (48 headings × 4 phases,
+  // see [VehicleNavSheet]): the native symbol modes pick the frame nearest
+  // the vehicle-minus-camera bearing each tick and rotate only the ±3.75°
+  // residual, so the car shows real 3D perspective while turning stays
+  // smooth. Null while decoding — and permanently for painter-drawn kinds
+  // (arrow) or a missing bake — which keeps the legacy flat-sprite path.
+  // The Flutter pucks load the sheet themselves via `VehicleNavFrame`.
+  ui.Image? _navSheet;
+  VehicleKind? _navSheetKind;
+  bool _navSheetLoading = false;
+
+  /// Wheel/leg animation phase for the Flutter pucks (sim follow/chase
+  /// and drive follow are mutually exclusive). Advances on a wall-clock
+  /// cadence while the vehicle moves and freezes when it stops — see
+  /// [_tickVehiclePhase]. The native symbols hold phase 0: swapping their
+  /// iconImage per phase re-layouts the symbol every swap, which reads as
+  /// a pulse against the otherwise-smooth glide.
+  final ValueNotifier<int> _vehiclePhase = ValueNotifier(0);
+  DateTime? _phaseClockAt;
+  double _phaseClockMs = 0;
+
+  // The heading frame each native symbol currently shows, plus a swap
+  // throttle so a fast bend can't churn the symbol layer every frame.
+  int? _vehFrameH; // overview sim symbol
+  int? _exploreFrameH; // drive explore symbol
+  DateTime _lastVehFrameSwap = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastExploreFrameSwap = DateTime.fromMillisecondsSinceEpoch(0);
+  // Frame images currently rendering/registering (fire-and-forget); the
+  // symbol keeps its current frame until the wanted one lands.
+  final Set<String> _pendingFrameImages = {};
   // ── Overview (panoramic) framing ────────────────────────────────────────────
   // The camera/zoom we framed the whole route at. If the user pinch-zooms
   // or pans away from it, [_overviewAdjusted] flips so we can offer a
@@ -392,6 +429,7 @@ class RouteMapViewState extends State<RouteMapView>
       ?..stop()
       ..dispose();
     _puck.dispose();
+    _vehiclePhase.dispose();
     _exploreResumeTimer?.cancel();
     _followSwapTimer?.cancel();
     _navPuckHidden.dispose();
@@ -1069,6 +1107,79 @@ class RouteMapViewState extends State<RouteMapView>
     return id;
   }
 
+  // ── Pseudo-3D vehicle frames ────────────────────────────────────────────────
+
+  /// Kicks off (or refreshes, after a Settings vehicle switch) the decode
+  /// of the picked vehicle's nav sheet into [_navSheet]. Cheap no-op when
+  /// already loaded for the current kind, so tick paths may call freely.
+  void _ensureNavSheet() {
+    final kind = VehiclePrefs.current;
+    if (_navSheetKind == kind || _navSheetLoading) return;
+    _navSheetLoading = true;
+    unawaited(
+      VehicleSprites.navOf(kind).then((sheet) {
+        _navSheetLoading = false;
+        _navSheetKind = kind;
+        _navSheet = sheet;
+        // The user may have switched again mid-decode.
+        if (VehiclePrefs.current != kind) _ensureNavSheet();
+      }),
+    );
+  }
+
+  /// [_navSheet] only when it belongs to the currently picked vehicle —
+  /// guards the one-frame window after a Settings switch where the old
+  /// kind's sheet is still resident.
+  ui.Image? get _currentNavSheet =>
+      _navSheetKind == VehiclePrefs.current ? _navSheet : null;
+
+  String _navFrameId(int h, int p, {required bool halo}) =>
+      'img-nav3d${halo ? '-halo' : ''}-${VehiclePrefs.current.id}-$h-$p';
+
+  /// The registered image id for frame ([h], [p]) — or null when it isn't
+  /// registered yet, in which case rendering + registration is kicked off
+  /// fire-and-forget and the caller keeps its current frame this tick.
+  /// Never awaits: safe inside the per-frame tick paths.
+  String? _readyNavFrameId(int h, int p, {required bool halo}) {
+    final id = _navFrameId(h, p, halo: halo);
+    if (_registeredImages.contains(id)) return id;
+    if (!_pendingFrameImages.contains(id)) {
+      _pendingFrameImages.add(id);
+      unawaited(
+        _ensureImage(
+          id,
+          () => MapMarkerRenderer.navFrame(h, p, halo: halo),
+        ).whenComplete(() => _pendingFrameImages.remove(id)),
+      );
+    }
+    return null;
+  }
+
+  /// Shortest-arc equivalent of [deg] in (−180, 180].
+  double _wrap180(double deg) => ((deg + 540) % 360) - 180;
+
+  /// Advances the pucks' wheel/leg phase on a wall-clock cadence
+  /// ([VehicleMarkerConfig.phaseDurationMs] per frame) while [moving];
+  /// while stopped the clock freezes so the animation halts mid-stride.
+  /// Deliberately time-based, not distance-based: playback compresses the
+  /// trip so much that distance-driven phases cycled faster than the eye
+  /// can read — it looked like vibration, not rolling.
+  void _tickVehiclePhase({required bool moving}) {
+    final now = DateTime.now();
+    final last = _phaseClockAt;
+    _phaseClockAt = now;
+    if (!moving || last == null) return;
+    _phaseClockMs += now
+        .difference(last)
+        .inMilliseconds
+        .clamp(0, 100)
+        .toDouble();
+    final phase =
+        (_phaseClockMs / VehicleMarkerConfig.phaseDurationMs).floor() %
+        VehicleNavSheet.phases;
+    if (_vehiclePhase.value != phase) _vehiclePhase.value = phase;
+  }
+
   // ── Symbol event handlers ───────────────────────────────────────────────────
 
   void _onSymbolTapped(Symbol sym) {
@@ -1137,6 +1248,7 @@ class RouteMapViewState extends State<RouteMapView>
 
     final shouldRun = state.simulationActive && state.optimizedRoute != null;
     if (shouldRun) {
+      _ensureNavSheet();
       _targetProgress = state.simulationProgress;
       if (!_simRunning) {
         _simRunning = true;
@@ -1181,10 +1293,35 @@ class RouteMapViewState extends State<RouteMapView>
     if (_vehicleReady || _creatingVehicle) return;
     _creatingVehicle = true;
     try {
-      final imgId = await _ensureImage(
-        _vehicleImageId,
-        MapMarkerRenderer.vehicle,
+      // Decode the nav sheet up front (instant from cache after the first
+      // sim) so the symbol is born as a pseudo-3D frame instead of
+      // flashing flat and upgrading a tick later.
+      _navSheet = await VehicleSprites.navOf(VehiclePrefs.current);
+      _navSheetKind = VehiclePrefs.current;
+
+      final sample = PolylineUtils.sampleAt(
+        route.fullPolyline,
+        _renderProgress,
       );
+      final bearing = sample?.bearing ?? 0.0; // overview camera is north-up
+
+      final String imgId;
+      final double iconRotate;
+      final double iconSize;
+      if (_currentNavSheet != null) {
+        final h = VehicleNavSheet.headingIndex(bearing);
+        imgId = await _ensureImage(
+          _navFrameId(h, 0, halo: false),
+          () => MapMarkerRenderer.navFrame(h, 0, halo: false),
+        );
+        iconRotate = VehicleNavSheet.residualDeg(bearing);
+        iconSize = _dpr / VehicleMarkerConfig.iconOversample;
+        _vehFrameH = h;
+      } else {
+        imgId = await _ensureImage(_vehicleImageId, MapMarkerRenderer.vehicle);
+        iconRotate = bearing;
+        iconSize = _dpr;
+      }
       // Bailed, already created, or the user left overview while we were
       // awaiting — don't strand a native car in follow/chase.
       if (!_simRunning ||
@@ -1200,18 +1337,14 @@ class RouteMapViewState extends State<RouteMapView>
           await c.removeSymbol(stale);
         } catch (_) {}
       }
-      final sample = PolylineUtils.sampleAt(
-        route.fullPolyline,
-        _renderProgress,
-      );
       final pos = sample?.point ?? route.fullPolyline.first;
       final sym = await c.addSymbol(
         SymbolOptions(
           geometry: LatLng(pos.latitude, pos.longitude),
           iconImage: imgId,
-          iconSize: _dpr,
+          iconSize: iconSize,
           iconAnchor: 'center',
-          iconRotate: sample?.bearing ?? 0.0,
+          iconRotate: iconRotate,
         ),
       );
       // Playback may have stopped during the addSymbol await — if so, the
@@ -1235,6 +1368,7 @@ class RouteMapViewState extends State<RouteMapView>
     final sym = _symbols.remove('vehicle');
     _appliedSpecs.remove('vehicle');
     _vehicleReady = false;
+    _vehFrameH = null;
     final c = _controller;
     if (c != null && sym != null) {
       try {
@@ -1279,14 +1413,51 @@ class RouteMapViewState extends State<RouteMapView>
     _lastVehLon = lon;
     _lastVehRot = iconRot;
 
+    // Pseudo-3D path: swap to the baked frame nearest the travel bearing
+    // and rotate only the residual. Heading swaps only happen in turns,
+    // are throttled, and only ever land on already-registered images —
+    // going straight the image never changes, so the glide stays
+    // perfectly smooth (phase stays 0 here; see [_vehiclePhase]).
+    var h = _vehFrameH;
+    if (_currentNavSheet != null) {
+      final wantH = VehicleNavSheet.headingIndex(iconRot);
+      final now = DateTime.now();
+      if (wantH != h &&
+          now.difference(_lastVehFrameSwap).inMilliseconds >=
+              VehicleMarkerConfig.minFrameSwapMs) {
+        if (_readyNavFrameId(wantH, 0, halo: false) != null) {
+          h = wantH;
+          _lastVehFrameSwap = now;
+        }
+      }
+    } else {
+      h = null; // sheet-less kind (arrow) — legacy flat path
+    }
+    _vehFrameH = h;
+
+    if (h == null) {
+      c.updateSymbol(
+        sym,
+        SymbolOptions(
+          geometry: LatLng(lat, lon),
+          iconImage: _vehicleImageId,
+          iconSize: _dpr,
+          iconAnchor: 'center',
+          iconRotate: iconRot,
+        ),
+      );
+      return;
+    }
     c.updateSymbol(
       sym,
       SymbolOptions(
         geometry: LatLng(lat, lon),
-        iconImage: _vehicleImageId,
-        iconSize: _dpr,
+        iconImage: _navFrameId(h, 0, halo: false),
+        iconSize: _dpr / VehicleMarkerConfig.iconOversample,
         iconAnchor: 'center',
-        iconRotate: iconRot,
+        iconRotate: _wrap180(
+          iconRot - h * VehicleMarkerConfig.headingStepDeg,
+        ),
       ),
     );
   }
@@ -1471,6 +1642,9 @@ class RouteMapViewState extends State<RouteMapView>
 
     // Chase faces travel (car points up); follow is north-up (car rotates).
     _puck.value = headingUp ? 0.0 : travel;
+    // Reached only while playback emits frames, so "moving" is implicit;
+    // paused playback stops the emits and the phase clock freezes.
+    _tickVehiclePhase(moving: true);
 
     final firstFrame = !_simCameraAnchored;
     _simCameraAnchored = true;
@@ -1747,6 +1921,7 @@ class RouteMapViewState extends State<RouteMapView>
       NavigationConfig.avatarTangentMeters,
     );
     if (_navTangent.value != tangent) _navTangent.value = tangent;
+    _tickVehiclePhase(moving: diff > 1e-7);
 
     if (_navPuckHidden.value) {
       // Exploring (or gliding back to follow): the geo-anchored native
@@ -1895,24 +2070,46 @@ class RouteMapViewState extends State<RouteMapView>
     }
     _creatingNavExploreSymbol = true;
     try {
-      final imgId = await _ensureImage(
-        _navVehicleImageId,
-        MapMarkerRenderer.navVehicle,
-      );
-      if (!mounted || _navExploreSymbol != null) return;
-      final anchor = _navAnchor;
-      if (anchor == null) return;
+      // Decode the nav sheet first (instant from cache after the first
+      // use) so the explore car matches the pseudo-3D follow puck.
+      _navSheet = await VehicleSprites.navOf(VehiclePrefs.current);
+      _navSheetKind = VehiclePrefs.current;
       final tangent = _navTangent.value;
       final rot = tangent == null
           ? 0.0
           : ((tangent - _bearing.value) % 360 + 360) % 360;
+
+      final String imgId;
+      final double iconRotate;
+      final double iconSize;
+      if (_currentNavSheet != null) {
+        final h = VehicleNavSheet.headingIndex(rot);
+        imgId = await _ensureImage(
+          _navFrameId(h, 0, halo: true),
+          () => MapMarkerRenderer.navFrame(h, 0, halo: true),
+        );
+        iconRotate = VehicleNavSheet.residualDeg(rot);
+        iconSize = _dpr / VehicleMarkerConfig.iconOversample;
+        _exploreFrameH = h;
+      } else {
+        imgId = await _ensureImage(
+          _navVehicleImageId,
+          MapMarkerRenderer.navVehicle,
+        );
+        iconRotate = rot;
+        iconSize = _dpr;
+        _exploreFrameH = null;
+      }
+      if (!mounted || _navExploreSymbol != null) return;
+      final anchor = _navAnchor;
+      if (anchor == null) return;
       final sym = await c.addSymbol(
         SymbolOptions(
           geometry: _ml(anchor),
           iconImage: imgId,
-          iconSize: _dpr,
+          iconSize: iconSize,
           iconAnchor: 'center',
-          iconRotate: rot,
+          iconRotate: iconRotate,
         ),
       );
       // The touch may have ended (and follow fully resumed) mid-await.
@@ -1938,6 +2135,7 @@ class RouteMapViewState extends State<RouteMapView>
     _navExploreSymbol = null;
     _navExplorePosApplied = null;
     _navExploreRotApplied = null;
+    _exploreFrameH = null;
     if (sym == null) return;
     try {
       await _controller?.removeSymbol(sym);
@@ -1955,9 +2153,31 @@ class RouteMapViewState extends State<RouteMapView>
     final rot = tangent == null
         ? (_navExploreRotApplied ?? 0.0)
         : ((tangent - _bearing.value) % 360 + 360) % 360;
+
+    // Pseudo-3D path (symbol was created with a nav-sheet frame): chase
+    // the frame nearest the current relative bearing, throttled and only
+    // onto already-registered images. Phase stays 0 on native symbols —
+    // see [_vehiclePhase].
+    var h = _exploreFrameH;
+    var swapped = false;
+    if (_currentNavSheet != null && h != null) {
+      final wantH = VehicleNavSheet.headingIndex(rot);
+      final now = DateTime.now();
+      if (wantH != h &&
+          now.difference(_lastExploreFrameSwap).inMilliseconds >=
+              VehicleMarkerConfig.minFrameSwapMs) {
+        if (_readyNavFrameId(wantH, 0, halo: true) != null) {
+          h = wantH;
+          swapped = true;
+          _lastExploreFrameSwap = now;
+        }
+      }
+    }
+
     final lastPos = _navExplorePosApplied;
     final lastRot = _navExploreRotApplied;
-    if (lastPos != null &&
+    if (!swapped &&
+        lastPos != null &&
         lastRot != null &&
         (lastPos.latitude - anchor.latitude).abs() < 1e-7 &&
         (lastPos.longitude - anchor.longitude).abs() < 1e-7 &&
@@ -1966,9 +2186,20 @@ class RouteMapViewState extends State<RouteMapView>
     }
     _navExplorePosApplied = anchor;
     _navExploreRotApplied = rot;
+    _exploreFrameH = h;
     _navExploreUpdating = true;
+    final opts = (h != null)
+        ? SymbolOptions(
+            geometry: _ml(anchor),
+            // Null = leave unchanged; only a landed swap re-layouts.
+            iconImage: swapped ? _navFrameId(h, 0, halo: true) : null,
+            iconRotate: _wrap180(
+              rot - h * VehicleMarkerConfig.headingStepDeg,
+            ),
+          )
+        : SymbolOptions(geometry: _ml(anchor), iconRotate: rot);
     c
-        .updateSymbol(sym, SymbolOptions(geometry: _ml(anchor), iconRotate: rot))
+        .updateSymbol(sym, opts)
         .catchError((_) {})
         .whenComplete(() => _navExploreUpdating = false);
   }
@@ -2116,7 +2347,13 @@ class RouteMapViewState extends State<RouteMapView>
                             final rotation = tangent == null
                                 ? 0.0
                                 : ((tangent - camBearing + 540) % 360) - 180;
-                            return NavigationPuck(rotationDegrees: rotation);
+                            return ValueListenableBuilder<int>(
+                              valueListenable: _vehiclePhase,
+                              builder: (_, phase, __) => NavigationPuck(
+                                rotationDegrees: rotation,
+                                phase: phase,
+                              ),
+                            );
                           },
                         ),
                   );
@@ -2174,7 +2411,11 @@ class RouteMapViewState extends State<RouteMapView>
                     valueListenable: _puck,
                     builder: (_, rotation, __) {
                       if (rotation == null) return const SizedBox.shrink();
-                      return SimPuck(rotation: rotation);
+                      return ValueListenableBuilder<int>(
+                        valueListenable: _vehiclePhase,
+                        builder: (_, phase, __) =>
+                            SimPuck(rotation: rotation, phase: phase),
+                      );
                     },
                   ),
                 ),

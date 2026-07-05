@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>vehicle sprite bake harness</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<style>body { margin: 0; background: #333; }</style>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// Bakes one vehicle GLB into a sprite sheet and returns it as a PNG data
+// URL. Sheet layout: row-major, index = heading*phases + phase. Frame 0 =
+// nose pointing screen-up (heading 0 = north), headings clockwise.
+//
+// opts: { glbUrl, headings, phases, framePx, cols, supersample,
+//         yawOffsetDeg, marginFactor, shadowOpacity, elevationDeg }
+window.bakeVehicle = async function bakeVehicle(opts) {
+  const {
+    glbUrl,
+    headings = 48,
+    phases = 4,
+    framePx = 160,
+    cols = 16,
+    supersample = 2,
+    yawOffsetDeg = 180,
+    marginFactor = 1.15,
+    shadowOpacity = 0.25,
+    elevationDeg = 55,
+  } = opts;
+
+  const renderPx = framePx * supersample;
+  const renderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+    preserveDrawingBuffer: true,
+  });
+  renderer.setSize(renderPx, renderPx);
+  renderer.setPixelRatio(1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = null;
+
+  const gltf = await new GLTFLoader().loadAsync(glbUrl);
+  const model = gltf.scene;
+  model.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = false;
+    }
+  });
+
+  // The group carries the per-heading yaw so the camera, lights and ground
+  // stay fixed in screen space (shadow always falls the same way).
+  const group = new THREE.Group();
+  group.add(model);
+  scene.add(group);
+
+  const clip = gltf.animations[0];
+  if (!clip) throw new Error(`${glbUrl}: no animation clip found`);
+  const mixer = new THREE.AnimationMixer(model);
+  mixer.clipAction(clip).play();
+
+  // Freeze phase 0 / heading 0 to measure a framing that every frame shares.
+  mixer.setTime(0);
+  model.rotation.y = THREE.MathUtils.degToRad(yawOffsetDeg);
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(group);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const r = sphere.radius * marginFactor;
+  const center = sphere.center.clone();
+  const groundY = box.min.y;
+
+  const elev = THREE.MathUtils.degToRad(elevationDeg);
+  const dist = sphere.radius * 6;
+  const camera = new THREE.OrthographicCamera(-r, r, r, -r, 0.1, dist * 4);
+  camera.position.set(
+    center.x,
+    center.y + dist * Math.sin(elev),
+    center.z + dist * Math.cos(elev),
+  );
+  camera.lookAt(center);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x666677, 1.6));
+  const key = new THREE.DirectionalLight(0xffffff, 1.7);
+  key.position.set(
+    center.x + sphere.radius * 0.9,
+    center.y + sphere.radius * 4,
+    center.z + sphere.radius * 1.4,
+  );
+  key.target.position.copy(center);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.radius = 4;
+  const sc = key.shadow.camera;
+  sc.left = -r * 2; sc.right = r * 2; sc.top = r * 2; sc.bottom = -r * 2;
+  sc.near = 0.1; sc.far = sphere.radius * 12;
+  scene.add(key, key.target);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(sphere.radius * 20, sphere.radius * 20),
+    new THREE.ShadowMaterial({ opacity: shadowOpacity }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(center.x, groundY, center.z);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const rows = Math.ceil((headings * phases) / cols);
+  const sheet = document.createElement('canvas');
+  sheet.width = cols * framePx;
+  sheet.height = rows * framePx;
+  const ctx = sheet.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  for (let p = 0; p < phases; p++) {
+    mixer.setTime((clip.duration * p) / phases);
+    for (let h = 0; h < headings; h++) {
+      // Screen up = -Z, right = +X, camera on +Z: heading h (clockwise
+      // from north) needs group yaw = -h (plus the model's nose offset,
+      // applied on the model node above).
+      group.rotation.y = THREE.MathUtils.degToRad(-(h * 360) / headings);
+      renderer.render(scene, camera);
+      const i = h * phases + p;
+      ctx.drawImage(
+        renderer.domElement,
+        (i % cols) * framePx,
+        Math.floor(i / cols) * framePx,
+        framePx,
+        framePx,
+      );
+    }
+  }
+
+  const url = sheet.toDataURL('image/png');
+  renderer.dispose();
+  return url;
+};
+
+window.__harnessReady = true;
+</script>
+</body>
+</html>

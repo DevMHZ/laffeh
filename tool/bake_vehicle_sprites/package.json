@@ -1,0 +1,13 @@
+{
+  "name": "bake_vehicle_sprites",
+  "private": true,
+  "type": "module",
+  "description": "Bakes the nav sprite sheets (48 headings x 4 animation phases) from the GLB vehicle models into assets/vehicles/<name>_nav.png",
+  "scripts": {
+    "bake": "node bake.mjs"
+  },
+  "dependencies": {
+    "puppeteer": "^23.11.1",
+    "three": "^0.171.0"
+  }
+}

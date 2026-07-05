@@ -20,6 +20,30 @@ class VehicleSprites {
   static Future<ui.Image?> turntableOf(VehicleKind kind) =>
       _load(kind.turntableAsset);
 
+  /// The decoded nav sheet for [kind] (48 headings × 4 phases — see
+  /// [VehicleNavSheet]), or null for painter-drawn vehicles and when the
+  /// baked asset is missing (callers then fall back to the flat sprite).
+  ///
+  /// Nav sheets are ~20 MB decoded, so loading one evicts every other
+  /// kind's sheet — only the selected vehicle stays resident. Evicted
+  /// images are not disposed here (a painter may still be drawing one
+  /// mid-switch); dropping the cache reference lets the GC reclaim them.
+  static Future<ui.Image?> navOf(VehicleKind kind) async {
+    final asset = kind.navAsset;
+    if (asset == null) return null;
+    for (final other in VehicleKind.values) {
+      final otherAsset = other.navAsset;
+      if (otherAsset != null && otherAsset != asset) {
+        _cache.remove(otherAsset);
+      }
+    }
+    try {
+      return await _load(asset);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<ui.Image?> _load(String? asset) async {
     if (asset == null) return null;
     final cached = _cache[asset];

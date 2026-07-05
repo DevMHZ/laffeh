@@ -28,6 +28,11 @@ enum VehicleKind {
   String? get turntableAsset =>
       spriteAsset?.replaceFirst('.png', '_turn.png');
 
+  /// Nav sprite sheet for the map marker (48 headings × 4 animation
+  /// phases, 55° map camera — see `VehicleNavSheet`). Null for
+  /// painter-drawn vehicles.
+  String? get navAsset => spriteAsset?.replaceFirst('.png', '_nav.png');
+
   static VehicleKind byId(String id) =>
       values.firstWhere((v) => v.id == id, orElse: () => vwBus);
 

@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
@@ -8,23 +6,23 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
+import '../../../../core/widgets/vehicle_nav_frame.dart';
 
 /// Screen-centred playback car for follow/chase modes. A plain Flutter
 /// widget (not a map symbol) so it stays glued to the centre while the
 /// camera glides under it — no platform-channel lag.
 class SimPuck extends StatelessWidget {
   final double rotation; // degrees clockwise from up
-  const SimPuck({super.key, required this.rotation});
+  final int phase; // wheel/leg animation phase (distance-driven)
+  const SimPuck({super.key, required this.rotation, this.phase = 0});
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: rotation * math.pi / 180.0,
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: Center(child: VehiclePrefs.current.avatar(size: 44)),
-      ),
+    return VehicleNavFrame(
+      kind: VehiclePrefs.current,
+      size: 44,
+      rotationDegrees: rotation,
+      phase: phase,
     );
   }
 }
@@ -41,22 +39,30 @@ class NavigationPuck extends StatelessWidget {
   /// Clockwise degrees from screen-up; 0 on a straight road.
   final double rotationDegrees;
 
-  const NavigationPuck({super.key, this.rotationDegrees = 0});
+  /// Wheel/leg animation phase (distance-driven).
+  final int phase;
+
+  const NavigationPuck({super.key, this.rotationDegrees = 0, this.phase = 0});
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: rotationDegrees * math.pi / 180.0,
-      child: SizedBox(
-        width: 54,
-        height: 54,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const CustomPaint(painter: _NavigationPuckHaloPainter()),
-            Center(child: VehiclePrefs.current.avatar(size: 54)),
-          ],
-        ),
+    // The halo/shadow stays unrotated — only the vehicle turns.
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const CustomPaint(painter: _NavigationPuckHaloPainter()),
+          Center(
+            child: VehicleNavFrame(
+              kind: VehiclePrefs.current,
+              size: 54,
+              rotationDegrees: rotationDegrees,
+              phase: phase,
+            ),
+          ),
+        ],
       ),
     );
   }

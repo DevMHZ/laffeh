@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/config/vehicle_marker_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/vehicle_kind.dart';
+import '../../../../core/theme/vehicle_nav_sheet.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/theme/vehicle_sprites.dart';
 import '../../../../core/utils/marker_factory.dart';
@@ -120,20 +122,62 @@ class MapMarkerRenderer {
     final kind = VehiclePrefs.current;
     final sprite = await VehicleSprites.of(kind);
     return _toPng(54, 54, (c, sz) {
-      final center = Offset(sz.width / 2, sz.height / 2);
-      c.drawCircle(
-        center,
-        26,
-        ui.Paint()..color = AppColors.primary.withValues(alpha: 0.10),
-      );
-      c.drawOval(
-        Rect.fromCenter(center: center.translate(0, 6), width: 34, height: 38),
-        ui.Paint()
-          ..color = Colors.black.withValues(alpha: 0.22)
-          ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
-      );
+      _paintNavHalo(c, sz);
       _paintVehicle(c, sz, kind, sprite);
     });
+  }
+
+  /// One pseudo-3D frame of the picked vehicle's nav sheet ([heading] ×
+  /// [phase] — see [VehicleNavSheet]), rasterised at
+  /// [VehicleMarkerConfig.iconOversample]× the logical marker size so the
+  /// symbol stays crisp on high-DPR screens (drawn with
+  /// `iconSize: dpr / iconOversample`). [halo] adds the explore-mode
+  /// halo + soft shadow chrome. Falls back to the flat top-down sprite
+  /// when the kind has no baked sheet.
+  static Future<Uint8List> navFrame(
+    int heading,
+    int phase, {
+    required bool halo,
+  }) async {
+    final kind = VehiclePrefs.current;
+    final sheet = await VehicleSprites.navOf(kind);
+    final sprite = sheet == null ? await VehicleSprites.of(kind) : null;
+    final logical = halo ? 54.0 : 44.0;
+    const os = VehicleMarkerConfig.iconOversample;
+    return _toPng(logical * os, logical * os, (c, _) {
+      c.scale(os, os);
+      final sz = ui.Size(logical, logical);
+      if (halo) _paintNavHalo(c, sz);
+      if (sheet == null) {
+        _paintVehicle(c, sz, kind, sprite);
+        return;
+      }
+      c.drawImageRect(
+        sheet,
+        VehicleNavSheet.frameRect(sheet, heading, phase),
+        Rect.fromLTWH(0, 0, sz.width, sz.height),
+        ui.Paint()..filterQuality = ui.FilterQuality.high,
+      );
+    });
+  }
+
+  /// Halo + soft ground shadow under the drive avatar (shared by
+  /// [navVehicle] and the [navFrame] halo variant; the frame's own baked
+  /// shadow is subtle, so the chrome keeps the swap with the Flutter puck
+  /// invisible).
+  static void _paintNavHalo(ui.Canvas c, ui.Size sz) {
+    final center = Offset(sz.width / 2, sz.height / 2);
+    c.drawCircle(
+      center,
+      26,
+      ui.Paint()..color = AppColors.primary.withValues(alpha: 0.10),
+    );
+    c.drawOval(
+      Rect.fromCenter(center: center.translate(0, 6), width: 34, height: 38),
+      ui.Paint()
+        ..color = Colors.black.withValues(alpha: 0.22)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),
+    );
   }
 
   /// Draws [kind]'s avatar into the full [sz] square: the decoded 3D
