@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
@@ -489,7 +491,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
             ),
             _CollapsibleBody(
               expanded: _expanded,
-              // Garage carousel: each vehicle spins on its own street
+              // Garage carousel: each vehicle spins on its own showcase
               // stage; swipe left/right to pick. Only mounted while open
               // so turntables never animate unseen.
               child: !_expanded
@@ -808,9 +810,9 @@ class _ThemePage extends StatelessWidget {
   );
 }
 
-/// One vehicle "stage" in the garage carousel: a playful little street —
-/// sky, sun, clouds, a bus-stop sign and a dashed road — with the vehicle
-/// spinning on the asphalt. Only the centred stage animates.
+/// One vehicle "stage" in the garage carousel: the showcase backdrop with
+/// the vehicle orbiting slowly on its map-diorama platter. Only the
+/// centred stage animates.
 class _VehicleStage extends StatelessWidget {
   final VehicleKind kind;
   final String name;
@@ -837,7 +839,7 @@ class _VehicleStage extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Expanded(child: _StreetScene(kind: kind, animate: active)),
+          Expanded(child: _ShowcaseStage(kind: kind, animate: active)),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
             child: Text(
@@ -855,297 +857,58 @@ class _VehicleStage extends StatelessWidget {
   }
 }
 
-/// The little street the vehicle spins on: fixed daylight artwork (sky,
-/// sun, clouds, a distant skyline, a tree, a bus shelter and dashed
-/// asphalt) so it reads the same under every app theme.
-class _StreetScene extends StatelessWidget {
+/// Showroom stage for one vehicle, matching the Laffa Avatars showcase
+/// page: a soft sage radial-gradient backdrop with the vehicle spinning
+/// slowly on its baked map-diorama platter. Fixed light palette so it
+/// reads the same under every app theme.
+class _ShowcaseStage extends StatelessWidget {
   final VehicleKind kind;
   final bool animate;
 
-  const _StreetScene({required this.kind, required this.animate});
-
-  static const double _roadHeight = 48;
-  static const double _sidewalkHeight = 8;
-  static const double _groundTop = _roadHeight + _sidewalkHeight;
+  const _ShowcaseStage({required this.kind, required this.animate});
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Sky — cool above, warm at the horizon.
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFFB7E0F8),
-                Color(0xFFE3F4FE),
-                Color(0xFFFFF2D9),
-              ],
-              stops: [0.0, 0.62, 1.0],
-            ),
-          ),
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        // The showcase page sky: warm off-white falling to sage.
+        gradient: RadialGradient(
+          center: Alignment(0, -1),
+          radius: 1.5,
+          colors: [
+            Color(0xFFF4F6F1),
+            Color(0xFFE7EBE4),
+            Color(0xFFDEE3DA),
+          ],
+          stops: [0.0, 0.6, 1.0],
         ),
-        // Sun with a soft glow.
-        PositionedDirectional(
-          top: 10,
-          start: 14,
-          child: Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFD66B),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFFD66B).withValues(alpha: 0.55),
-                  blurRadius: 14,
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Clouds.
-        const PositionedDirectional(top: 14, end: 30, child: _Cloud(width: 42)),
-        const PositionedDirectional(top: 32, end: 86, child: _Cloud(width: 26)),
-        const PositionedDirectional(top: 40, start: 52, child: _Cloud(width: 32)),
-        // Distant skyline sitting on the sidewalk.
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: _groundTop - 1,
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _Building(width: 30, height: 34, color: Color(0xFFA9BFCE)),
-              _Building(width: 24, height: 48, color: Color(0xFF97AFC0), lit: true),
-              _Building(width: 34, height: 28, color: Color(0xFFB3C8D5)),
-              _Building(width: 22, height: 42, color: Color(0xFF9DB4C4), lit: true),
-              _Building(width: 28, height: 32, color: Color(0xFFA9BFCE)),
-            ],
-          ),
-        ),
-        // Sidewalk + asphalt.
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: _roadHeight,
-          height: _sidewalkHeight,
-          child: const ColoredBox(color: Color(0xFFCBD5DA)),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: _roadHeight,
-          child: const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF525A61), Color(0xFF41484E)],
-              ),
-            ),
-          ),
-        ),
-        // Road edge line + dashed centre line.
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: _roadHeight - 3,
-          height: 2,
-          child: const ColoredBox(color: Colors.white38),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: _roadHeight / 2 - 2,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (var i = 0; i < 6; i++)
-                const SizedBox(
-                  width: 16,
-                  height: 3,
-                  child: ColoredBox(color: Colors.white70),
-                ),
-            ],
-          ),
-        ),
-        // Tree on the near corner.
-        const PositionedDirectional(
-          bottom: _groundTop - 4,
-          start: 16,
-          child: _Tree(),
-        ),
-        // Bus shelter on the far corner.
-        const PositionedDirectional(
-          bottom: _groundTop - 4,
-          end: 14,
-          child: _BusShelter(),
-        ),
-        // Ground shadow + the spinning vehicle, wheels on the asphalt.
-        Positioned(
-          bottom: 10,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: Container(
-              width: 86,
-              height: 10,
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.all(Radius.elliptical(43, 5)),
-                color: Color(0x2E000000),
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 4,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: VehicleTurntable(kind: kind, size: 118, animate: animate),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Soft rounded cloud blob for the street scene.
-class _Cloud extends StatelessWidget {
-  final double width;
-  const _Cloud({required this.width});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: width * 0.42,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(99),
       ),
-    );
-  }
-}
-
-/// Distant building silhouette; [lit] sprinkles a few window lights.
-class _Building extends StatelessWidget {
-  final double width;
-  final double height;
-  final Color color;
-  final bool lit;
-
-  const _Building({
-    required this.width,
-    required this.height,
-    required this.color,
-    this.lit = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-      ),
-      child: !lit
-          ? null
-          : Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                for (var r = 0; r < 3; r++)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      for (var c = 0; c < 2; c++)
-                        Container(
-                          width: 4,
-                          height: 5,
-                          color: Colors.white.withValues(alpha: 0.55),
-                        ),
-                    ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final size =
+              math.min(constraints.maxWidth, constraints.maxHeight) - 6;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // Soft contact shadow seating the platter on the gradient.
+              Align(
+                alignment: const Alignment(0, 0.78),
+                child: Container(
+                  width: size * 0.66,
+                  height: size * 0.1,
+                  decoration: const BoxDecoration(
+                    gradient: RadialGradient(
+                      colors: [Color(0x2414231E), Color(0x0014231E)],
+                    ),
+                    borderRadius: BorderRadius.all(Radius.circular(99)),
                   ),
-              ],
-            ),
-    );
-  }
-}
-
-/// Round little sidewalk tree.
-class _Tree extends StatelessWidget {
-  const _Tree();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 30,
-          height: 28,
-          decoration: const BoxDecoration(
-            color: Color(0xFF6FBF73),
-            shape: BoxShape.circle,
-          ),
-        ),
-        Container(width: 5, height: 14, color: const Color(0xFF8B6B4A)),
-      ],
-    );
-  }
-}
-
-/// Tiny bus shelter: roof on two posts with the bus sign beside it.
-class _BusShelter extends StatelessWidget {
-  const _BusShelter();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 46,
-          height: 6,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2F7DD1),
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        SizedBox(
-          width: 40,
-          height: 24,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(width: 3, color: const Color(0xFF8A9299)),
-              Container(
-                margin: const EdgeInsets.only(top: 3),
-                width: 18,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2F7DD1),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.white, width: 1.4),
-                ),
-                child: const Icon(
-                  Icons.directions_bus_rounded,
-                  size: 10,
-                  color: Colors.white,
                 ),
               ),
-              Container(width: 3, color: const Color(0xFF8A9299)),
+              VehicleTurntable(kind: kind, size: size, animate: animate),
             ],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 }

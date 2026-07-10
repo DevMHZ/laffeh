@@ -95,7 +95,20 @@
       "Bash(git -C /Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh diff --stat)",
       "Bash(git -C /Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh status --short)",
       "Bash(git -C /Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh diff lib/features/route_planner/presentation/cubit/route_planner_cubit.dart)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(grep -n -o -E '<style>.{0,4000}' \"/Users/aalzoobi/Desktop/Afdal/Products/laffaApp/laffeh/assets/Laffa Avatars.html\")",
+      "Bash(grep -o -E 'scene\\\\.background[^;]{0,120}|new THREE\\\\.Fog[^;]{0,120}|new THREE\\\\.Color\\\\\\([^\\)]*\\\\\\)|groundGeo|CircleGeometry[^;]{0,80}|ShadowMaterial[^;]{0,120}|HemisphereLight\\\\\\([^\\)]*\\\\\\)|DirectionalLight\\\\\\([^\\)]*\\\\\\)|AmbientLight\\\\\\([^\\)]*\\\\\\)|SpotLight\\\\\\([^\\)]*\\\\\\)' \"Laffa Avatars.html\")",
+      "Bash(sips -g pixelWidth -g pixelHeight assets/vehicles/vw_bus_turn.png assets/vehicles/mercedes_taxi_turn.png)",
+      "Bash(npm install *)",
+      "Bash(node bake.mjs --turn)",
+      "Bash(node -p \"process.arch\")",
+      "Read(//Applications/Google Chrome.app/Contents/MacOS/**)",
+      "Bash(PUPPETEER_EXECUTABLE_PATH=\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" node bake.mjs --turn)",
+      "Skill(artifact-design)",
+      "Bash(python3 *)",
+      "Artifact",
+      "Bash(curl -sL \"https://660d007a-9fb1-4808-8a0d-1b4ad13abc69.frame.claudeusercontent.com/_f/1783\" -o /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/6a899aa2-d3b0-4f66-84d6-350549e7ca49/scratchpad/deployed.html)",
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/6a899aa2-d3b0-4f66-84d6-350549e7ca49/scratchpad/run.log)"
     ]
   }
 }

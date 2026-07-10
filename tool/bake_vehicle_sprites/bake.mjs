@@ -1,9 +1,13 @@
-// Bakes the four vehicle GLBs into nav sprite sheets:
-//   assets/vehicles/<name>_nav.png  (16x12 grid, 192 frames of 160px:
+// Bakes the four vehicle GLBs into sprite sheets:
+//   assets/vehicles/<name>_nav.png   (16x12 grid, 192 frames of 160px:
 //   48 headings x 4 animation phases, frame 0 = nose up, clockwise)
+//   assets/vehicles/<name>_turn.png  (9x8 grid, 72 frames of 224px:
+//   Settings garage turntable — vehicle on a pastel map diorama platter)
 //
-// Usage:  npm install && npm run bake            (all vehicles)
-//         node bake.mjs vw_bus mercedes_taxi     (subset)
+// Usage:  npm install && npm run bake                    (all, both sheets)
+//         node bake.mjs vw_bus mercedes_taxi             (subset)
+//         node bake.mjs --turn                           (turntables only)
+//         node bake.mjs --nav vespa_rider                (nav only, subset)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,9 +82,19 @@ async function launchBrowser() {
   throw lastErr;
 }
 
-const names = process.argv.slice(2).length
-  ? process.argv.slice(2)
-  : Object.keys(VEHICLES);
+const args = process.argv.slice(2);
+const flags = args.filter((a) => a.startsWith('--'));
+const names = args.filter((a) => !a.startsWith('--'));
+const sheets = flags.length
+  ? flags.map((f) => f.slice(2))
+  : ['nav', 'turn'];
+for (const sheet of sheets) {
+  if (!['nav', 'turn'].includes(sheet)) {
+    console.error(`unknown flag --${sheet} (know: --nav --turn)`);
+    process.exit(1);
+  }
+}
+if (!names.length) names.push(...Object.keys(VEHICLES));
 for (const name of names) {
   if (!(name in VEHICLES)) {
     console.error(`unknown vehicle "${name}" (know: ${Object.keys(VEHICLES)})`);
@@ -100,17 +114,21 @@ try {
   await page.goto(`http://127.0.0.1:${port}/harness.html`);
   await page.waitForFunction('window.__harnessReady === true');
 
+  const bakers = { nav: 'bakeVehicle', turn: 'bakeTurntable' };
   for (const name of names) {
-    console.log(`baking ${name}...`);
-    const dataUrl = await page.evaluate(
-      (glbUrl, overrides) => window.bakeVehicle({ glbUrl, ...overrides }),
-      `/assets/${name}.glb`,
-      VEHICLES[name],
-    );
-    const png = Buffer.from(dataUrl.split(',')[1], 'base64');
-    const out = path.join(outDir, `${name}_nav.png`);
-    fs.writeFileSync(out, png);
-    console.log(`  wrote ${path.relative(repoRoot, out)} (${(png.length / 1024).toFixed(0)} KB)`);
+    for (const sheet of sheets) {
+      console.log(`baking ${name} (${sheet})...`);
+      const dataUrl = await page.evaluate(
+        (fn, glbUrl, overrides) => window[fn]({ glbUrl, ...overrides }),
+        bakers[sheet],
+        `/assets/${name}.glb`,
+        VEHICLES[name],
+      );
+      const png = Buffer.from(dataUrl.split(',')[1], 'base64');
+      const out = path.join(outDir, `${name}_${sheet}.png`);
+      fs.writeFileSync(out, png);
+      console.log(`  wrote ${path.relative(repoRoot, out)} (${(png.length / 1024).toFixed(0)} KB)`);
+    }
   }
 } finally {
   await browser.close();

@@ -7,8 +7,10 @@ import '../theme/vehicle_kind.dart';
 import '../theme/vehicle_sprites.dart';
 
 /// Car-game turntable preview of a [VehicleKind]: plays the pre-rendered
-/// 72-frame garage-view sheet (one full revolution, 5° per frame) so the
-/// vehicle spins in 3D. With [animate] off it holds a single
+/// 72-frame garage-view sheet (one full revolution of the vehicle on its
+/// map-diorama platter, 5° per frame) so the vehicle spins in 3D. Adjacent
+/// frames are cross-faded, so the slow orbit reads as continuous motion
+/// rather than 5° steps. With [animate] off it holds a single
 /// three-quarter frame — the static thumbnail used on the picker tiles.
 ///
 /// Painter-drawn vehicles (the arrow) have no sheet; they spin flat
@@ -23,7 +25,7 @@ class VehicleTurntable extends StatefulWidget {
   /// front three-quarter, the classic garage thumbnail.
   final int staticFrame;
 
-  /// Time for one full revolution.
+  /// Time for one full revolution — a slow, deliberate showroom orbit.
   final Duration period;
 
   const VehicleTurntable({
@@ -32,7 +34,7 @@ class VehicleTurntable extends StatefulWidget {
     required this.size,
     this.animate = true,
     this.staticFrame = 42,
-    this.period = const Duration(milliseconds: 4600),
+    this.period = const Duration(milliseconds: 11000),
   });
 
   static const int frames = 72;
@@ -44,15 +46,16 @@ class VehicleTurntable extends StatefulWidget {
 
 class _VehicleTurntableState extends State<VehicleTurntable>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _spin = AnimationController(
-    vsync: this,
-    duration: widget.period,
-  );
+  // Created eagerly in initState: lazy `late final` initialization here
+  // could first run inside dispose(), where the ticker's TickerMode
+  // ancestor lookup asserts.
+  late final AnimationController _spin;
   ui.Image? _sheet;
 
   @override
   void initState() {
     super.initState();
+    _spin = AnimationController(vsync: this, duration: widget.period);
     if (widget.animate) _spin.repeat();
     _loadSheet();
   }
@@ -113,13 +116,12 @@ class _VehicleTurntableState extends State<VehicleTurntable>
       child: AnimatedBuilder(
         animation: _spin,
         builder: (_, __) {
-          final frame = widget.animate
-              ? (_spin.value * VehicleTurntable.frames).floor() %
-                    VehicleTurntable.frames
-              : widget.staticFrame % VehicleTurntable.frames;
+          final position = widget.animate
+              ? _spin.value * VehicleTurntable.frames
+              : (widget.staticFrame % VehicleTurntable.frames).toDouble();
           return CustomPaint(
             size: Size.square(widget.size),
-            painter: _TurntableFramePainter(sheet: sheet, frame: frame),
+            painter: _TurntableFramePainter(sheet: sheet, position: position),
           );
         },
       ),
@@ -127,32 +129,53 @@ class _VehicleTurntableState extends State<VehicleTurntable>
   }
 }
 
+/// Draws the fractional turntable [position]: the frame under it fully
+/// opaque with the next frame faded in on top, so 5°-apart bakes blend
+/// into one smooth revolution.
 class _TurntableFramePainter extends CustomPainter {
   final ui.Image sheet;
-  final int frame;
+  final double position;
 
-  const _TurntableFramePainter({required this.sheet, required this.frame});
+  const _TurntableFramePainter({required this.sheet, required this.position});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final frame = position.floor() % VehicleTurntable.frames;
+    final blend = position - position.floorToDouble();
+    _drawFrame(canvas, size, frame, 1);
+    if (blend > 0.01) {
+      _drawFrame(
+        canvas,
+        size,
+        (frame + 1) % VehicleTurntable.frames,
+        blend,
+      );
+    }
+  }
+
+  void _drawFrame(Canvas canvas, Size size, int frame, double opacity) {
     const cols = VehicleTurntable.cols;
     final fw = sheet.width / cols;
     final fh = sheet.height / (VehicleTurntable.frames / cols);
+    // Half-pixel inset keeps high-quality filtering from sampling the
+    // neighbouring frame's edge (reads as flickering lines while turning).
     final src = Rect.fromLTWH(
-      (frame % cols) * fw,
-      (frame ~/ cols) * fh,
-      fw,
-      fh,
+      (frame % cols) * fw + 0.5,
+      (frame ~/ cols) * fh + 0.5,
+      fw - 1,
+      fh - 1,
     );
     canvas.drawImageRect(
       sheet,
       src,
       Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..filterQuality = FilterQuality.high,
+      Paint()
+        ..filterQuality = FilterQuality.high
+        ..color = Color.fromRGBO(0, 0, 0, opacity),
     );
   }
 
   @override
   bool shouldRepaint(covariant _TurntableFramePainter old) =>
-      old.frame != frame || old.sheet != sheet;
+      old.position != position || old.sheet != sheet;
 }

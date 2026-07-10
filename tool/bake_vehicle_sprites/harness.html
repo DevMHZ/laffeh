@@ -17,6 +17,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // Bakes one vehicle GLB into a sprite sheet and returns it as a PNG data
 // URL. Sheet layout: row-major, index = heading*phases + phase. Frame 0 =
@@ -143,6 +144,241 @@ window.bakeVehicle = async function bakeVehicle(opts) {
         framePx,
       );
     }
+  }
+
+  const url = sheet.toDataURL('image/png');
+  renderer.dispose();
+  return url;
+};
+
+// Bakes one vehicle GLB into the Settings garage turntable sheet and
+// returns it as a PNG data URL. The vehicle sits on a pastel map diorama
+// platter (sage ground, crossing roads, amber lane dashes, a river band
+// and low pastel blocks — the look of the Laffa Avatars showcase) and the
+// whole diorama spins, reading like an orbiting camera. Sheet layout:
+// row-major, one revolution clockwise; frame 0 = nose away from camera.
+//
+// opts: { glbUrl, frames, framePx, cols, supersample, yawOffsetDeg }
+window.bakeTurntable = async function bakeTurntable(opts) {
+  const {
+    glbUrl,
+    frames = 72,
+    framePx = 224,
+    cols = 9,
+    supersample = 2,
+    yawOffsetDeg = 180,
+    elevationDeg = 27,
+    fovDeg = 30,
+  } = opts;
+
+  const renderPx = framePx * supersample;
+  const renderer = new THREE.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+    preserveDrawingBuffer: true,
+  });
+  renderer.setSize(renderPx, renderPx);
+  renderer.setPixelRatio(1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = null;
+
+  const gltf = await new GLTFLoader().loadAsync(glbUrl);
+  const model = gltf.scene;
+  // Vehicles cast onto the platter but never receive shadows themselves —
+  // self-shadowing at sprite scale bakes in acne streaks that shimmer
+  // frame to frame.
+  model.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = false;
+    }
+  });
+
+  const clip = gltf.animations[0];
+  const mixer = clip ? new THREE.AnimationMixer(model) : null;
+  if (mixer) {
+    mixer.clipAction(clip).play();
+    mixer.setTime(0);
+  }
+
+  model.rotation.y = THREE.MathUtils.degToRad(yawOffsetDeg);
+  model.updateMatrixWorld(true);
+  const vBox = new THREE.Box3().setFromObject(model);
+  const vSize = new THREE.Vector3();
+  vBox.getSize(vSize);
+  const vCenter = new THREE.Vector3();
+  vBox.getCenter(vCenter);
+  // Ground the vehicle at the origin of the spin group.
+  model.position.set(-vCenter.x, -vBox.min.y, -vCenter.z);
+
+  // The spin group carries the per-frame yaw: platter and vehicle turn
+  // together while camera and lights stay fixed, so the light always
+  // falls the same way in screen space.
+  const group = new THREE.Group();
+  group.add(model);
+  scene.add(group);
+
+  // ---- Diorama platter (palette lifted from the Laffa Avatars page) ----
+  const halfFoot = Math.max(vSize.x, vSize.z) / 2;
+  const R = halfFoot * 1.55; // platter radius: vehicle stays the hero
+  const platterH = R * 0.09;
+
+  const mat = (color, roughness = 0.9) =>
+    new THREE.MeshStandardMaterial({ color, roughness });
+
+  const platter = new THREE.Mesh(
+    new THREE.CylinderGeometry(R, R * 0.985, platterH, 96),
+    [mat(0xdfe5d8), mat(0xeef2ea, 0.95), mat(0xdfe5d8)],
+  );
+  platter.position.y = -platterH / 2;
+  platter.receiveShadow = true;
+  group.add(platter);
+
+  // Decal layers each get their own height so stacked planes (roads over
+  // ground, dashes over roads) never z-fight — that flicker is the exact
+  // artifact this bake exists to remove.
+  const lift = R * 0.004;
+  const decal = (geo, material, x, z, layer = 1, rotZ = 0) => {
+    const m = new THREE.Mesh(geo, material);
+    m.rotation.x = -Math.PI / 2;
+    m.rotation.z = rotZ;
+    m.position.set(x, lift * layer, z);
+    m.receiveShadow = true;
+    group.add(m);
+    return m;
+  };
+
+  // Crossing roads under the vehicle.
+  const roadW = R * 0.42;
+  const roadMat = mat(0xe2e7de, 1);
+  decal(new THREE.PlaneGeometry(roadW, R * 2), roadMat, 0, 0, 1);
+  decal(new THREE.PlaneGeometry(R * 2, roadW), roadMat, 0, 0, 2);
+  // Amber lane dashes.
+  const dashMat = mat(0xf6b23c, 0.8);
+  const dashL = R * 0.16;
+  const dashW = R * 0.028;
+  for (let i = -3; i <= 3; i++) {
+    if (i === 0) continue;
+    const d = i * R * 0.28;
+    if (Math.abs(d) + dashL / 2 > R * 0.97) continue;
+    decal(new THREE.PlaneGeometry(dashW, dashL), dashMat, 0, d, 3);
+    decal(new THREE.PlaneGeometry(dashL, dashW), dashMat, d, 0, 3);
+  }
+  // River band across one quadrant.
+  decal(
+    new THREE.PlaneGeometry(R * 0.3, R * 1.1),
+    mat(0xbfe0ea, 0.4),
+    -R * 0.62,
+    R * 0.3,
+    4,
+    0.35,
+  );
+
+  // Low pastel blocks in the quadrants (Monument-Valley skyline).
+  const blockCols = [0xd8e6cf, 0xe7ded0, 0xdfe7ef, 0xe9dfe6];
+  const blockMats = blockCols.map((c) => mat(c, 0.9));
+  const blockSpots = [
+    [0.52, 0.52, 0.16, 0.3],
+    [0.74, 0.38, 0.13, 0.22],
+    [-0.5, -0.56, 0.15, 0.34],
+    [-0.72, -0.32, 0.12, 0.2],
+    [0.56, -0.5, 0.14, 0.26],
+    [0.36, -0.72, 0.11, 0.18],
+    [-0.4, 0.66, 0.13, 0.24],
+  ];
+  blockSpots.forEach(([bx, bz, s, h], i) => {
+    const w = R * s * 2;
+    const bh = R * h;
+    const b = new THREE.Mesh(
+      new RoundedBoxGeometry(w, bh, w, 3, w * 0.12),
+      blockMats[i % blockMats.length],
+    );
+    b.position.set(R * bx, bh / 2 - w * 0.03, R * bz);
+    b.castShadow = true;
+    b.receiveShadow = true;
+    group.add(b);
+  });
+  // A couple of sidewalk trees.
+  const leafMat = mat(0x6fbf73, 0.85);
+  const trunkMat = mat(0x8b6b4a, 0.9);
+  [
+    [0.32, 0.78],
+    [-0.78, -0.1],
+    [0.82, -0.24],
+  ].forEach(([tx, tz]) => {
+    const tr = R * 0.05;
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(tr * 0.28, tr * 0.34, tr * 1.6, 8),
+      trunkMat,
+    );
+    trunk.position.set(R * tx, tr * 0.8, R * tz);
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(tr, 16, 12), leafMat);
+    leaf.position.set(R * tx, tr * 2.1, R * tz);
+    leaf.castShadow = true;
+    group.add(trunk, leaf);
+  });
+
+  // ---- Lights (matched to the showcase page) ----
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9e2d4, 0.85));
+  const key = new THREE.DirectionalLight(0xfff4e2, 2.1);
+  key.position.set(R * 1.4, vSize.y * 3.2, R * 1.1);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.radius = 5;
+  key.shadow.normalBias = R * 0.02;
+  key.shadow.bias = -0.0002;
+  const sc = key.shadow.camera;
+  sc.left = -R * 1.4; sc.right = R * 1.4;
+  sc.top = R * 1.4; sc.bottom = -R * 1.4;
+  sc.near = 0.1; sc.far = vSize.y * 8 + R * 4;
+  scene.add(key, key.target);
+  const rim = new THREE.DirectionalLight(0xcfe0ff, 0.5);
+  rim.position.set(-R * 1.6, vSize.y * 1.4, -R * 1.2);
+  scene.add(rim);
+
+  // ---- Camera: fixed 3/4 garage view framing the whole diorama ----
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(group);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const r = sphere.radius * 1.04;
+  const camera = new THREE.PerspectiveCamera(fovDeg, 1, 0.1, r * 40);
+  const elev = THREE.MathUtils.degToRad(elevationDeg);
+  const dist = r / Math.tan(THREE.MathUtils.degToRad(fovDeg / 2));
+  const target = new THREE.Vector3(0, vSize.y * 0.32, 0);
+  camera.position.set(
+    target.x,
+    target.y + dist * Math.sin(elev),
+    target.z + dist * Math.cos(elev),
+  );
+  camera.lookAt(target);
+
+  const rows = Math.ceil(frames / cols);
+  const sheet = document.createElement('canvas');
+  sheet.width = cols * framePx;
+  sheet.height = rows * framePx;
+  const ctx = sheet.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  for (let f = 0; f < frames; f++) {
+    // Idle animation drifts slowly through the revolution and loops:
+    // one clip cycle per revolution keeps frame 71 -> 0 seamless.
+    if (mixer && clip.duration) {
+      mixer.setTime((clip.duration * f) / frames);
+    }
+    group.rotation.y = THREE.MathUtils.degToRad(-(f * 360) / frames);
+    renderer.render(scene, camera);
+    ctx.drawImage(
+      renderer.domElement,
+      (f % cols) * framePx,
+      Math.floor(f / cols) * framePx,
+      framePx,
+      framePx,
+    );
   }
 
   const url = sheet.toDataURL('image/png');
