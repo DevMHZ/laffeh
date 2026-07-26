@@ -26,7 +26,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.data,
         home: Scaffold(
           backgroundColor: AppColors.asphalt,
           body: Center(

@@ -77,7 +77,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.data,
         home: const RoutePlannerPage(),
       ),
     );

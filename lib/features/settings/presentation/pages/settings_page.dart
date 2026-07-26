@@ -16,6 +16,7 @@ import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/widgets/afdal_logo.dart';
 import '../../../../core/widgets/app_section_card.dart';
 import '../../../../core/widgets/vehicle_turntable.dart';
+import '../widgets/account_section.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -217,6 +218,10 @@ class _SettingsCard extends StatelessWidget {
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
           _LanguageSection(),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          AccountSection(),
           const SizedBox(height: 14),
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),

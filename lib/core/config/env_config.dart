@@ -22,11 +22,25 @@ class EnvConfig {
   static String get aiRouteApiKey =>
       _read('AI_ROUTE_API_KEY', fallback: 'test-key-001');
 
-  static String get mapStyleUrl =>
-      _read('MAP_STYLE_URL', fallback: 'https://tiles.openfreemap.org/styles/liberty');
+  static String get mapStyleUrl => _read(
+    'MAP_STYLE_URL',
+    fallback: 'https://tiles.openfreemap.org/styles/liberty',
+  );
 
   static String get nominatimBaseUrl => _read(
     'NOMINATIM_BASE_URL',
     fallback: 'https://nominatim.openstreetmap.org',
   );
+
+  // ── Supabase (Auth + Database) ─────────────────────────
+  static String get supabaseUrl => _read('SUPABASE_URL');
+
+  /// The anon / publishable key. Never the service_role key.
+  static String get supabaseAnonKey => _read('SUPABASE_ANON_KEY');
+
+  /// True only when both Supabase values are present. Everything auth /
+  /// location-tracking related is a no-op until this is configured, so the
+  /// rest of the app keeps running without a backend.
+  static bool get hasSupabase =>
+      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 }

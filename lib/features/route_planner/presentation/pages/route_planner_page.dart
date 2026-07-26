@@ -7,7 +7,10 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/services/location_ping_service.dart';
 import '../../../../core/utils/share_intent_handler.dart';
+import '../../../auth/presentation/account_nudge.dart';
+import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../widgets/route_map_view.dart';
 import 'route_add_options_host.dart';
@@ -84,6 +87,17 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _shareSub = ShareIntentHandler.stream.listen(_onSharedText);
+    // First chance to capture this launch's single location ping. Best-effort;
+    // no-op once captured, or until location permission is granted.
+    sl<LocationPingService>().ping();
+    // Light, spaced-out reminder to create an account (skipped users only).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AccountNudge.maybePrompt(
+        context,
+        isAuthenticated: context.read<AuthCubit>().isAuthenticated,
+      );
+    });
   }
 
   @override
@@ -109,9 +123,9 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     final count = await cubit.addPointsFromText(text);
     EasyLoading.dismiss();
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(RoutePlannerActions.addedMessage(count))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(RoutePlannerActions.addedMessage(count))),
+      );
     }
   }
 
@@ -127,27 +141,27 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
       },
       child: Scaffold(
         extendBodyBehindAppBar: true,
-      // Coalesces all the frosted map chrome (top bar, floating action
-      // buttons, compass) into a single backdrop sampling/blur pass instead
-      // of one per widget — a large GPU saving while the map pans, zooms and
-      // rotates. Each panel opts in via `BackdropFilter.grouped`.
-      body: BackdropGroup(
-        child: Stack(
-          children: [
-            // Keeps the Stack full-screen even when every other child
-            // collapses to SizedBox.shrink during preview/drive.
-            const SizedBox.expand(),
-            Positioned.fill(child: RouteMapView(key: _mapKey)),
-            const TopBar(),
-            CenterPin(mapKey: _mapKey),
-            const BottomSheetHost(),
-            const AddOptionsHost(),
-            ManualPlacementHost(mapKey: _mapKey),
-            MovePointHost(mapKey: _mapKey),
-            const TripOverlayHost(),
-            const LoadingOverlay(),
-          ],
-        ),
+        // Coalesces all the frosted map chrome (top bar, floating action
+        // buttons, compass) into a single backdrop sampling/blur pass instead
+        // of one per widget — a large GPU saving while the map pans, zooms and
+        // rotates. Each panel opts in via `BackdropFilter.grouped`.
+        body: BackdropGroup(
+          child: Stack(
+            children: [
+              // Keeps the Stack full-screen even when every other child
+              // collapses to SizedBox.shrink during preview/drive.
+              const SizedBox.expand(),
+              Positioned.fill(child: RouteMapView(key: _mapKey)),
+              const TopBar(),
+              CenterPin(mapKey: _mapKey),
+              const BottomSheetHost(),
+              const AddOptionsHost(),
+              ManualPlacementHost(mapKey: _mapKey),
+              MovePointHost(mapKey: _mapKey),
+              const TripOverlayHost(),
+              const LoadingOverlay(),
+            ],
+          ),
         ),
       ),
     );

@@ -32,7 +32,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.data,
         home: const SplashPage(),
       ),
     );
@@ -64,7 +64,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.data,
         home: Scaffold(
           body: Center(
             child: Column(

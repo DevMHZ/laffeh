@@ -108,7 +108,9 @@
       "Bash(python3 *)",
       "Artifact",
       "Bash(curl -sL \"https://660d007a-9fb1-4808-8a0d-1b4ad13abc69.frame.claudeusercontent.com/_f/1783\" -o /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/6a899aa2-d3b0-4f66-84d6-350549e7ca49/scratchpad/deployed.html)",
-      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/6a899aa2-d3b0-4f66-84d6-350549e7ca49/scratchpad/run.log)"
+      "Bash(tee /private/tmp/claude-501/-Users-aalzoobi-Desktop-Afdal-Products-laffaApp-laffeh/6a899aa2-d3b0-4f66-84d6-350549e7ca49/scratchpad/run.log)",
+      "Bash(sed -n '/^dev_dependencies:/,/^flutter:/p' pubspec.yaml)",
+      "Bash(sed -n '/^flutter:/,$p' pubspec.yaml)"
     ]
   }
 }

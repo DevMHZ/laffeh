@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laffah — Legal</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  --bg:#ffffff; --fg:#1a1d21; --muted:#5c636b; --line:#e3e6ea;
+  --accent:#0b6b5a; --card:#f6f8f9; --warn-bg:#fff8e6; --warn-line:#e8c86a;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#14171a; --fg:#e8eaed; --muted:#9aa2ab; --line:#2a2f35;
+        --accent:#4fd1b3; --card:#1c2126; --warn-bg:#2a2415; --warn-line:#6b5a24;}
+}
+:root[data-theme="dark"]{--bg:#14171a; --fg:#e8eaed; --muted:#9aa2ab; --line:#2a2f35;
+  --accent:#4fd1b3; --card:#1c2126; --warn-bg:#2a2415; --warn-line:#6b5a24;}
+:root[data-theme="light"]{--bg:#ffffff; --fg:#1a1d21; --muted:#5c636b; --line:#e3e6ea;
+  --accent:#0b6b5a; --card:#f6f8f9; --warn-bg:#fff8e6; --warn-line:#e8c86a;}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-text-size-adjust:100%}
+.wrap{max-width:820px;margin:0 auto;padding:28px 20px 80px}
+nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  padding-bottom:18px;margin-bottom:26px;border-bottom:1px solid var(--line)}
+nav .sp{flex:1 1 auto;min-width:8px}
+button{font:inherit;font-size:14px;padding:7px 13px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:transparent;color:var(--muted);transition:.15s}
+button:hover{border-color:var(--accent);color:var(--fg)}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){button[aria-pressed="true"]{color:#0e1417}}
+:root[data-theme="dark"] button[aria-pressed="true"]{color:#0e1417}
+h1{font-size:1.75rem;line-height:1.3;margin:.2em 0 .6em}
+h2{font-size:1.2rem;margin:2.2em 0 .5em;padding-top:.2em}
+h3{font-size:1.02rem;margin:1.6em 0 .4em;color:var(--muted)}
+p{margin:0 0 1em}
+ul{margin:0 0 1em;padding-inline-start:1.3em}
+li{margin-bottom:.45em}
+a{color:var(--accent)}
+code{background:var(--card);padding:.12em .4em;border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em}
+hr{border:0;border-top:1px solid var(--line);margin:2.2em 0}
+blockquote{margin:0 0 1.4em;padding:12px 16px;border-radius:10px;
+  background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--fg)}
+blockquote code{background:rgba(0,0,0,.07)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 1.4em}
+table{border-collapse:collapse;width:100%;min-width:420px;font-size:.94rem}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:start;vertical-align:top}
+th{background:var(--card);font-weight:600}
+section{display:none}
+section.on{display:block}
+[dir="rtl"]{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif}
+</style>
+</head>
+<body>
+<div class="wrap"><nav><button data-doc="privacy-policy" data-names="{&quot;en&quot;: &quot;Privacy Policy&quot;, &quot;ar&quot;: &quot;سياسة الخصوصية&quot;, &quot;fr&quot;: &quot;Confidentialité&quot;}">Privacy Policy</button><button data-doc="terms-of-service" data-names="{&quot;en&quot;: &quot;Terms of Service&quot;, &quot;ar&quot;: &quot;شروط الاستخدام&quot;, &quot;fr&quot;: &quot;Conditions&quot;}">Terms of Service</button><button data-doc="account-deletion" data-names="{&quot;en&quot;: &quot;Delete Account&quot;, &quot;ar&quot;: &quot;حذف الحساب&quot;, &quot;fr&quot;: &quot;Supprimer le compte&quot;}">Delete Account</button><span class="sp"></span><button data-lang="en">English</button><button data-lang="ar">العربية</button><button data-lang="fr">Français</button></nav>
+<section id="privacy-policy-en" lang="en" dir="ltr"><h1>Laffah — Privacy Policy</h1>
+<p><strong>Effective date:</strong> 25 July 2026<br><strong>Last updated:</strong> 25 July 2026</p>
+<hr>
+<h2>1. Who we are</h2>
+<p>Laffah (&quot;the app&quot;) is a route-planning application published by Ali Alzoobi, an independent developer based in Lebanon, operating under the trading name &quot;Afdal&quot; (&quot;we&quot;, &quot;us&quot;). &quot;Afdal&quot; is a trading name, not a registered company.</p>
+<p>We are the data controller for the personal data described in this policy.</p>
+<p><strong>Contact for any privacy question or request:</strong> WhatsApp <strong>+33 7 83 71 94 27</strong></p>
+<hr>
+<h2>2. Summary</h2>
+<div class="tw"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Do we need an account?</td><td>No. The app works fully without signing in.</td></tr><tr><td>Do we show ads?</td><td>No.</td></tr><tr><td>Do we use analytics or tracking SDKs?</td><td><strong>No.</strong> The app contains no analytics, advertising, crash-reporting or attribution SDK of any kind.</td></tr><tr><td>Do we sell your data?</td><td>No. Never.</td></tr><tr><td>Do we track you in the background?</td><td>No. Location is read only while the app is open.</td></tr><tr><td>How long do we keep your location?</td><td>We keep <strong>one</strong> current location per device. Each new reading overwrites the previous one — we do not build a location history.</td></tr></tbody></table></div>
+<hr>
+<h2>3. What we collect</h2>
+<h3>3.1 Account data — only if you choose to sign up</h3>
+<p>Signing in is optional. If you create an account we collect:</p>
+<ul><li><strong>Your phone number</strong> — it is your login identifier.</li><li><strong>Your password</strong> — stored only as a cryptographic hash by our authentication provider. We never see or store your password in readable form.</li></ul>
+<h3>3.2 Profile data — only if you complete onboarding</h3>
+<ul><li>Your <strong>full name</strong></li><li>Your <strong>company name</strong></li><li>The <strong>use cases</strong> you select (for example delivery, field sales, navigation)</li><li>An optional <strong>free-text note</strong>, collected only if you select &quot;Other use&quot; and type something in the box</li></ul>
+<h3>3.3 Location data</h3>
+<ul><li><strong>What:</strong> latitude, longitude, an accuracy radius in metres, and the time of the reading.</li><li><strong>When:</strong> a single reading each time you open the app. The app requests a reduced-precision fix (approximately 100 m target accuracy) rather than full-precision GPS.</li><li><strong>Only in the foreground.</strong> The app does not read your location while it is closed or in the background.</li><li><strong>Only with your permission.</strong> If you have not granted location permission, the app silently skips this and never re-prompts you here.</li><li><strong>One record, overwritten.</strong> We store exactly one current location per device. The next reading replaces it. We do not keep a trail or history of where you have been.</li></ul>
+<h3>3.4 Device identifier</h3>
+<p>The app generates a <strong>random identifier</strong> the first time it runs and stores it on your device. It is not your advertising ID, your hardware serial, or any identifier assigned by Apple, Google or your carrier. It is used to attach your current location to a device, including when you are not signed in.</p>
+<h3>3.5 What we do <strong>not</strong> collect</h3>
+<p>We do not collect your contacts, photos, calendar, microphone, camera, call or SMS data, installed-app list, advertising identifier, or any behavioural analytics. The app contains no third-party tracking code.</p>
+<hr>
+<h2>4. Data that never leaves your device</h2>
+<p>The following is stored <strong>only</strong> in your device&#x27;s local storage and is never transmitted to us:</p>
+<ul><li>Your <strong>saved routes</strong> and route history</li><li>Your <strong>in-progress route drafts</strong></li><li>Your <strong>language, theme and vehicle-icon preferences</strong></li><li>Onboarding and first-run flags</li></ul>
+<p>Deleting the app removes all of it. If you export a route as a CSV file and share it, that file goes wherever *you* send it — we are not involved.</p>
+<hr>
+<h2>5. Who we share data with</h2>
+<p>We do not sell your data and we do not share it for advertising. Data reaches the following parties only as needed to make the app work:</p>
+<div class="tw"><table><thead><tr><th>Recipient</th><th>What they receive</th><th>Why</th></tr></thead><tbody><tr><td><strong>Supabase</strong> (our database and authentication host)</td><td>Your account, profile and current-location record</td><td>Hosting our backend</td></tr><tr><td><strong>Afdal route-optimisation service</strong> (<code>back.laffa.afdal.tech</code>, operated by us)</td><td>The <strong>coordinates</strong> of your depot and stops, plus vehicle count and capacity</td><td>Calculating an optimised route. No name, phone number or account identifier is sent.</td></tr><tr><td><strong>OpenStreetMap / Nominatim</strong></td><td>The <strong>text you type into search</strong>, and coordinates when the app looks up an address</td><td>Searching for places and naming a point on the map</td></tr><tr><td><strong>OSRM</strong> (<code>router.project-osrm.org</code>)</td><td>The <strong>coordinates</strong> of your route points</td><td>Calculating the road path between points</td></tr><tr><td><strong>OpenFreeMap</strong></td><td>The <strong>map area you are viewing</strong></td><td>Serving map tiles</td></tr></tbody></table></div>
+<p>OpenStreetMap, Nominatim, OSRM and OpenFreeMap are independent public services with their own privacy practices. We send them no account information — only the coordinates or search text needed for the request.</p>
+<p>When you tap &quot;Contact support&quot;, &quot;Open in Google Maps&quot; or &quot;Open in Apple Maps&quot;, the app hands off to that application. Nothing is sent automatically; that only happens when you tap.</p>
+<p>We may also disclose data if we are legally required to do so.</p>
+<hr>
+<h2>6. Using the app without an account</h2>
+<p>You can skip sign-in and use the app fully. Please note clearly:</p>
+<p><strong>Even without an account, the app records one current location per device</strong>, linked to the random device identifier described in section 3.4, if you have granted location permission. It is not linked to your name or phone number, because we do not have them.</p>
+<p>If you do not want this, deny or revoke the location permission in your device settings. The app will keep working; it simply will not store a location.</p>
+<hr>
+<h2>7. Legal basis (for users in the EEA/EU)</h2>
+<div class="tw"><table><thead><tr><th>Purpose</th><th>Legal basis</th></tr></thead><tbody><tr><td>Creating and running your account</td><td>Performance of a contract (Art. 6(1)(b) GDPR)</td></tr><tr><td>Optimising and displaying routes</td><td>Performance of a contract (Art. 6(1)(b) GDPR)</td></tr><tr><td>Collecting your current location</td><td>Your <strong>consent</strong>, given through the operating-system permission prompt (Art. 6(1)(a) GDPR). You may withdraw it at any time in your device settings.</td></tr><tr><td>Understanding who our users are (company, use cases)</td><td>Legitimate interests (Art. 6(1)(f) GDPR)</td></tr></tbody></table></div>
+<hr>
+<h2>8. How long we keep data</h2>
+<ul><li><strong>Current location:</strong> one record per device, continuously overwritten. There is no historical trail.</li><li><strong>Account and profile data:</strong> until you delete your account.</li><li><strong>When you delete your account:</strong> your phone number, credentials, name, company, selected use cases and stored location are permanently deleted from our database. This is immediate and irreversible.</li></ul>
+<hr>
+<h2>9. Your rights</h2>
+<p>You may ask us to:</p>
+<ul><li><strong>Access</strong> the data we hold about you</li><li><strong>Correct</strong> inaccurate data</li><li><strong>Delete</strong> your account and data</li><li><strong>Object to</strong> or <strong>restrict</strong> our processing</li><li><strong>Receive a copy</strong> of your data in a portable format</li></ul>
+<p><strong>Deleting your account yourself, at any time:</strong> Open the app → <strong>Settings</strong> → <strong>Account</strong> → <strong>Delete account</strong>. The deletion is immediate and permanent.</p>
+<p>You can also request deletion, or exercise any other right, by contacting us on WhatsApp at <strong>+33 7 83 71 94 27</strong>. We aim to respond within 30 days.</p>
+<p><strong>If you are in the EEA/EU</strong>, you additionally have the right to lodge a complaint with your national data protection supervisory authority.</p>
+<hr>
+<h2>10. Security</h2>
+<ul><li>All communication with our servers uses encrypted HTTPS/TLS connections.</li><li>Passwords are stored only as cryptographic hashes, never in readable form.</li><li>Database access is restricted by row-level security rules, so one user&#x27;s records are not readable by another.</li></ul>
+<p><strong>An honest limitation you should know about:</strong> to keep sign-up simple, we do <strong>not</strong> verify phone numbers with an SMS code. This means a phone number in our system is effectively a username, and we have no proof that the person who registered it owns that number. Because of this, we also cannot offer automated password recovery — password help goes through our support channel. Please do not treat your Laffah account as a secure identity credential, and use a password you do not reuse elsewhere.</p>
+<hr>
+<h2>11. Children</h2>
+<p>Laffah is not directed at children and is not intended for anyone under 16. We do not knowingly collect data from children. If you believe a child has provided us data, contact us and we will delete it.</p>
+<hr>
+<h2>12. International transfers</h2>
+<p>Our backend infrastructure is hosted with Supabase, and our route-optimisation service and the mapping services listed in section 5 may process data on servers outside your country, including outside Lebanon and the EEA. Where data of EEA users is transferred outside the EEA, we rely on appropriate safeguards such as the European Commission&#x27;s Standard Contractual Clauses.</p>
+<hr>
+<h2>13. Changes to this policy</h2>
+<p>If we change this policy we will update the &quot;Last updated&quot; date above and publish the new version at this address. Material changes will be announced in the app.</p>
+<hr>
+<h2>14. Governing law</h2>
+<p>This policy is governed by the laws of <strong>Lebanon</strong>, and the courts of Beirut have jurisdiction over any dispute arising from it.</p>
+<p>If you are located in the EEA/EU, nothing in this policy removes the rights guaranteed to you by the GDPR or by the mandatory law of your country of residence.</p></section><section id="privacy-policy-ar" lang="ar" dir="rtl"><h1>لفّة — سياسة الخصوصية</h1>
+<p><strong>تاريخ السريان:</strong> ٢٥ تموز/يوليو ٢٠٢٦<br><strong>آخر تحديث:</strong> ٢٥ تموز/يوليو ٢٠٢٦</p>
+<hr>
+<h2>١. من نحن</h2>
+<p>«لفّة» (&quot;التطبيق&quot;) هو تطبيق لتخطيط المسارات يصدره Ali Alzoobi، وهو مطوّر مستقلّ مقيم في لبنان يعمل تحت الاسم التجاري «أفضل» (&quot;نحن&quot;). و«أفضل» اسم تجاري وليست شركة مسجّلة.</p>
+<p>نحن الجهة المتحكّمة بالبيانات الشخصية الموصوفة في هذه السياسة.</p>
+<p><strong>للتواصل بشأن أي سؤال أو طلب متعلّق بالخصوصية:</strong> واتساب <strong>+33 7 83 71 94 27</strong></p>
+<hr>
+<h2>٢. الخلاصة</h2>
+<div class="tw"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>هل الحساب مطلوب؟</td><td>لا. التطبيق يعمل بالكامل بدون تسجيل دخول.</td></tr><tr><td>هل نعرض إعلانات؟</td><td>لا.</td></tr><tr><td>هل نستخدم أدوات تحليلات أو تتبّع؟</td><td><strong>لا.</strong> لا يحتوي التطبيق على أي أداة تحليلات أو إعلانات أو تتبّع أعطال أو إسناد، من أي نوع.</td></tr><tr><td>هل نبيع بياناتك؟</td><td>لا. إطلاقاً.</td></tr><tr><td>هل نتتبّعك في الخلفية؟</td><td>لا. يُقرأ الموقع فقط أثناء فتح التطبيق.</td></tr><tr><td>كم نحتفظ بموقعك؟</td><td>نحتفظ بـ<strong>موقع واحد</strong> حالي لكل جهاز. كل قراءة جديدة تستبدل السابقة — نحن لا نبني سجلّ تنقّلات.</td></tr></tbody></table></div>
+<hr>
+<h2>٣. ما الذي نجمعه</h2>
+<h3>٣.١ بيانات الحساب — فقط إذا اخترت التسجيل</h3>
+<p>التسجيل اختياري. إذا أنشأت حساباً نجمع:</p>
+<ul><li><strong>رقم هاتفك</strong> — وهو معرّف الدخول الخاص بك.</li><li><strong>كلمة المرور</strong> — تُخزَّن فقط كبصمة تشفيرية (hash) لدى مزوّد المصادقة. نحن لا نرى كلمة مرورك ولا نخزّنها بصيغة مقروءة أبداً.</li></ul>
+<h3>٣.٢ بيانات الملف الشخصي — فقط إذا أكملت خطوات التعريف</h3>
+<ul><li><strong>اسمك الكامل</strong></li><li><strong>اسم شركتك</strong></li><li><strong>أسباب الاستخدام</strong> التي تختارها (مثل التوصيل، المبيعات الميدانية، الملاحة)</li><li><strong>نص حرّ اختياري</strong>، يُجمع فقط إذا اخترت «استخدام آخر» وكتبت شيئاً في الحقل</li></ul>
+<h3>٣.٣ بيانات الموقع</h3>
+<ul><li><strong>ماذا:</strong> خط العرض، خط الطول، نصف قطر الدقة بالأمتار، ووقت القراءة.</li><li><strong>متى:</strong> قراءة واحدة في كل مرة تفتح فيها التطبيق. يطلب التطبيق قراءة بدقة مخفّضة (بحدود ١٠٠ متر) بدلاً من دقة GPS الكاملة.</li><li><strong>في المقدّمة فقط.</strong> لا يقرأ التطبيق موقعك وهو مغلق أو في الخلفية.</li><li><strong>بإذنك فقط.</strong> إذا لم تمنح إذن الموقع، يتخطّى التطبيق ذلك بصمت ولا يطالبك به مجدداً من هنا.</li><li><strong>سجلّ واحد يُستبدل.</strong> نخزّن موقعاً حالياً واحداً بالضبط لكل جهاز، والقراءة التالية تحلّ محلّه. نحن لا نحتفظ بمسار أو تاريخ لأماكن تواجدك.</li></ul>
+<h3>٣.٤ معرّف الجهاز</h3>
+<p>ينشئ التطبيق <strong>معرّفاً عشوائياً</strong> عند أول تشغيل ويخزّنه على جهازك. وهو ليس معرّف الإعلانات، ولا الرقم التسلسلي للجهاز، ولا أي معرّف تصدره آبل أو غوغل أو مشغّل الشبكة. يُستخدم لربط موقعك الحالي بجهاز، بما في ذلك حين لا تكون مسجّلاً الدخول.</p>
+<h3>٣.٥ ما <strong>لا</strong> نجمعه</h3>
+<p>لا نجمع جهات اتصالك، ولا صورك، ولا تقويمك، ولا الميكروفون، ولا الكاميرا، ولا بيانات المكالمات أو الرسائل، ولا قائمة التطبيقات المثبّتة، ولا معرّف الإعلانات، ولا أي تحليلات سلوكية. لا يحتوي التطبيق على أي شيفرة تتبّع من طرف ثالث.</p>
+<hr>
+<h2>٤. بيانات لا تغادر جهازك إطلاقاً</h2>
+<p>ما يلي مخزَّن <strong>فقط</strong> في الذاكرة المحلية لجهازك ولا يُرسل إلينا:</p>
+<ul><li><strong>مساراتك المحفوظة</strong> وسجلّ المسارات</li><li><strong>مسوّدات المسارات</strong> قيد العمل</li><li>تفضيلات <strong>اللغة والمظهر وأيقونة المركبة</strong></li><li>أعلام التعريف والتشغيل الأول</li></ul>
+<p>حذف التطبيق يزيلها كلها. وإذا صدّرت مساراً كملف CSV وشاركته، فهذا الملف يذهب حيث ترسله <strong>أنت</strong> — ولا علاقة لنا به.</p>
+<hr>
+<h2>٥. مع من نشارك البيانات</h2>
+<p>نحن لا نبيع بياناتك ولا نشاركها لأغراض إعلانية. تصل البيانات إلى الجهات التالية فقط بالقدر اللازم لعمل التطبيق:</p>
+<div class="tw"><table><thead><tr><th>الجهة</th><th>ما تستقبله</th><th>لماذا</th></tr></thead><tbody><tr><td><strong>Supabase</strong> (مزوّد استضافة قاعدة بياناتنا والمصادقة)</td><td>حسابك وملفك الشخصي وسجلّ موقعك الحالي</td><td>استضافة الخادم الخلفي</td></tr><tr><td><strong>خدمة أفضل لتحسين المسارات</strong> (<code>back.laffa.afdal.tech</code>، ونحن نشغّلها)</td><td><strong>إحداثيات</strong> المستودع ونقاط التوقّف، وعدد المركبات وسعتها</td><td>حساب المسار الأمثل. لا يُرسَل أي اسم أو رقم هاتف أو معرّف حساب.</td></tr><tr><td><strong>OpenStreetMap / Nominatim</strong></td><td><strong>النص الذي تكتبه في البحث</strong>، والإحداثيات عند البحث عن عنوان</td><td>البحث عن الأماكن وتسمية نقطة على الخريطة</td></tr><tr><td><strong>OSRM</strong> (<code>router.project-osrm.org</code>)</td><td><strong>إحداثيات</strong> نقاط مسارك</td><td>حساب الطريق البرّي بين النقاط</td></tr><tr><td><strong>OpenFreeMap</strong></td><td><strong>منطقة الخريطة التي تعرضها</strong></td><td>تزويد بلاطات الخريطة</td></tr></tbody></table></div>
+<p>إنّ OpenStreetMap وNominatim وOSRM وOpenFreeMap خدمات عامة مستقلّة لها ممارسات خصوصية خاصة بها. نحن لا نرسل إليها أي معلومات حساب — فقط الإحداثيات أو نص البحث اللازم للطلب.</p>
+<p>عندما تضغط «تواصل مع الدعم» أو «افتح في خرائط غوغل» أو «افتح في خرائط آبل»، ينتقل التطبيق إلى ذلك التطبيق. لا يُرسل شيء تلقائياً؛ يحدث ذلك فقط عند ضغطك.</p>
+<p>قد نفصح عن البيانات أيضاً إذا ألزمنا القانون بذلك.</p>
+<hr>
+<h2>٦. استخدام التطبيق بدون حساب</h2>
+<p>يمكنك تخطّي تسجيل الدخول واستخدام التطبيق بالكامل. ونوضّح بصراحة:</p>
+<p><strong>حتى بدون حساب، يسجّل التطبيق موقعاً حالياً واحداً لكل جهاز</strong>، مرتبطاً بمعرّف الجهاز العشوائي الموصوف في البند ٣.٤، إذا كنت قد منحت إذن الموقع. وهو غير مرتبط باسمك أو رقم هاتفك، لأننا لا نملكهما.</p>
+<p>إذا لم ترغب بذلك، ارفض إذن الموقع أو اسحبه من إعدادات جهازك. سيستمرّ التطبيق بالعمل، ولن يخزّن موقعاً فحسب.</p>
+<hr>
+<h2>٧. الأساس القانوني (للمستخدمين في المنطقة الاقتصادية الأوروبية)</h2>
+<div class="tw"><table><thead><tr><th>الغرض</th><th>الأساس القانوني</th></tr></thead><tbody><tr><td>إنشاء حسابك وتشغيله</td><td>تنفيذ عقد (المادة ٦(١)(ب) من GDPR)</td></tr><tr><td>تحسين المسارات وعرضها</td><td>تنفيذ عقد (المادة ٦(١)(ب) من GDPR)</td></tr><tr><td>جمع موقعك الحالي</td><td><strong>موافقتك</strong> الممنوحة عبر طلب إذن نظام التشغيل (المادة ٦(١)(أ)). يمكنك سحبها في أي وقت من إعدادات جهازك.</td></tr><tr><td>فهم طبيعة مستخدمينا (الشركة، أسباب الاستخدام)</td><td>المصلحة المشروعة (المادة ٦(١)(و))</td></tr></tbody></table></div>
+<hr>
+<h2>٨. مدة الاحتفاظ</h2>
+<ul><li><strong>الموقع الحالي:</strong> سجلّ واحد لكل جهاز، يُستبدل باستمرار. لا يوجد مسار تاريخي.</li><li><strong>بيانات الحساب والملف الشخصي:</strong> حتى تحذف حسابك.</li><li><strong>عند حذف حسابك:</strong> يُحذف رقم هاتفك وبيانات دخولك واسمك وشركتك وأسباب الاستخدام المختارة وموقعك المخزَّن حذفاً نهائياً من قاعدة بياناتنا. الحذف فوري ولا رجعة فيه.</li></ul>
+<hr>
+<h2>٩. حقوقك</h2>
+<p>يحقّ لك أن تطلب منّا:</p>
+<ul><li><strong>الاطّلاع</strong> على البيانات التي نحتفظ بها عنك</li><li><strong>تصحيح</strong> البيانات غير الدقيقة</li><li><strong>حذف</strong> حسابك وبياناتك</li><li><strong>الاعتراض على</strong> المعالجة أو <strong>تقييدها</strong></li><li><strong>الحصول على نسخة</strong> من بياناتك بصيغة قابلة للنقل</li></ul>
+<p><strong>لحذف حسابك بنفسك، في أي وقت:</strong> افتح التطبيق ← <strong>الإعدادات</strong> ← <strong>الحساب</strong> ← <strong>حذف الحساب</strong>. الحذف فوري ونهائي.</p>
+<p>يمكنك أيضاً طلب الحذف، أو ممارسة أي حقّ آخر، بالتواصل معنا على واتساب <strong>+33 7 83 71 94 27</strong>. نسعى للردّ خلال ٣٠ يوماً.</p>
+<p><strong>إذا كنت في المنطقة الاقتصادية الأوروبية</strong>، يحقّ لك إضافةً إلى ذلك تقديم شكوى إلى سلطة حماية البيانات الوطنية في بلدك.</p>
+<hr>
+<h2>١٠. الأمان</h2>
+<ul><li>كل الاتصالات مع خوادمنا تجري عبر وصلات HTTPS/TLS مشفّرة.</li><li>كلمات المرور تُخزَّن كبصمات تشفيرية فقط، ولا تُخزَّن أبداً بصيغة مقروءة.</li><li>الوصول إلى قاعدة البيانات مقيَّد بقواعد أمان على مستوى الصفوف، بحيث لا يستطيع مستخدم قراءة سجلّات مستخدم آخر.</li></ul>
+<p><strong>قيد نودّ أن نصارحك به:</strong> لتبسيط التسجيل، نحن <strong>لا</strong> نتحقّق من أرقام الهواتف برمز SMS. هذا يعني أنّ رقم الهاتف في نظامنا هو عملياً اسم مستخدم، وليس لدينا إثبات بأنّ من سجّله يملكه فعلاً. ولهذا السبب أيضاً لا نستطيع تقديم استعادة تلقائية لكلمة المرور — المساعدة تتمّ عبر قناة الدعم. لذا نرجو ألّا تعامل حسابك في «لفّة» كوثيقة هوية آمنة، وأن تستخدم كلمة مرور لا تستعملها في مكان آخر.</p>
+<hr>
+<h2>١١. الأطفال</h2>
+<p>«لفّة» ليس موجّهاً للأطفال وغير مخصّص لمن هم دون السادسة عشرة. نحن لا نجمع بيانات الأطفال عن علم. إذا كنت تعتقد أنّ طفلاً زوّدنا ببيانات، تواصل معنا وسنحذفها.</p>
+<hr>
+<h2>١٢. النقل الدولي للبيانات</h2>
+<p>بنيتنا الخلفية مستضافة لدى Supabase، وقد تعالج خدمة تحسين المسارات وخدمات الخرائط المذكورة في البند ٥ بيانات على خوادم خارج بلدك، بما في ذلك خارج لبنان وخارج المنطقة الاقتصادية الأوروبية. وحين تُنقل بيانات مستخدمين أوروبيين خارج المنطقة، نعتمد على ضمانات مناسبة مثل البنود التعاقدية القياسية للمفوضية الأوروبية.</p>
+<hr>
+<h2>١٣. تعديلات هذه السياسة</h2>
+<p>إذا عدّلنا هذه السياسة، سنحدّث تاريخ «آخر تحديث» أعلاه وننشر النسخة الجديدة على هذا العنوان. وسيُعلَن عن التغييرات الجوهرية داخل التطبيق.</p>
+<hr>
+<h2>١٤. القانون الحاكم</h2>
+<p>تخضع هذه السياسة لقوانين <strong>لبنان</strong>، وتختصّ محاكم بيروت بأي نزاع ينشأ عنها.</p>
+<p>وإذا كنت مقيماً في المنطقة الاقتصادية الأوروبية، فلا شيء في هذه السياسة يسقط الحقوق التي تكفلها لك لائحة GDPR أو القانون الآمر في بلد إقامتك.</p></section><section id="privacy-policy-fr" lang="fr" dir="ltr"><h1>Laffah — Politique de confidentialité</h1>
+<p><strong>Date d&#x27;entrée en vigueur :</strong> 25 juillet 2026<br><strong>Dernière mise à jour :</strong> 25 juillet 2026</p>
+<hr>
+<h2>1. Qui nous sommes</h2>
+<p>Laffah (« l&#x27;application ») est une application de planification d&#x27;itinéraires éditée par Ali Alzoobi, développeur indépendant établi au Liban, exerçant sous le nom commercial « Afdal » (« nous »). « Afdal » est un nom commercial et non une société immatriculée.</p>
+<p>Nous sommes le responsable du traitement des données personnelles décrites dans la présente politique.</p>
+<p><strong>Contact pour toute question ou demande relative à la confidentialité :</strong> WhatsApp <strong>+33 7 83 71 94 27</strong></p>
+<hr>
+<h2>2. En résumé</h2>
+<div class="tw"><table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Un compte est-il nécessaire ?</td><td>Non. L&#x27;application fonctionne intégralement sans connexion.</td></tr><tr><td>Affichons-nous de la publicité ?</td><td>Non.</td></tr><tr><td>Utilisons-nous des outils d&#x27;analyse ou de pistage ?</td><td><strong>Non.</strong> L&#x27;application ne contient aucun SDK d&#x27;analyse, de publicité, de rapport de plantage ou d&#x27;attribution.</td></tr><tr><td>Vendons-nous vos données ?</td><td>Non. Jamais.</td></tr><tr><td>Vous suivons-nous en arrière-plan ?</td><td>Non. La position n&#x27;est lue que lorsque l&#x27;application est ouverte.</td></tr><tr><td>Combien de temps conservons-nous votre position ?</td><td>Nous conservons <strong>une seule</strong> position actuelle par appareil. Chaque nouvelle lecture remplace la précédente — nous ne constituons pas d&#x27;historique de déplacements.</td></tr></tbody></table></div>
+<hr>
+<h2>3. Ce que nous collectons</h2>
+<h3>3.1 Données de compte — uniquement si vous choisissez de vous inscrire</h3>
+<p>L&#x27;inscription est facultative. Si vous créez un compte, nous collectons :</p>
+<ul><li><strong>Votre numéro de téléphone</strong> — il constitue votre identifiant de connexion.</li><li><strong>Votre mot de passe</strong> — stocké uniquement sous forme d&#x27;empreinte cryptographique par notre prestataire d&#x27;authentification. Nous ne voyons ni ne stockons jamais votre mot de passe en clair.</li></ul>
+<h3>3.2 Données de profil — uniquement si vous complétez l&#x27;intégration</h3>
+<ul><li>Votre <strong>nom complet</strong></li><li>Le <strong>nom de votre société</strong></li><li>Les <strong>cas d&#x27;usage</strong> que vous sélectionnez (livraison, vente terrain, navigation, etc.)</li><li>Un <strong>texte libre facultatif</strong>, collecté uniquement si vous choisissez « Autre utilisation » et saisissez quelque chose.</li></ul>
+<h3>3.3 Données de localisation</h3>
+<ul><li><strong>Quoi :</strong> latitude, longitude, rayon de précision en mètres et heure de la lecture.</li><li><strong>Quand :</strong> une seule lecture à chaque ouverture de l&#x27;application. Celle-ci demande une position de précision réduite (environ 100 m) plutôt qu&#x27;un GPS de pleine précision.</li><li><strong>Au premier plan uniquement.</strong> L&#x27;application ne lit pas votre position lorsqu&#x27;elle est fermée ou en arrière-plan.</li><li><strong>Avec votre autorisation uniquement.</strong> Si vous n&#x27;avez pas accordé l&#x27;autorisation de localisation, l&#x27;application passe cette étape en silence et ne vous la redemande jamais ici.</li><li><strong>Un seul enregistrement, écrasé.</strong> Nous stockons exactement une position actuelle par appareil, et la lecture suivante la remplace. Nous ne conservons aucune trace ni historique de vos déplacements.</li></ul>
+<h3>3.4 Identifiant d&#x27;appareil</h3>
+<p>L&#x27;application génère un <strong>identifiant aléatoire</strong> au premier lancement et le stocke sur votre appareil. Ce n&#x27;est ni votre identifiant publicitaire, ni un numéro de série matériel, ni un identifiant attribué par Apple, Google ou votre opérateur. Il sert à rattacher votre position actuelle à un appareil, y compris lorsque vous n&#x27;êtes pas connecté.</p>
+<h3>3.5 Ce que nous <strong>ne</strong> collectons <strong>pas</strong></h3>
+<p>Nous ne collectons ni vos contacts, ni vos photos, ni votre agenda, ni le microphone, ni la caméra, ni vos appels ou SMS, ni la liste des applications installées, ni votre identifiant publicitaire, ni aucune donnée d&#x27;analyse comportementale. L&#x27;application ne contient aucun code de pistage tiers.</p>
+<hr>
+<h2>4. Données qui ne quittent jamais votre appareil</h2>
+<p>Les éléments suivants sont stockés <strong>uniquement</strong> dans la mémoire locale de votre appareil et ne nous sont jamais transmis :</p>
+<ul><li>Vos <strong>itinéraires enregistrés</strong> et leur historique</li><li>Vos <strong>brouillons d&#x27;itinéraires</strong> en cours</li><li>Vos préférences de <strong>langue, de thème et d&#x27;icône de véhicule</strong></li><li>Les indicateurs d&#x27;intégration et de premier lancement</li></ul>
+<p>La désinstallation de l&#x27;application supprime le tout. Si vous exportez un itinéraire au format CSV et le partagez, ce fichier va là où <strong>vous</strong> l&#x27;envoyez — nous n&#x27;y sommes pas associés.</p>
+<hr>
+<h2>5. Avec qui nous partageons les données</h2>
+<p>Nous ne vendons pas vos données et ne les partageons pas à des fins publicitaires. Les données ne parviennent aux tiers suivants que dans la mesure nécessaire au fonctionnement de l&#x27;application :</p>
+<div class="tw"><table><thead><tr><th>Destinataire</th><th>Ce qu&#x27;il reçoit</th><th>Pourquoi</th></tr></thead><tbody><tr><td><strong>Supabase</strong> (hébergeur de notre base de données et de l&#x27;authentification)</td><td>Votre compte, votre profil et votre position actuelle</td><td>Hébergement de notre back-end</td></tr><tr><td><strong>Service d&#x27;optimisation Afdal</strong> (<code>back.laffa.afdal.tech</code>, exploité par nous)</td><td>Les <strong>coordonnées</strong> de votre dépôt et de vos arrêts, ainsi que le nombre et la capacité des véhicules</td><td>Calcul de l&#x27;itinéraire optimisé. Aucun nom, numéro de téléphone ou identifiant de compte n&#x27;est transmis.</td></tr><tr><td><strong>OpenStreetMap / Nominatim</strong></td><td>Le <strong>texte que vous saisissez dans la recherche</strong> et des coordonnées lors de la recherche d&#x27;une adresse</td><td>Recherche de lieux et nommage d&#x27;un point sur la carte</td></tr><tr><td><strong>OSRM</strong> (<code>router.project-osrm.org</code>)</td><td>Les <strong>coordonnées</strong> de vos points d&#x27;itinéraire</td><td>Calcul du trajet routier entre les points</td></tr><tr><td><strong>OpenFreeMap</strong></td><td>La <strong>zone de carte que vous consultez</strong></td><td>Fourniture des tuiles cartographiques</td></tr></tbody></table></div>
+<p>OpenStreetMap, Nominatim, OSRM et OpenFreeMap sont des services publics indépendants disposant de leurs propres pratiques de confidentialité. Nous ne leur transmettons aucune information de compte — uniquement les coordonnées ou le texte de recherche nécessaires à la requête.</p>
+<p>Lorsque vous appuyez sur « Contacter le support », « Ouvrir dans Google Maps » ou « Ouvrir dans Plans », l&#x27;application passe la main à cette application. Rien n&#x27;est envoyé automatiquement ; cela n&#x27;a lieu que sur votre action.</p>
+<p>Nous pouvons également divulguer des données si la loi nous y oblige.</p>
+<hr>
+<h2>6. Utiliser l&#x27;application sans compte</h2>
+<p>Vous pouvez ignorer la connexion et utiliser pleinement l&#x27;application. Nous le précisons clairement :</p>
+<p><strong>Même sans compte, l&#x27;application enregistre une position actuelle par appareil</strong>, rattachée à l&#x27;identifiant aléatoire décrit à la section 3.4, si vous avez accordé l&#x27;autorisation de localisation. Elle n&#x27;est liée ni à votre nom ni à votre numéro, puisque nous ne les possédons pas.</p>
+<p>Si vous ne le souhaitez pas, refusez ou révoquez l&#x27;autorisation de localisation dans les réglages de votre appareil. L&#x27;application continuera de fonctionner : elle n&#x27;enregistrera simplement aucune position.</p>
+<hr>
+<h2>7. Base légale (pour les utilisateurs de l&#x27;EEE/UE)</h2>
+<div class="tw"><table><thead><tr><th>Finalité</th><th>Base légale</th></tr></thead><tbody><tr><td>Création et fonctionnement de votre compte</td><td>Exécution d&#x27;un contrat (art. 6.1.b RGPD)</td></tr><tr><td>Optimisation et affichage des itinéraires</td><td>Exécution d&#x27;un contrat (art. 6.1.b RGPD)</td></tr><tr><td>Collecte de votre position actuelle</td><td>Votre <strong>consentement</strong>, donné via la demande d&#x27;autorisation du système (art. 6.1.a RGPD). Vous pouvez le retirer à tout moment dans les réglages de votre appareil.</td></tr><tr><td>Comprendre le profil de nos utilisateurs (société, cas d&#x27;usage)</td><td>Intérêt légitime (art. 6.1.f RGPD)</td></tr></tbody></table></div>
+<hr>
+<h2>8. Durées de conservation</h2>
+<ul><li><strong>Position actuelle :</strong> un enregistrement par appareil, écrasé en continu. Aucun historique de déplacements.</li><li><strong>Données de compte et de profil :</strong> jusqu&#x27;à la suppression de votre compte.</li><li><strong>À la suppression de votre compte :</strong> votre numéro de téléphone, vos identifiants, votre nom, votre société, vos cas d&#x27;usage sélectionnés et votre position enregistrée sont définitivement supprimés de notre base. La suppression est immédiate et irréversible.</li></ul>
+<hr>
+<h2>9. Vos droits</h2>
+<p>Vous pouvez nous demander :</p>
+<ul><li>L&#x27;<strong>accès</strong> aux données que nous détenons sur vous</li><li>La <strong>rectification</strong> des données inexactes</li><li>La <strong>suppression</strong> de votre compte et de vos données</li><li>L&#x27;<strong>opposition</strong> au traitement ou sa <strong>limitation</strong></li><li>Une <strong>copie portable</strong> de vos données</li></ul>
+<p><strong>Pour supprimer votre compte vous-même, à tout moment :</strong> Ouvrez l&#x27;application → <strong>Réglages</strong> → <strong>Compte</strong> → <strong>Supprimer le compte</strong>. La suppression est immédiate et définitive.</p>
+<p>Vous pouvez également demander la suppression, ou exercer tout autre droit, en nous contactant sur WhatsApp au <strong>+33 7 83 71 94 27</strong>. Nous nous efforçons de répondre sous 30 jours.</p>
+<p><strong>Si vous résidez dans l&#x27;EEE/UE</strong>, vous disposez en outre du droit d&#x27;introduire une réclamation auprès de votre autorité nationale de protection des données (en France, la CNIL).</p>
+<hr>
+<h2>10. Sécurité</h2>
+<ul><li>Toutes les communications avec nos serveurs utilisent des connexions chiffrées HTTPS/TLS.</li><li>Les mots de passe ne sont stockés que sous forme d&#x27;empreintes cryptographiques, jamais en clair.</li><li>L&#x27;accès à la base est restreint par des règles de sécurité au niveau des lignes, de sorte qu&#x27;un utilisateur ne peut pas lire les enregistrements d&#x27;un autre.</li></ul>
+<p><strong>Une limite que nous préférons énoncer clairement :</strong> pour simplifier l&#x27;inscription, nous <strong>ne</strong> vérifions <strong>pas</strong> les numéros de téléphone par code SMS. Un numéro dans notre système équivaut donc à un nom d&#x27;utilisateur, et nous n&#x27;avons aucune preuve que la personne qui l&#x27;a enregistré en est titulaire. Pour cette raison, nous ne pouvons pas non plus proposer de récupération automatique du mot de passe — l&#x27;assistance passe par notre canal de support. Ne considérez donc pas votre compte Laffah comme un justificatif d&#x27;identité sécurisé, et utilisez un mot de passe que vous ne réutilisez pas ailleurs.</p>
+<hr>
+<h2>11. Enfants</h2>
+<p>Laffah ne s&#x27;adresse pas aux enfants et n&#x27;est pas destinée aux personnes de moins de 16 ans. Nous ne collectons pas sciemment de données d&#x27;enfants. Si vous pensez qu&#x27;un enfant nous a fourni des données, contactez-nous et nous les supprimerons.</p>
+<hr>
+<h2>12. Transferts internationaux</h2>
+<p>Notre infrastructure back-end est hébergée chez Supabase, et notre service d&#x27;optimisation ainsi que les services cartographiques listés à la section 5 peuvent traiter des données sur des serveurs situés hors de votre pays, y compris hors du Liban et de l&#x27;EEE. Lorsque des données d&#x27;utilisateurs de l&#x27;EEE sont transférées hors de l&#x27;EEE, nous nous appuyons sur des garanties appropriées telles que les clauses contractuelles types de la Commission européenne.</p>
+<hr>
+<h2>13. Modifications de la présente politique</h2>
+<p>En cas de modification, nous mettrons à jour la date de « Dernière mise à jour » ci-dessus et publierons la nouvelle version à cette adresse. Les changements substantiels seront annoncés dans l&#x27;application.</p>
+<hr>
+<h2>14. Droit applicable</h2>
+<p>La présente politique est régie par le droit <strong>libanais</strong>, et les tribunaux de Beyrouth sont compétents pour tout litige en découlant.</p>
+<p>Si vous résidez dans l&#x27;EEE/UE, rien dans la présente politique ne vous prive des droits garantis par le RGPD ni par les dispositions impératives du droit de votre pays de résidence.</p></section><section id="terms-of-service-en" lang="en" dir="ltr"><h1>Laffah — Terms of Service</h1>
+<p><strong>Effective date:</strong> 25 July 2026<br><strong>Last updated:</strong> 25 July 2026</p>
+<hr>
+<h2>1. Agreement</h2>
+<p>These Terms govern your use of the Laffah mobile application (&quot;the app&quot;), published by Ali Alzoobi, an independent developer based in Lebanon, operating under the trading name &quot;Afdal&quot; (&quot;we&quot;, &quot;us&quot;).</p>
+<p>By installing or using the app you agree to these Terms. If you do not agree, please do not use the app.</p>
+<p>Our handling of personal data is described separately in our <strong>Privacy Policy</strong>, which forms part of these Terms.</p>
+<hr>
+<h2>2. What the app does</h2>
+<p>Laffah helps you plan and optimise multi-stop routes: you place points on a map, and the app proposes an efficient order in which to visit them, together with a road path and estimated distances and times.</p>
+<p><strong>Laffah is a planning tool, not a navigation system.</strong> It does not provide turn-by-turn guidance, live traffic, or real-time rerouting. Estimated times and distances are approximations produced from third-party map data.</p>
+<hr>
+<h2>3. Safety</h2>
+<p><strong>Do not operate the app while driving.</strong> Plan your route before you set off, or have a passenger operate the device.</p>
+<p>You remain fully responsible for how you drive. Always follow traffic law, road signs and actual road conditions, and use your own judgement. A route the app proposes may be unsuitable, blocked, restricted, illegal for your vehicle type, or simply wrong. Never follow a suggested route in preference to what you can see on the road.</p>
+<hr>
+<h2>4. Your account</h2>
+<ul><li><strong>An account is optional.</strong> The app&#x27;s core route planning works without one.</li><li>You register with a <strong>phone number and a password</strong>.</li><li><strong>We do not verify phone numbers by SMS.</strong> You are responsible for entering a number you control and for keeping your password confidential. You are responsible for activity that takes place under your account.</li><li><strong>There is no automated password recovery.</strong> If you lose your password, you must contact support on WhatsApp at <strong>+33 7 83 71 94 27</strong>, and we may be unable to restore access to the account.</li><li>You may delete your account at any time from <strong>Settings → Account → Delete account</strong>. Deletion is immediate and permanent.</li></ul>
+<hr>
+<h2>5. Acceptable use</h2>
+<p>You agree not to:</p>
+<ul><li>Use the app for any unlawful purpose, or in breach of any applicable traffic, transport or data protection law</li><li>Attempt to access another user&#x27;s account or data</li><li>Reverse engineer, decompile, or attempt to extract source code from the app, except to the extent this restriction is prohibited by law</li><li>Interfere with, overload, or attempt to disrupt our servers or the third-party services the app relies on</li><li>Submit automated or bulk requests to our route-optimisation service outside normal use of the app</li><li>Resell, sublicense, or commercially redistribute the app or its output without our written permission</li></ul>
+<p>We may suspend or terminate access for a serious or repeated breach of this section.</p>
+<hr>
+<h2>6. Third-party data and services</h2>
+<p>The app depends on independent third-party services, including OpenStreetMap and Nominatim (place search and addresses), OSRM (road routing), OpenFreeMap (map tiles) and Supabase (backend hosting).</p>
+<p>Map data, addresses, road geometry and travel-time estimates originate from these third parties. We do not control them and <strong>we do not warrant that any of it is accurate, complete or current</strong>. These services may change, degrade or become unavailable without notice.</p>
+<hr>
+<h2>7. Your content</h2>
+<p>Route points, saved routes and any file you import remain yours. Most of it is stored only on your device (see the Privacy Policy, section 4).</p>
+<p>You grant us only the limited permission needed to process the coordinates you enter in order to return an optimised route to you.</p>
+<hr>
+<h2>8. Availability</h2>
+<p>We provide the app on an &quot;as available&quot; basis. We do not guarantee uninterrupted or error-free operation, and we may modify, suspend or discontinue any feature at any time. Some features require an internet connection and a supported device.</p>
+<hr>
+<h2>9. Disclaimer of warranties</h2>
+<p>To the fullest extent permitted by applicable law, the app is provided <strong>&quot;as is&quot;</strong> and <strong>&quot;as available&quot;</strong>, without warranties of any kind, whether express or implied, including any implied warranty of merchantability, fitness for a particular purpose, accuracy, or non-infringement.</p>
+<hr>
+<h2>10. Limitation of liability</h2>
+<p>To the fullest extent permitted by applicable law, we are not liable for any indirect, incidental, special, consequential or punitive damages, nor for any loss of profit, revenue, business, data or goodwill, arising out of or connected with your use of the app.</p>
+<p>In particular, and without limiting the above, we are not liable for losses arising from <strong>inaccurate map data, an unsuitable or incorrect suggested route, inaccurate time or distance estimates, or the unavailability of the app or of any third-party service it relies on</strong>.</p>
+<p>Nothing in these Terms excludes or limits liability that cannot be excluded or limited under applicable law, including liability for death or personal injury caused by negligence, or for fraud.</p>
+<hr>
+<h2>11. Termination</h2>
+<p>You may stop using the app at any time and delete your account from within the app. We may suspend or terminate your access if you breach these Terms.</p>
+<p>Sections 9, 10 and 14 survive termination.</p>
+<hr>
+<h2>12. Changes to these Terms</h2>
+<p>We may update these Terms. We will change the &quot;Last updated&quot; date above and publish the new version at this address. Material changes will be announced in the app. Continuing to use the app after a change means you accept the updated Terms.</p>
+<hr>
+<h2>13. Contact</h2>
+<p>WhatsApp: <strong>+33 7 83 71 94 27</strong><br>Website: <strong>https://www.afdal.tech/</strong></p>
+<hr>
+<h2>14. Governing law and jurisdiction</h2>
+<p>These Terms are governed by the laws of <strong>Lebanon</strong>. The courts of Beirut have exclusive jurisdiction over any dispute arising out of or in connection with them.</p>
+<p>If you are a consumer resident in the EEA/EU, this choice of law does not deprive you of the protection of mandatory consumer-protection provisions of the law of your country of residence, and you may bring proceedings in the courts of that country.</p></section><section id="terms-of-service-ar" lang="ar" dir="rtl"><h1>لفّة — شروط الاستخدام</h1>
+<p><strong>تاريخ السريان:</strong> ٢٥ تموز/يوليو ٢٠٢٦<br><strong>آخر تحديث:</strong> ٢٥ تموز/يوليو ٢٠٢٦</p>
+<hr>
+<h2>١. الاتفاق</h2>
+<p>تحكم هذه الشروط استخدامك لتطبيق «لفّة» (&quot;التطبيق&quot;)، الصادر عن Ali Alzoobi، وهو مطوّر مستقلّ مقيم في لبنان يعمل تحت الاسم التجاري «أفضل» (&quot;نحن&quot;).</p>
+<p>بتثبيتك التطبيق أو استخدامه فإنك توافق على هذه الشروط. وإذا لم توافق عليها، نرجو عدم استخدام التطبيق.</p>
+<p>أما تعاملنا مع البيانات الشخصية فموصوف على حدة في <strong>سياسة الخصوصية</strong>، وهي جزء لا يتجزّأ من هذه الشروط.</p>
+<hr>
+<h2>٢. ماذا يفعل التطبيق</h2>
+<p>يساعدك «لفّة» على تخطيط وتحسين المسارات متعدّدة المحطات: تضع نقاطاً على الخريطة، فيقترح التطبيق ترتيباً فعّالاً لزيارتها، مع مسار برّي وتقديرات للمسافات والأوقات.</p>
+<p><strong>«لفّة» أداة تخطيط، وليس نظام ملاحة.</strong> فهو لا يوفّر توجيهاً منعطفاً بمنعطف، ولا حركة مرور حيّة، ولا إعادة توجيه لحظية. والأوقات والمسافات المقدَّرة تقريبية ومستخرجة من بيانات خرائط من أطراف ثالثة.</p>
+<hr>
+<h2>٣. السلامة</h2>
+<p><strong>لا تستخدم التطبيق أثناء القيادة.</strong> خطّط مسارك قبل الانطلاق، أو دع راكباً يشغّل الجهاز.</p>
+<p>تبقى المسؤولية الكاملة عن قيادتك على عاتقك. التزم دائماً بقانون السير وبالإشارات وبأحوال الطريق الفعلية، واستخدم حكمك الشخصي. فقد يكون المسار الذي يقترحه التطبيق غير مناسب، أو مغلقاً، أو مقيَّداً، أو غير قانوني لنوع مركبتك، أو خاطئاً ببساطة. لا تتّبع مساراً مقترحاً على حساب ما تراه على الطريق.</p>
+<hr>
+<h2>٤. حسابك</h2>
+<ul><li><strong>الحساب اختياري.</strong> تخطيط المسارات الأساسي يعمل بدونه.</li><li>تسجّل باستخدام <strong>رقم هاتف وكلمة مرور</strong>.</li><li><strong>نحن لا نتحقّق من أرقام الهواتف عبر SMS.</strong> أنت مسؤول عن إدخال رقم تملكه وعن الحفاظ على سرّية كلمة مرورك، وعن النشاط الذي يجري ضمن حسابك.</li><li><strong>لا توجد استعادة تلقائية لكلمة المرور.</strong> إذا فقدت كلمة مرورك، عليك التواصل مع الدعم على واتساب <strong>+33 7 83 71 94 27</strong>، وقد لا نتمكّن من إعادة الوصول إلى الحساب.</li><li>يمكنك حذف حسابك في أي وقت من <strong>الإعدادات ← الحساب ← حذف الحساب</strong>. الحذف فوري ونهائي.</li></ul>
+<hr>
+<h2>٥. الاستخدام المقبول</h2>
+<p>توافق على ألّا:</p>
+<ul><li>تستخدم التطبيق لأي غرض غير مشروع، أو بما يخالف أي قانون سير أو نقل أو حماية بيانات واجب التطبيق</li><li>تحاول الوصول إلى حساب مستخدم آخر أو بياناته</li><li>تعكس هندسة التطبيق أو تفكّ ترجمته أو تحاول استخراج شيفرته المصدرية، إلا بالقدر الذي يمنع فيه القانون هذا التقييد</li><li>تتدخّل في خوادمنا أو الخدمات التي يعتمد عليها التطبيق أو تُحمّلها فوق طاقتها أو تحاول تعطيلها</li><li>ترسل طلبات آلية أو بالجملة إلى خدمة تحسين المسارات خارج الاستخدام الطبيعي للتطبيق</li><li>تعيد بيع التطبيق أو مخرجاته أو ترخّصها من الباطن أو توزّعها تجارياً دون إذن خطّي منّا</li></ul>
+<p>يجوز لنا تعليق الوصول أو إنهاؤه عند مخالفة جسيمة أو متكرّرة لهذا البند.</p>
+<hr>
+<h2>٦. بيانات وخدمات الأطراف الثالثة</h2>
+<p>يعتمد التطبيق على خدمات مستقلّة من أطراف ثالثة، منها OpenStreetMap وNominatim (البحث عن الأماكن والعناوين)، وOSRM (التوجيه البرّي)، وOpenFreeMap (بلاطات الخريطة)، وSupabase (استضافة الخادم الخلفي).</p>
+<p>تنشأ بيانات الخرائط والعناوين وهندسة الطرق وتقديرات أزمنة السفر من هذه الأطراف. نحن لا نتحكّم بها، و<strong>لا نضمن دقّتها أو اكتمالها أو حداثتها</strong>. وقد تتغيّر هذه الخدمات أو يتدهور أداؤها أو تصبح غير متاحة دون إشعار.</p>
+<hr>
+<h2>٧. محتواك</h2>
+<p>نقاط المسار والمسارات المحفوظة وأي ملف تستورده تبقى ملكك. ومعظمها مخزَّن على جهازك فقط (انظر سياسة الخصوصية، البند ٤).</p>
+<p>أنت تمنحنا فقط الإذن المحدود اللازم لمعالجة الإحداثيات التي تدخلها بهدف إعادة مسار محسَّن إليك.</p>
+<hr>
+<h2>٨. التوافر</h2>
+<p>نقدّم التطبيق على أساس «حسب المتاح». لا نضمن تشغيلاً متواصلاً أو خالياً من الأخطاء، ويجوز لنا تعديل أي ميزة أو تعليقها أو إيقافها في أي وقت. وبعض الميزات تتطلّب اتصالاً بالإنترنت وجهازاً مدعوماً.</p>
+<hr>
+<h2>٩. إخلاء الضمانات</h2>
+<p>إلى أقصى حدّ يسمح به القانون الواجب التطبيق، يُقدَّم التطبيق <strong>«كما هو»</strong> و«حسب المتاح»، دون ضمانات من أي نوع، صريحة كانت أم ضمنية، بما في ذلك أي ضمان ضمني بالرواج التجاري أو الملاءمة لغرض معيّن أو الدقة أو عدم انتهاك حقوق الغير.</p>
+<hr>
+<h2>١٠. حدود المسؤولية</h2>
+<p>إلى أقصى حدّ يسمح به القانون الواجب التطبيق، لا نتحمّل المسؤولية عن أي أضرار غير مباشرة أو عرضية أو خاصة أو تبعية أو تأديبية، ولا عن أي خسارة في الأرباح أو الإيرادات أو الأعمال أو البيانات أو السمعة، تنشأ عن استخدامك التطبيق أو تتّصل به.</p>
+<p>وعلى وجه الخصوص، ودون تقييد لما سبق، لا نتحمّل المسؤولية عن خسائر ناشئة عن <strong>بيانات خرائط غير دقيقة، أو مسار مقترح غير مناسب أو خاطئ، أو تقديرات زمن أو مسافة غير دقيقة، أو عدم توافر التطبيق أو أي خدمة طرف ثالث يعتمد عليها</strong>.</p>
+<p>ولا يستثني أي بند في هذه الشروط أو يحدّ من مسؤولية لا يجوز استثناؤها أو تحديدها بموجب القانون الواجب التطبيق، بما في ذلك المسؤولية عن الوفاة أو الإصابة الشخصية الناجمة عن إهمال، أو عن الاحتيال.</p>
+<hr>
+<h2>١١. الإنهاء</h2>
+<p>يمكنك التوقّف عن استخدام التطبيق في أي وقت وحذف حسابك من داخله. ويجوز لنا تعليق وصولك أو إنهاؤه إذا خالفت هذه الشروط.</p>
+<p>تبقى البنود ٩ و١٠ و١٤ سارية بعد الإنهاء.</p>
+<hr>
+<h2>١٢. تعديل هذه الشروط</h2>
+<p>يجوز لنا تحديث هذه الشروط. وسنغيّر تاريخ «آخر تحديث» أعلاه وننشر النسخة الجديدة على هذا العنوان. وسيُعلَن عن التغييرات الجوهرية داخل التطبيق. واستمرارك في استخدام التطبيق بعد التعديل يعني قبولك الشروط المحدَّثة.</p>
+<hr>
+<h2>١٣. التواصل</h2>
+<p>واتساب: <strong>+33 7 83 71 94 27</strong><br>الموقع: <strong>https://www.afdal.tech/</strong></p>
+<hr>
+<h2>١٤. القانون الحاكم والاختصاص القضائي</h2>
+<p>تخضع هذه الشروط لقوانين <strong>لبنان</strong>. وتختصّ محاكم بيروت حصرياً بأي نزاع ينشأ عنها أو يتّصل بها.</p>
+<p>وإذا كنت مستهلكاً مقيماً في المنطقة الاقتصادية الأوروبية، فإنّ اختيار القانون هذا لا يحرمك من حماية الأحكام الآمرة لحماية المستهلك في قانون بلد إقامتك، ويجوز لك إقامة الدعوى أمام محاكم ذلك البلد.</p></section><section id="terms-of-service-fr" lang="fr" dir="ltr"><h1>Laffah — Conditions d&#x27;utilisation</h1>
+<p><strong>Date d&#x27;entrée en vigueur :</strong> 25 juillet 2026<br><strong>Dernière mise à jour :</strong> 25 juillet 2026</p>
+<hr>
+<h2>1. Acceptation</h2>
+<p>Les présentes conditions régissent votre utilisation de l&#x27;application mobile Laffah (« l&#x27;application »), éditée par Ali Alzoobi, développeur indépendant établi au Liban, exerçant sous le nom commercial « Afdal » (« nous »).</p>
+<p>En installant ou en utilisant l&#x27;application, vous acceptez les présentes conditions. Si vous ne les acceptez pas, veuillez ne pas utiliser l&#x27;application.</p>
+<p>Le traitement des données personnelles est décrit séparément dans notre <strong>Politique de confidentialité</strong>, qui fait partie intégrante des présentes conditions.</p>
+<hr>
+<h2>2. Ce que fait l&#x27;application</h2>
+<p>Laffah vous aide à planifier et optimiser des itinéraires à arrêts multiples : vous placez des points sur une carte, et l&#x27;application propose un ordre de visite efficace, accompagné d&#x27;un trajet routier et d&#x27;estimations de distances et de durées.</p>
+<p><strong>Laffah est un outil de planification, et non un système de navigation.</strong> Elle ne fournit ni guidage virage par virage, ni trafic en temps réel, ni recalcul d&#x27;itinéraire en direct. Les durées et distances estimées sont approximatives et proviennent de données cartographiques tierces.</p>
+<hr>
+<h2>3. Sécurité</h2>
+<p><strong>N&#x27;utilisez pas l&#x27;application en conduisant.</strong> Planifiez votre itinéraire avant de partir, ou confiez l&#x27;appareil à un passager.</p>
+<p>Vous demeurez entièrement responsable de votre conduite. Respectez toujours le code de la route, la signalisation et l&#x27;état réel de la chaussée, et faites usage de votre propre jugement. Un itinéraire proposé par l&#x27;application peut se révéler inadapté, barré, réglementé, interdit à votre catégorie de véhicule, ou tout simplement erroné. Ne suivez jamais un itinéraire suggéré au détriment de ce que vous voyez sur la route.</p>
+<hr>
+<h2>4. Votre compte</h2>
+<ul><li><strong>Le compte est facultatif.</strong> La planification d&#x27;itinéraires fonctionne sans.</li><li>Vous vous inscrivez avec un <strong>numéro de téléphone et un mot de passe</strong>.</li><li><strong>Nous ne vérifions pas les numéros par SMS.</strong> Il vous appartient de saisir un numéro dont vous êtes titulaire, de garder votre mot de passe confidentiel, et vous êtes responsable de l&#x27;activité effectuée depuis votre compte.</li><li><strong>Il n&#x27;existe aucune récupération automatique du mot de passe.</strong> En cas de perte, vous devez contacter le support sur WhatsApp au <strong>+33 7 83 71 94 27</strong>, et il se peut que nous ne puissions pas rétablir l&#x27;accès au compte.</li><li>Vous pouvez supprimer votre compte à tout moment depuis <strong>Réglages → Compte → Supprimer le compte</strong>. La suppression est immédiate et définitive.</li></ul>
+<hr>
+<h2>5. Usage acceptable</h2>
+<p>Vous vous engagez à ne pas :</p>
+<ul><li>Utiliser l&#x27;application à des fins illicites ou en violation de toute réglementation applicable en matière de circulation, de transport ou de protection des données</li><li>Tenter d&#x27;accéder au compte ou aux données d&#x27;un autre utilisateur</li><li>Effectuer de l&#x27;ingénierie inverse, décompiler ou tenter d&#x27;extraire le code source de l&#x27;application, sauf dans la mesure où la loi interdit une telle restriction</li><li>Perturber, surcharger ou tenter d&#x27;interrompre nos serveurs ou les services tiers dont dépend l&#x27;application</li><li>Adresser des requêtes automatisées ou massives à notre service d&#x27;optimisation en dehors d&#x27;un usage normal de l&#x27;application</li><li>Revendre, sous-licencier ou redistribuer commercialement l&#x27;application ou ses résultats sans notre autorisation écrite</li></ul>
+<p>Nous pouvons suspendre ou résilier l&#x27;accès en cas de manquement grave ou répété à la présente section.</p>
+<hr>
+<h2>6. Données et services tiers</h2>
+<p>L&#x27;application dépend de services tiers indépendants, notamment OpenStreetMap et Nominatim (recherche de lieux et adresses), OSRM (calcul d&#x27;itinéraire routier), OpenFreeMap (tuiles cartographiques) et Supabase (hébergement back-end).</p>
+<p>Les données cartographiques, adresses, géométries routières et estimations de temps de trajet proviennent de ces tiers. Nous ne les contrôlons pas et <strong>nous ne garantissons ni leur exactitude, ni leur exhaustivité, ni leur actualité</strong>. Ces services peuvent évoluer, se dégrader ou devenir indisponibles sans préavis.</p>
+<hr>
+<h2>7. Vos contenus</h2>
+<p>Les points d&#x27;itinéraire, itinéraires enregistrés et fichiers que vous importez restent les vôtres. La majeure partie est stockée uniquement sur votre appareil (voir la Politique de confidentialité, section 4).</p>
+<p>Vous nous accordez uniquement l&#x27;autorisation limitée nécessaire au traitement des coordonnées que vous saisissez, afin de vous renvoyer un itinéraire optimisé.</p>
+<hr>
+<h2>8. Disponibilité</h2>
+<p>L&#x27;application est fournie « selon disponibilité ». Nous ne garantissons pas un fonctionnement ininterrompu ou exempt d&#x27;erreurs, et nous pouvons modifier, suspendre ou interrompre toute fonctionnalité à tout moment. Certaines fonctionnalités nécessitent une connexion internet et un appareil compatible.</p>
+<hr>
+<h2>9. Exclusion de garanties</h2>
+<p>Dans toute la mesure permise par le droit applicable, l&#x27;application est fournie <strong>« en l&#x27;état »</strong> et « selon disponibilité », sans garantie d&#x27;aucune sorte, expresse ou implicite, y compris toute garantie implicite de qualité marchande, d&#x27;adéquation à un usage particulier, d&#x27;exactitude ou d&#x27;absence de contrefaçon.</p>
+<hr>
+<h2>10. Limitation de responsabilité</h2>
+<p>Dans toute la mesure permise par le droit applicable, nous ne sommes pas responsables des dommages indirects, accessoires, spéciaux, consécutifs ou punitifs, ni de toute perte de bénéfices, de chiffre d&#x27;affaires, d&#x27;activité, de données ou de réputation, découlant de votre utilisation de l&#x27;application ou liés à celle-ci.</p>
+<p>En particulier, et sans limiter ce qui précède, nous ne sommes pas responsables des préjudices résultant de <strong>données cartographiques inexactes, d&#x27;un itinéraire suggéré inadapté ou erroné, d&#x27;estimations de temps ou de distance inexactes, ou de l&#x27;indisponibilité de l&#x27;application ou d&#x27;un service tiers dont elle dépend</strong>.</p>
+<p>Aucune disposition des présentes conditions n&#x27;exclut ni ne limite une responsabilité qui ne peut l&#x27;être en vertu du droit applicable, notamment la responsabilité en cas de décès ou de dommage corporel causé par une négligence, ou en cas de fraude.</p>
+<hr>
+<h2>11. Résiliation</h2>
+<p>Vous pouvez cesser d&#x27;utiliser l&#x27;application à tout moment et supprimer votre compte depuis celle-ci. Nous pouvons suspendre ou résilier votre accès en cas de manquement aux présentes conditions.</p>
+<p>Les sections 9, 10 et 14 survivent à la résiliation.</p>
+<hr>
+<h2>12. Modification des présentes conditions</h2>
+<p>Nous pouvons mettre à jour les présentes conditions. Nous modifierons la date de « Dernière mise à jour » ci-dessus et publierons la nouvelle version à cette adresse. Les changements substantiels seront annoncés dans l&#x27;application. Le fait de continuer à utiliser l&#x27;application après une modification vaut acceptation des conditions mises à jour.</p>
+<hr>
+<h2>13. Contact</h2>
+<p>WhatsApp : <strong>+33 7 83 71 94 27</strong><br>Site web : <strong>https://www.afdal.tech/</strong></p>
+<hr>
+<h2>14. Droit applicable et juridiction</h2>
+<p>Les présentes conditions sont régies par le droit <strong>libanais</strong>. Les tribunaux de Beyrouth sont exclusivement compétents pour tout litige découlant des présentes ou s&#x27;y rapportant.</p>
+<p>Si vous êtes un consommateur résidant dans l&#x27;EEE/UE, ce choix de droit ne vous prive pas de la protection des dispositions impératives de protection des consommateurs du droit de votre pays de résidence, et vous pouvez agir devant les tribunaux de ce pays.</p></section><section id="account-deletion-en" lang="en" dir="ltr"><h1>Laffah — How to delete your account</h1>
+<p><strong>Last updated:</strong> 25 July 2026</p>
+<p>This page explains how to permanently delete your Laffah account and the data attached to it. It exists so you can request deletion <strong>even if you no longer have the app installed</strong> or cannot sign in.</p>
+<p>App: <strong>Laffah</strong>, published by Ali Alzoobi, trading as &quot;Afdal&quot;.</p>
+<hr>
+<h2>Option 1 — Delete it yourself, inside the app</h2>
+<ol><li>Open <strong>Laffah</strong></li><li>Go to <strong>Settings</strong></li><li>Open the <strong>Account</strong> section</li><li>Tap <strong>Delete account</strong></li><li>Read what will be deleted, tick <strong>I understand this is permanent</strong>, and confirm</li></ol>
+<p>The deletion happens <strong>immediately</strong>. There is no waiting period and no way to undo it.</p>
+<hr>
+<h2>Option 2 — Ask us to delete it</h2>
+<p>If you have uninstalled the app, lost your device, or cannot sign in, message us on WhatsApp:</p>
+<p><strong>+33 7 83 71 94 27</strong></p>
+<p>Tell us the <strong>phone number the account was registered with</strong>. We will verify the request and delete the account. We aim to complete deletion within <strong>30 days</strong> of receiving the request, and normally much sooner.</p>
+<hr>
+<h2>What gets deleted</h2>
+<div class="tw"><table><thead><tr><th>Data</th><th>What happens</th></tr></thead><tbody><tr><td>Your phone number and sign-in credentials</td><td>Permanently deleted</td></tr><tr><td>Your name and company name</td><td>Permanently deleted</td></tr><tr><td>The use cases you selected, and any &quot;other&quot; note</td><td>Permanently deleted</td></tr><tr><td>Your last saved location</td><td>Permanently deleted</td></tr></tbody></table></div>
+<p>Deletion is immediate and irreversible. To use Laffah with an account again you would need to create a new one.</p>
+<p><strong>Note:</strong> we never keep a location history — only a single current location per device, which is overwritten on each use and removed entirely when you delete your account.</p>
+<hr>
+<h2>Data stored only on your device</h2>
+<p>Your saved routes, route drafts and app preferences are stored <strong>on your phone</strong>, not on our servers. Deleting your account does not remove them, and we cannot remove them for you. To erase them, uninstall the app or clear its storage in your device settings.</p>
+<hr>
+<h2>Data we may retain</h2>
+<p>We do not retain any of the deleted account data. If we are ever required by law to retain a specific record, we will retain only what the law requires, for only as long as it requires.</p>
+<hr>
+<h2>More information</h2>
+<p>See our <strong>Privacy Policy</strong> for the full description of what we collect and why.</p>
+<p>Contact: WhatsApp <strong>+33 7 83 71 94 27</strong><br>Website: <strong>https://www.afdal.tech/</strong></p></section><section id="account-deletion-ar" lang="ar" dir="rtl"><h1>لفّة — كيف تحذف حسابك</h1>
+<p><strong>آخر تحديث:</strong> ٢٥ تموز/يوليو ٢٠٢٦</p>
+<p>توضّح هذه الصفحة كيفية حذف حسابك في «لفّة» والبيانات المرتبطة به حذفاً نهائياً. وهي موجودة لتتمكّن من طلب الحذف <strong>حتى لو لم يعد التطبيق مثبّتاً لديك</strong> أو تعذّر عليك تسجيل الدخول.</p>
+<p>التطبيق: <strong>لفّة</strong>، الصادر عن Ali Alzoobi، ويعمل تحت الاسم التجاري «أفضل».</p>
+<hr>
+<h2>الطريقة الأولى — احذفه بنفسك من داخل التطبيق</h2>
+<ol><li>افتح <strong>لفّة</strong></li><li>اذهب إلى <strong>الإعدادات</strong></li><li>افتح قسم <strong>الحساب</strong></li><li>اضغط <strong>حذف الحساب</strong></li><li>اقرأ ما سيُحذف، وأشّر على <strong>أفهم أن هذا الإجراء نهائي</strong>، ثم أكّد</li></ol>
+<p>يتمّ الحذف <strong>فوراً</strong>. لا توجد فترة انتظار ولا إمكانية للتراجع.</p>
+<hr>
+<h2>الطريقة الثانية — اطلب منّا حذفه</h2>
+<p>إذا أزلت التطبيق، أو فقدت جهازك، أو تعذّر عليك تسجيل الدخول، راسلنا على واتساب:</p>
+<p><strong>+33 7 83 71 94 27</strong></p>
+<p>أخبرنا <strong>برقم الهاتف المسجّل به الحساب</strong>. سنتحقّق من الطلب ونحذف الحساب. ونسعى لإتمام الحذف خلال <strong>٣٠ يوماً</strong> من استلام الطلب، وعادةً أسرع من ذلك بكثير.</p>
+<hr>
+<h2>ما الذي يُحذف</h2>
+<div class="tw"><table><thead><tr><th>البيانات</th><th>ما يحدث</th></tr></thead><tbody><tr><td>رقم هاتفك وبيانات تسجيل الدخول</td><td>تُحذف نهائياً</td></tr><tr><td>اسمك واسم شركتك</td><td>تُحذف نهائياً</td></tr><tr><td>أسباب الاستخدام المختارة وأي نص «آخر»</td><td>تُحذف نهائياً</td></tr><tr><td>آخر موقع محفوظ لك</td><td>يُحذف نهائياً</td></tr></tbody></table></div>
+<p>الحذف فوري ولا رجعة فيه. ولاستخدام «لفّة» بحساب مجدداً، ستحتاج إلى إنشاء حساب جديد.</p>
+<p><strong>ملاحظة:</strong> نحن لا نحتفظ بسجلّ تنقّلات إطلاقاً — بل بموقع حالي واحد فقط لكل جهاز، يُستبدل مع كل استخدام ويُزال بالكامل عند حذف حسابك.</p>
+<hr>
+<h2>بيانات مخزَّنة على جهازك فقط</h2>
+<p>مساراتك المحفوظة ومسوّداتها وتفضيلات التطبيق مخزَّنة <strong>على هاتفك</strong>، لا على خوادمنا. حذف حسابك لا يزيلها، ولا نستطيع نحن إزالتها نيابةً عنك. ولمحوها، أزل التطبيق أو امسح بياناته من إعدادات جهازك.</p>
+<hr>
+<h2>بيانات قد نحتفظ بها</h2>
+<p>نحن لا نحتفظ بأي من بيانات الحساب المحذوف. وإذا أُلزمنا قانوناً بالاحتفاظ بسجلّ معيّن، فسنحتفظ فقط بالقدر الذي يفرضه القانون وللمدة التي يفرضها فقط.</p>
+<hr>
+<h2>معلومات إضافية</h2>
+<p>راجع <strong>سياسة الخصوصية</strong> للاطّلاع على الوصف الكامل لما نجمعه ولماذا.</p>
+<p>للتواصل: واتساب <strong>+33 7 83 71 94 27</strong><br>الموقع: <strong>https://www.afdal.tech/</strong></p></section><section id="account-deletion-fr" lang="fr" dir="ltr"><h1>Laffah — Comment supprimer votre compte</h1>
+<p><strong>Dernière mise à jour :</strong> 25 juillet 2026</p>
+<p>Cette page explique comment supprimer définitivement votre compte Laffah et les données qui y sont rattachées. Elle existe pour que vous puissiez demander la suppression <strong>même si l&#x27;application n&#x27;est plus installée</strong> ou si vous ne pouvez plus vous connecter.</p>
+<p>Application : <strong>Laffah</strong>, éditée par Ali Alzoobi, exerçant sous le nom commercial « Afdal ».</p>
+<hr>
+<h2>Option 1 — Supprimer vous-même, depuis l&#x27;application</h2>
+<ol><li>Ouvrez <strong>Laffah</strong></li><li>Allez dans <strong>Réglages</strong></li><li>Ouvrez la section <strong>Compte</strong></li><li>Appuyez sur <strong>Supprimer le compte</strong></li><li>Lisez ce qui sera supprimé, cochez <strong>Je comprends que cette action est définitive</strong>, puis confirmez</li></ol>
+<p>La suppression est <strong>immédiate</strong>. Il n&#x27;y a ni délai d&#x27;attente ni possibilité de revenir en arrière.</p>
+<hr>
+<h2>Option 2 — Nous demander de le supprimer</h2>
+<p>Si vous avez désinstallé l&#x27;application, perdu votre appareil ou ne pouvez plus vous connecter, écrivez-nous sur WhatsApp :</p>
+<p><strong>+33 7 83 71 94 27</strong></p>
+<p>Indiquez-nous le <strong>numéro de téléphone avec lequel le compte a été créé</strong>. Nous vérifierons la demande et supprimerons le compte. Nous nous efforçons de finaliser la suppression sous <strong>30 jours</strong> à compter de la réception de la demande, et généralement bien plus vite.</p>
+<hr>
+<h2>Ce qui est supprimé</h2>
+<div class="tw"><table><thead><tr><th>Données</th><th>Ce qui se passe</th></tr></thead><tbody><tr><td>Votre numéro de téléphone et vos identifiants</td><td>Supprimés définitivement</td></tr><tr><td>Votre nom et le nom de votre société</td><td>Supprimés définitivement</td></tr><tr><td>Les cas d&#x27;usage sélectionnés et toute note « autre »</td><td>Supprimés définitivement</td></tr><tr><td>Votre dernière position enregistrée</td><td>Supprimée définitivement</td></tr></tbody></table></div>
+<p>La suppression est immédiate et irréversible. Pour réutiliser Laffah avec un compte, il faudra en créer un nouveau.</p>
+<p><strong>À noter :</strong> nous ne conservons jamais d&#x27;historique de déplacements — seulement une position actuelle par appareil, écrasée à chaque utilisation et entièrement supprimée lorsque vous supprimez votre compte.</p>
+<hr>
+<h2>Données stockées uniquement sur votre appareil</h2>
+<p>Vos itinéraires enregistrés, vos brouillons et vos préférences sont stockés <strong>sur votre téléphone</strong>, et non sur nos serveurs. La suppression de votre compte ne les efface pas, et nous ne pouvons pas les effacer à votre place. Pour les supprimer, désinstallez l&#x27;application ou videz son stockage dans les réglages de votre appareil.</p>
+<hr>
+<h2>Données que nous pourrions conserver</h2>
+<p>Nous ne conservons aucune donnée du compte supprimé. Si la loi devait nous imposer de conserver un enregistrement particulier, nous ne conserverions que ce qu&#x27;elle exige, et uniquement pour la durée qu&#x27;elle impose.</p>
+<hr>
+<h2>Informations complémentaires</h2>
+<p>Consultez notre <strong>Politique de confidentialité</strong> pour la description complète de ce que nous collectons et pourquoi.</p>
+<p>Contact : WhatsApp <strong>+33 7 83 71 94 27</strong><br>Site web : <strong>https://www.afdal.tech/</strong></p></section></div>
+<script>
+(function(){
+  var lang='en', doc='privacy-policy';
+  function show(){
+    document.querySelectorAll('section').forEach(function(s){
+      s.classList.toggle('on', s.id===doc+'-'+lang);
+    });
+    document.querySelectorAll('[data-lang]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.lang===lang));
+    });
+    document.querySelectorAll('[data-doc]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.doc===doc));
+      // Names ride in one JSON attribute: HTML lowercases attribute names, so
+      // per-language attributes like data-nameEN are unreadable as dataset.nameEN.
+      b.textContent = JSON.parse(b.dataset.names)[lang];
+    });
+    var rtl = lang==='ar';
+    document.documentElement.lang = lang;
+    document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+    if (history.replaceState) history.replaceState(null,'','#'+doc+'/'+lang);
+    window.scrollTo(0,0);
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    if (b.dataset.lang) lang = b.dataset.lang;
+    if (b.dataset.doc)  doc  = b.dataset.doc;
+    show();
+  });
+  var m = /^#([a-z-]+)\/([a-z]{2})$/.exec(location.hash||'');
+  if (m) { doc = m[1]; lang = m[2]; }
+  show();
+})();
+</script>
+</body>
+</html>
