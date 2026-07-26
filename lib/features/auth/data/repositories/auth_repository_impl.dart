@@ -27,13 +27,19 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<ApiResult<AuthUser>> signUp({
     required String phone,
     required String password,
-  }) => _guard(() => _remote.signUp(phone: phone, password: password));
+  }) => _guard(
+    () => _remote.signUp(phone: phone, password: password),
+    context: 'signUp',
+  );
 
   @override
   Future<ApiResult<AuthUser>> signIn({
     required String phone,
     required String password,
-  }) => _guard(() => _remote.signIn(phone: phone, password: password));
+  }) => _guard(
+    () => _remote.signIn(phone: phone, password: password),
+    context: 'signIn',
+  );
 
   @override
   Future<ApiResult<void>> signOut() async {
@@ -41,7 +47,7 @@ class AuthRepositoryImpl implements AuthRepository {
       await _remote.signOut();
       return const ApiSuccess<void>(null);
     } catch (e) {
-      final mapped = AuthErrorMapper.map(e);
+      final mapped = AuthErrorMapper.map(e, context: 'signOut');
       return ApiFailure<void>(AuthFailure(mapped.code, mapped.message));
     }
   }
@@ -52,17 +58,20 @@ class AuthRepositoryImpl implements AuthRepository {
       await _remote.deleteAccount();
       return const ApiSuccess<void>(null);
     } catch (e) {
-      final mapped = AuthErrorMapper.map(e);
+      final mapped = AuthErrorMapper.map(e, context: 'delete_my_account');
       return ApiFailure<void>(AuthFailure(mapped.code, mapped.message));
     }
   }
 
-  Future<ApiResult<AuthUser>> _guard(Future<User> Function() action) async {
+  Future<ApiResult<AuthUser>> _guard(
+    Future<User> Function() action, {
+    required String context,
+  }) async {
     try {
       final user = await action();
       return ApiSuccess<AuthUser>(_toEntity(user)!);
     } catch (e) {
-      final mapped = AuthErrorMapper.map(e);
+      final mapped = AuthErrorMapper.map(e, context: context);
       return ApiFailure<AuthUser>(AuthFailure(mapped.code, mapped.message));
     }
   }

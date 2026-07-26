@@ -9,11 +9,22 @@ abstract class ProfileRepository {
   /// Never throws — returns false on any error.
   Future<bool> isOnboardingComplete();
 
+  /// Records that the signed-in user accepted policy version [termsVersion].
+  ///
+  /// Called right after sign-up so the acceptance is stored even if the user
+  /// abandons the profile steps. Re-accepting the same version keeps the
+  /// original timestamp.
+  Future<ApiResult<void>> recordTermsAcceptance(String termsVersion);
+
   /// Persists a whole onboarding submission atomically (server-side RPC).
+  ///
+  /// [termsVersion] records which published policy version the user accepted
+  /// when creating the account.
   Future<ApiResult<void>> saveOnboarding({
     required String fullName,
     required String companyName,
     required List<String> useCaseCodes,
     String? otherText,
+    String? termsVersion,
   });
 }

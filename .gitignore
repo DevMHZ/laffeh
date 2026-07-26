@@ -51,5 +51,17 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Android build / local tooling output
+/android/build/
+/android/.gradle/
+/android/local.properties
+/android/.kotlin/
+
+# Release signing — NEVER commit these. Losing them means you can no longer
+# update the app on Play; leaking them lets someone else sign as you.
+**/key.properties
+*.jks
+*.keystore
+
 # Xcode SwiftPM resolution (generated)
 **/xcshareddata/swiftpm/

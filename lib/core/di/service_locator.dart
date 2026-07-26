@@ -34,6 +34,7 @@ import '../error/failures.dart';
 import '../network/api_result.dart';
 import '../network/dio_client.dart';
 import '../network/network_info.dart';
+import '../services/consent_store.dart';
 import '../services/location_ping_service.dart';
 
 /// Public service locator entry-point.
@@ -200,6 +201,13 @@ Future<void> setupServiceLocator() async {
       ),
     );
   }
+
+  // Local record of policy acceptance (the server copy lives in `profiles`).
+  if (!sl.isRegistered<ConsentStore>()) {
+    sl.registerLazySingleton<ConsentStore>(
+      () => ConsentStore(sl<SharedPreferences>()),
+    );
+  }
 }
 
 /// Stand-in used when Supabase isn't configured. Never actually called
@@ -245,9 +253,8 @@ class _DisabledAuthRepository implements AuthRepository {
   Future<ApiResult<void>> signOut() async => const ApiSuccess<void>(null);
 
   @override
-  Future<ApiResult<void>> deleteAccount() async => const ApiFailure<void>(
-    AuthFailure(AuthErrorMapper.backendUnavailable),
-  );
+  Future<ApiResult<void>> deleteAccount() async =>
+      const ApiFailure<void>(AuthFailure(AuthErrorMapper.backendUnavailable));
 }
 
 /// Stand-in profile repo used when Supabase isn't configured.
@@ -260,11 +267,16 @@ class _DisabledProfileRepository implements ProfileRepository {
   Future<bool> isOnboardingComplete() async => false;
 
   @override
+  Future<ApiResult<void>> recordTermsAcceptance(String termsVersion) async =>
+      const ApiFailure<void>(AuthFailure(AuthErrorMapper.backendUnavailable));
+
+  @override
   Future<ApiResult<void>> saveOnboarding({
     required String fullName,
     required String companyName,
     required List<String> useCaseCodes,
     String? otherText,
+    String? termsVersion,
   }) async =>
       const ApiFailure<void>(AuthFailure(AuthErrorMapper.backendUnavailable));
 }

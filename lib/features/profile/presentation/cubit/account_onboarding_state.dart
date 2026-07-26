@@ -15,6 +15,11 @@ class AccountOnboardingState extends Equatable {
 
   /// True once the account has been created (sign-up succeeded / resuming).
   final bool credentialsDone;
+
+  /// Whether the user ticked the policies consent box. Required before an
+  /// account can be created; pre-set for resumed flows, where the account
+  /// (and therefore the acceptance) already exists.
+  final bool acceptedTerms;
   final OnbPhase phase;
 
   // Field-level validation error keys (mapped to copy by AuthMessages).
@@ -24,6 +29,7 @@ class AccountOnboardingState extends Equatable {
   final String? nameError;
   final String? companyError;
   final String? useCaseError;
+  final String? termsError;
 
   /// Async (sign-up / save) error, as an AuthErrorMapper code.
   final String? submitErrorCode;
@@ -39,6 +45,7 @@ class AccountOnboardingState extends Equatable {
     this.useCases = const {},
     this.otherText = '',
     this.credentialsDone = false,
+    this.acceptedTerms = false,
     this.phase = OnbPhase.editing,
     this.phoneError,
     this.passwordError,
@@ -46,6 +53,7 @@ class AccountOnboardingState extends Equatable {
     this.nameError,
     this.companyError,
     this.useCaseError,
+    this.termsError,
     this.submitErrorCode,
   });
 
@@ -69,6 +77,7 @@ class AccountOnboardingState extends Equatable {
     Set<String>? useCases,
     String? otherText,
     bool? credentialsDone,
+    bool? acceptedTerms,
     OnbPhase? phase,
     // Nullable fields use explicit "clear" flags so copyWith can reset them.
     String? phoneError,
@@ -83,6 +92,8 @@ class AccountOnboardingState extends Equatable {
     bool clearCompanyError = false,
     String? useCaseError,
     bool clearUseCaseError = false,
+    String? termsError,
+    bool clearTermsError = false,
     String? submitErrorCode,
     bool clearSubmitError = false,
   }) {
@@ -97,6 +108,7 @@ class AccountOnboardingState extends Equatable {
       useCases: useCases ?? this.useCases,
       otherText: otherText ?? this.otherText,
       credentialsDone: credentialsDone ?? this.credentialsDone,
+      acceptedTerms: acceptedTerms ?? this.acceptedTerms,
       phase: phase ?? this.phase,
       phoneError: clearPhoneError ? null : (phoneError ?? this.phoneError),
       passwordError: clearPasswordError
@@ -112,6 +124,7 @@ class AccountOnboardingState extends Equatable {
       useCaseError: clearUseCaseError
           ? null
           : (useCaseError ?? this.useCaseError),
+      termsError: clearTermsError ? null : (termsError ?? this.termsError),
       submitErrorCode: clearSubmitError
           ? null
           : (submitErrorCode ?? this.submitErrorCode),
@@ -130,6 +143,7 @@ class AccountOnboardingState extends Equatable {
     useCases,
     otherText,
     credentialsDone,
+    acceptedTerms,
     phase,
     phoneError,
     passwordError,
@@ -137,6 +151,7 @@ class AccountOnboardingState extends Equatable {
     nameError,
     companyError,
     useCaseError,
+    termsError,
     submitErrorCode,
   ];
 }

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,8 +7,26 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing lives outside the repo. Create `android/key.properties`
+// (gitignored) — see docs/play-store-release.md:
+//
+//   storeFile=/absolute/path/to/laffah-upload.jks
+//   storePassword=…
+//   keyAlias=upload
+//   keyPassword=…
+//
+// When it's absent — a fresh clone, or CI without the secret — the release
+// build falls back to the debug key so `flutter run --release` still works.
+// That artifact is NOT uploadable to Play; the warning below says so.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 android {
-    namespace = "com.example.laffeh"
+    namespace = "com.afdal.laffah"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,21 +40,38 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.laffeh"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        // Permanent on Google Play: it can never be changed after the first
+        // release, and it must match the Play Console listing.
+        applicationId = "com.afdal.laffah"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = keystoreProperties["storeFile"]?.toString()?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"]?.toString()
+                keyAlias = keystoreProperties["keyAlias"]?.toString()
+                keyPassword = keystoreProperties["keyPassword"]?.toString()
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "⚠ android/key.properties not found — signing the release " +
+                        "build with the DEBUG key. This artifact cannot be " +
+                        "uploaded to Google Play."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:laffeh/core/config/legal_config.dart';
 import 'package:laffeh/core/error/failures.dart';
 import 'package:laffeh/core/network/api_result.dart';
 import 'package:laffeh/features/auth/data/error/auth_error_mapper.dart';
@@ -48,9 +49,22 @@ class FakeProfileRepository implements ProfileRepository {
     required String companyName,
     required List<String> useCaseCodes,
     String? otherText,
+    String? termsVersion,
   }) async {
     saveCalls++;
+    lastTermsVersion = termsVersion;
     return saveResult;
+  }
+
+  String? lastTermsVersion;
+
+  /// Versions recorded via the dedicated sign-up-time RPC.
+  final List<String> recordedTerms = <String>[];
+
+  @override
+  Future<ApiResult<void>> recordTermsAcceptance(String termsVersion) async {
+    recordedTerms.add(termsVersion);
+    return const ApiSuccess<void>(null);
   }
 
   @override
@@ -81,6 +95,7 @@ void main() {
     c.setNational('944123456');
     c.setPassword('password1');
     c.setConfirm('password1');
+    c.setAcceptedTerms(true);
   }
 
   test('starts on the credentials step', () {
@@ -109,6 +124,42 @@ void main() {
     expect(c.state.step, 0);
     expect(c.state.phoneError, 'phoneNotMobile');
     expect(auth.signUpCalls, 0);
+  });
+
+  test('sign-up is blocked until the policies are accepted', () async {
+    final c = build();
+    c.setNational('944123456');
+    c.setPassword('password1');
+    c.setConfirm('password1');
+    // Deliberately not accepting the terms.
+    await c.next();
+    expect(c.state.step, 0);
+    expect(c.state.termsError, 'termsRequired');
+    expect(auth.signUpCalls, 0);
+
+    // Ticking the box clears the error and lets sign-up through.
+    c.setAcceptedTerms(true);
+    expect(c.state.termsError, isNull);
+    await c.next();
+    expect(auth.signUpCalls, 1);
+    expect(c.state.step, 1);
+    // Acceptance is recorded server-side as soon as the account exists, not
+    // only when the profile steps finish.
+    expect(profile.recordedTerms, [LegalConfig.termsVersion]);
+  });
+
+  test('a resumed flow does not ask for consent again', () {
+    final c = build(startStep: 1, credsDone: true);
+    expect(c.state.acceptedTerms, isTrue);
+  });
+
+  test('submit stamps the accepted policy version', () async {
+    final c = build(startStep: 3, credsDone: true);
+    c.setFullName('Mohamad');
+    c.setCompany('Afdal');
+    c.toggleUseCase('delivery');
+    await c.submit();
+    expect(profile.lastTermsVersion, LegalConfig.termsVersion);
   });
 
   test('valid credentials sign up and advance', () async {

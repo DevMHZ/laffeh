@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:laffeh/core/constants/app_constants.dart';
 import 'package:laffeh/core/di/service_locator.dart';
+import 'package:laffeh/core/services/consent_store.dart';
 import 'package:laffeh/core/error/failures.dart';
 import 'package:laffeh/core/network/api_result.dart';
 import 'package:laffeh/core/theme/app_theme.dart';
@@ -43,11 +45,15 @@ class _StubAuthRepository implements AuthRepository {
 
 class _StubProfileRepository implements ProfileRepository {
   @override
+  Future<ApiResult<void>> recordTermsAcceptance(String termsVersion) async =>
+      const ApiSuccess<void>(null);
+  @override
   Future<ApiResult<void>> saveOnboarding({
     required String fullName,
     required String companyName,
     required List<String> useCaseCodes,
     String? otherText,
+    String? termsVersion,
   }) async => const ApiSuccess<void>(null);
   @override
   Future<ApiResult<Profile?>> fetchMyProfile() async =>
@@ -84,9 +90,15 @@ Widget _app(Widget home, String lang) => MaterialApp(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() {
+  setUpAll(() async {
     sl.registerSingleton<AuthRepository>(_StubAuthRepository());
     sl.registerSingleton<ProfileRepository>(_StubProfileRepository());
+    // The create-account page reads the consent store to record which policy
+    // version was accepted, so it has to be registered like in production.
+    SharedPreferences.setMockInitialValues({});
+    sl.registerSingleton<ConsentStore>(
+      ConsentStore(await SharedPreferences.getInstance()),
+    );
   });
   tearDownAll(sl.reset);
   tearDown(() => AppStrings.setLocale(const Locale('en')));

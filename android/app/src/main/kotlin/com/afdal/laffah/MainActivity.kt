@@ -1,4 +1,4 @@
-package com.example.laffeh
+package com.afdal.laffah
 
 import android.content.Intent
 import io.flutter.embedding.android.FlutterActivity

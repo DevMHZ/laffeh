@@ -108,7 +108,5 @@ void main() {
 }
 
 /// The [AnimatedScale] wrapping [icon].
-Finder _scaleOf(WidgetTester tester, Finder icon) => find.ancestor(
-  of: icon,
-  matching: find.byType(AnimatedScale),
-);
+Finder _scaleOf(WidgetTester tester, Finder icon) =>
+    find.ancestor(of: icon, matching: find.byType(AnimatedScale));

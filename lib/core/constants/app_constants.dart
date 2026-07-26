@@ -24,6 +24,8 @@ class AppStrings {
   static const nudgeLaunchesKey = 'laffeh.account_nudge_launches';
   static const nudgeLastShownKey = 'laffeh.account_nudge_last_shown';
   static const nudgeDismissedKey = 'laffeh.account_nudge_dismissed';
+  static const termsVersionKey = 'laffeh.terms_version';
+  static const termsAcceptedAtKey = 'laffeh.terms_accepted_at';
   static final ValueNotifier<Locale> localeNotifier = ValueNotifier(
     const Locale('en'),
   );
@@ -593,6 +595,18 @@ class AppStrings {
   static String get valPhoneTooShort => _t('valPhoneTooShort');
   static String get valPhoneTooLong => _t('valPhoneTooLong');
   static String get valPhoneNotMobile => _t('valPhoneNotMobile');
+  static String get valTermsRequired => _t('valTermsRequired');
+
+  // ── Legal / consent ────────────────────────────────────
+  static String get legalTitle => _t('legalTitle');
+  static String get legalPrivacy => _t('legalPrivacy');
+  static String get legalTerms => _t('legalTerms');
+  static String get legalAccountDeletion => _t('legalAccountDeletion');
+
+  /// Consent sentence for the sign-up gate. Contains the `{terms}` and
+  /// `{privacy}` placeholders, which the UI replaces with tappable links, so
+  /// each language keeps its own word order.
+  static String get consentTemplate => _t('consentTemplate');
 }
 
 /// Unit suffix helpers.
@@ -987,6 +1001,13 @@ const Map<String, Map<String, String>> _copy = {
     'deleteAccountAck': 'I understand this is permanent',
     'deleteAccountConfirm': 'Delete permanently',
     'deleteAccountDone': 'Your account and its data have been deleted.',
+    'valTermsRequired':
+        'Please accept the Terms of Service and Privacy Policy to continue.',
+    'legalTitle': 'Legal',
+    'legalPrivacy': 'Privacy Policy',
+    'legalTerms': 'Terms of Service',
+    'legalAccountDeletion': 'Account deletion',
+    'consentTemplate': 'I agree to the {terms} and the {privacy}.',
     'errInvalidCredentials': 'Incorrect phone number or password.',
     'errPhoneInUse':
         'This phone number is already linked to an account. Try signing in.',
@@ -1390,6 +1411,13 @@ const Map<String, Map<String, String>> _copy = {
     'deleteAccountAck': 'أفهم أن هذا الإجراء نهائي',
     'deleteAccountConfirm': 'حذف نهائي',
     'deleteAccountDone': 'تم حذف حسابك وبياناته.',
+    'valTermsRequired':
+        'الرجاء الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة.',
+    'legalTitle': 'المستندات القانونية',
+    'legalPrivacy': 'سياسة الخصوصية',
+    'legalTerms': 'شروط الاستخدام',
+    'legalAccountDeletion': 'حذف الحساب',
+    'consentTemplate': 'أوافق على {terms} و{privacy}.',
     'errInvalidCredentials': 'رقم الهاتف أو كلمة المرور غير صحيحة.',
     'errPhoneInUse': 'يوجد حساب مرتبط بهذا الرقم. جرّب تسجيل الدخول.',
     'errWeakPassword': 'اختر كلمة مرور أقوى.',
@@ -1811,6 +1839,13 @@ const Map<String, Map<String, String>> _copy = {
     'deleteAccountAck': 'Je comprends que cette action est définitive',
     'deleteAccountConfirm': 'Supprimer définitivement',
     'deleteAccountDone': 'Votre compte et ses données ont été supprimés.',
+    'valTermsRequired':
+        'Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité pour continuer.',
+    'legalTitle': 'Documents légaux',
+    'legalPrivacy': 'Politique de confidentialité',
+    'legalTerms': 'Conditions d\'utilisation',
+    'legalAccountDeletion': 'Suppression du compte',
+    'consentTemplate': 'J\'accepte les {terms} et la {privacy}.',
     'errInvalidCredentials': 'Numéro de téléphone ou mot de passe incorrect.',
     'errPhoneInUse':
         'Un compte est déjà associé à ce numéro. Essayez de vous connecter.',

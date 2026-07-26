@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/config/legal_config.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/services/consent_store.dart';
 import '../../../../core/utils/form_validators.dart';
 import '../../../auth/data/error/auth_error_mapper.dart';
 import '../../../auth/domain/country.dart';
@@ -23,16 +25,25 @@ class AccountOnboardingCubit extends Cubit<AccountOnboardingState> {
     int startStep = 0,
     bool credentialsDone = false,
     Country? country,
-  }) : super(
+    ConsentStore? consent,
+  }) : _consent = consent,
+       super(
          AccountOnboardingState(
            step: startStep,
            country: country ?? Country.fallback,
            credentialsDone: credentialsDone,
+           // A resumed flow already has an account, which could only have been
+           // created by accepting the policies — so don't ask twice.
+           acceptedTerms: credentialsDone,
          ),
        );
 
   final AuthRepository _auth;
   final ProfileRepository _profile;
+
+  /// Records acceptance on-device. Null in tests / when storage is unavailable;
+  /// the authoritative record is the one written by the onboarding RPC.
+  final ConsentStore? _consent;
 
   // ── Field setters (clear their own error as the user edits) ──
   void setCountry(Country c) =>
@@ -48,6 +59,9 @@ class AccountOnboardingCubit extends Cubit<AccountOnboardingState> {
   void setCompany(String v) =>
       emit(state.copyWith(company: v, clearCompanyError: true));
   void setOtherText(String v) => emit(state.copyWith(otherText: v));
+
+  void setAcceptedTerms(bool v) =>
+      emit(state.copyWith(acceptedTerms: v, clearTermsError: true));
 
   void toggleUseCase(String code) {
     final next = Set<String>.from(state.useCases);
@@ -83,15 +97,23 @@ class AccountOnboardingCubit extends Cubit<AccountOnboardingState> {
       state.confirm,
     );
 
-    if (phoneErr != null || passErr != null || confErr != null) {
+    // No account is created without an explicit acceptance of the policies.
+    final termsErr = state.acceptedTerms ? null : 'termsRequired';
+
+    if (phoneErr != null ||
+        passErr != null ||
+        confErr != null ||
+        termsErr != null) {
       emit(
         state.copyWith(
           phoneError: phoneErr,
           passwordError: passErr,
           confirmError: confErr,
+          termsError: termsErr,
           clearPhoneError: phoneErr == null,
           clearPasswordError: passErr == null,
           clearConfirmError: confErr == null,
+          clearTermsError: termsErr == null,
         ),
       );
       return;
@@ -105,11 +127,24 @@ class AccountOnboardingCubit extends Cubit<AccountOnboardingState> {
 
     emit(state.copyWith(phase: OnbPhase.submitting, clearSubmitError: true));
     final result = await _auth.signUp(phone: phone!, password: state.password);
-    result.when(
-      success: (_) => emit(
-        state.copyWith(phase: OnbPhase.editing, credentialsDone: true, step: 1),
-      ),
-      failure: (f) {
+    await result.when(
+      success: (_) async {
+        // Acceptance is recorded the moment the account exists, so it survives
+        // even if the user drops out before finishing the profile steps.
+        // Best-effort server-side: a failure here must not block a user who
+        // already has a valid account — `save_onboarding` stamps it again at
+        // the end of the flow.
+        await _consent?.record(LegalConfig.termsVersion);
+        await _profile.recordTermsAcceptance(LegalConfig.termsVersion);
+        emit(
+          state.copyWith(
+            phase: OnbPhase.editing,
+            credentialsDone: true,
+            step: 1,
+          ),
+        );
+      },
+      failure: (f) async {
         final code = f is AuthFailure ? f.code : AuthErrorMapper.unknown;
         emit(state.copyWith(phase: OnbPhase.editing, submitErrorCode: code));
       },
@@ -152,6 +187,8 @@ class AccountOnboardingCubit extends Cubit<AccountOnboardingState> {
       companyName: state.company.trim(),
       useCaseCodes: state.useCases.toList(growable: false),
       otherText: (other == null || other.isEmpty) ? null : other,
+      // Stamps who accepted which policy version, server-side.
+      termsVersion: LegalConfig.termsVersion,
     );
 
     result.when(

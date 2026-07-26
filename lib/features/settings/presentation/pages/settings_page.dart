@@ -15,6 +15,7 @@ import '../../../../core/theme/vehicle_kind.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/widgets/afdal_logo.dart';
 import '../../../../core/widgets/app_section_card.dart';
+import '../../../../core/widgets/legal_links_sheet.dart';
 import '../../../../core/widgets/vehicle_turntable.dart';
 import '../widgets/account_section.dart';
 
@@ -61,10 +62,7 @@ class SettingsPage extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '${AppStrings.poweredBy} ',
-                  style: AppTextStyles.mutedSm,
-                ),
+                Text('${AppStrings.poweredBy} ', style: AppTextStyles.mutedSm),
                 AfdalLogo.compact(height: 24),
               ],
             ),
@@ -222,6 +220,10 @@ class _SettingsCard extends StatelessWidget {
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
           AccountSection(),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 14),
+          const _LegalRow(),
           const SizedBox(height: 14),
           Divider(height: 1, color: AppColors.border),
           const SizedBox(height: 14),
@@ -423,7 +425,8 @@ class _ThemeSectionState extends State<_ThemeSection> {
                 onSelected: (i) => AppTheme.setPalette(DriverPalette.all[i]),
                 itemBuilder: (context, i, isActive) => _ThemePage(
                   palette: DriverPalette.all[i],
-                  name: _names[DriverPalette.all[i].id] ??
+                  name:
+                      _names[DriverPalette.all[i].id] ??
                       DriverPalette.all[i].id,
                   active: isActive,
                 ),
@@ -485,11 +488,7 @@ class _VehicleSectionState extends State<_VehicleSection> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: VehicleTurntable(
-                  kind: active,
-                  size: 26,
-                  animate: false,
-                ),
+                child: VehicleTurntable(kind: active, size: 26, animate: false),
               ),
               expanded: _expanded,
               onTap: _toggle,
@@ -844,7 +843,9 @@ class _VehicleStage extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Expanded(child: _ShowcaseStage(kind: kind, animate: active)),
+          Expanded(
+            child: _ShowcaseStage(kind: kind, animate: active),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
             child: Text(
@@ -880,11 +881,7 @@ class _ShowcaseStage extends StatelessWidget {
         gradient: RadialGradient(
           center: Alignment(0, -1),
           radius: 1.5,
-          colors: [
-            Color(0xFFF4F6F1),
-            Color(0xFFE7EBE4),
-            Color(0xFFDEE3DA),
-          ],
+          colors: [Color(0xFFF4F6F1), Color(0xFFE7EBE4), Color(0xFFDEE3DA)],
           stops: [0.0, 0.6, 1.0],
         ),
       ),
@@ -920,6 +917,44 @@ class _ShowcaseStage extends StatelessWidget {
 
 /// Tappable "About us" row that matches the collapsible-header style of the
 /// sections above, so the whole settings block reads as one cohesive list.
+/// Opens the published privacy policy / terms / account-deletion guide. Keeping
+/// them reachable in-app is a store requirement, not just a nicety.
+class _LegalRow extends StatelessWidget {
+  const _LegalRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => showLegalLinksSheet(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Icon(Iconsax.shield_tick, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  AppStrings.legalTitle,
+                  style: AppTextStyles.titleMd,
+                ),
+              ),
+              Icon(
+                Icons.chevron_left_rounded,
+                size: 20,
+                color: AppColors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AboutUsRow extends StatelessWidget {
   final VoidCallback onTap;
   const _AboutUsRow({required this.onTap});

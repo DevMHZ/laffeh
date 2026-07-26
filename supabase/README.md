@@ -39,6 +39,13 @@ supabase db push
 5. `20260725120000_profile_phone_and_onboarding_hardening.sql` — `profiles.phone`
    + `profiles.use_case_codes`, a profile row created at sign-up, strict
    use-case resolution, and the `profiles_overview` view
+6. `20260725130000_device_locations_current_only.sql` — last-known-fix table
+   (one row per `device_id`), replacing the append-only ping history
+7. `20260725140000_delete_my_account_rpc.sql` — `delete_my_account()`, backing
+   in-app account deletion
+8. `20260727100000_terms_acceptance.sql` — `profiles.terms_version` +
+   `terms_accepted_at`, the `record_terms_acceptance()` RPC, and
+   `save_onboarding()` gaining `p_terms_version`
 
 `supabase/ALL_MIGRATIONS.sql` is all of the above concatenated in order — paste
 that one file if you'd rather not run them individually. Everything is
@@ -75,8 +82,22 @@ until step 4 completes.
 mirrors `user_use_cases`; both are read-convenience copies kept in sync by the
 trigger and the RPC, in the same transaction as the relational write.
 
-`save_onboarding(full_name, company_name, use_case_codes[], other_text)` writes a
-whole onboarding submission in one transaction. A code that isn't in the
+## Policy acceptance
+
+Creating an account requires ticking the consent box on the sign-up step, which
+links to the published privacy policy and terms (see `LegalConfig` in the app).
+The acceptance is stored twice: on-device, and in `profiles.terms_version` /
+`profiles.terms_accepted_at` via `record_terms_acceptance()` — called right after
+sign-up so the record exists even if the user abandons the profile steps.
+`save_onboarding()` stamps the same columns again at the end of the flow,
+preserving the original timestamp while the version is unchanged.
+
+When the published documents change materially, bump `LegalConfig.termsVersion`
+(currently the documents' effective date) so acceptances stay attributable to a
+specific version.
+
+`save_onboarding(full_name, company_name, use_case_codes[], other_text, terms_version)`
+writes a whole onboarding submission in one transaction. A code that isn't in the
 catalogue aborts the call (`USE_CASE_UNKNOWN`) instead of being dropped
 silently — if reasons ever stop landing, that error tells you the seed
 migration never ran.

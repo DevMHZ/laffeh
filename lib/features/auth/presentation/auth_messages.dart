@@ -35,6 +35,8 @@ class AuthMessages {
         return AppStrings.valCompanyTooLong;
       case 'phoneInvalid':
         return AppStrings.valPhoneInvalid;
+      case 'termsRequired':
+        return AppStrings.valTermsRequired;
       default:
         return AppStrings.errUnknownAuth;
     }

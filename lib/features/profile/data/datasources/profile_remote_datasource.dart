@@ -22,11 +22,19 @@ class ProfileRemoteDataSource {
     return ProfileModel.fromMap(row);
   }
 
+  Future<void> recordTermsAcceptance(String termsVersion) async {
+    await _client.rpc(
+      'record_terms_acceptance',
+      params: {'p_terms_version': termsVersion},
+    );
+  }
+
   Future<void> saveOnboarding({
     required String fullName,
     required String companyName,
     required List<String> useCaseCodes,
     String? otherText,
+    String? termsVersion,
   }) async {
     await _client.rpc(
       'save_onboarding',
@@ -35,6 +43,7 @@ class ProfileRemoteDataSource {
         'p_company_name': companyName,
         'p_use_case_codes': useCaseCodes,
         'p_other_text': otherText,
+        'p_terms_version': termsVersion,
       },
     );
   }

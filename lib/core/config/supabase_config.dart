@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../error/supabase_error_debug.dart';
 import '../utils/debug_log.dart';
 import 'env_config.dart';
 
@@ -34,10 +35,15 @@ class SupabaseConfig {
         publishableKey: EnvConfig.supabaseAnonKey,
       );
       _initialized = true;
-      DebugLog.banner('Supabase ready');
+      // Name the project in the log: pointing at the wrong one (a migration
+      // applied somewhere else) looks identical to a missing migration.
+      DebugLog.banner(
+        'Supabase ready · project=${Uri.tryParse(EnvConfig.supabaseUrl)?.host}',
+      );
     } catch (e) {
       // Never let a backend hiccup block startup of the offline planner.
-      DebugLog.banner('Supabase init failed: $e');
+      DebugLog.banner('Supabase init FAILED — auth/tracking disabled');
+      SupabaseErrorDebug.dump(e, context: 'Supabase.initialize');
     }
   }
 }

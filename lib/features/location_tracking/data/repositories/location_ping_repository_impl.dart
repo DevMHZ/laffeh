@@ -1,4 +1,5 @@
 import '../../../../core/error/failures.dart';
+import '../../../../core/error/supabase_error_debug.dart';
 import '../../../../core/network/api_result.dart';
 import '../../../../core/utils/debug_log.dart';
 import '../../domain/repositories/location_ping_repository.dart';
@@ -31,7 +32,10 @@ class LocationPingRepositoryImpl implements LocationPingRepository {
       );
       return const ApiSuccess<void>(null);
     } catch (e) {
-      DebugLog.loc('ping failed (non-fatal): $e');
+      // Non-fatal by design — nothing in the UI surfaces this, so the console
+      // is the only place a broken RLS policy or missing column shows up.
+      DebugLog.loc('ping failed (non-fatal)');
+      SupabaseErrorDebug.dump(e, context: 'device_locations upsert');
       return ApiFailure<void>(ServerFailure('LOCATION_PING_FAILED: $e'));
     }
   }

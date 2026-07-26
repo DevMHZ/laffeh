@@ -71,4 +71,7 @@ class DebugLog {
   static void sim(String message) => log('SIM', message); // trip preview
   static void loc(String message) => log('LOC', message); // GPS fixes
   static void map(String message) => log('MAP', message); // map lifecycle
+
+  /// Raw backend errors — see `SupabaseErrorDebug`, which formats them.
+  static void supa(String message) => log('SUPA', message);
 }

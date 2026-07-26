@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/legal_links_sheet.dart';
 import '../../../profile/presentation/pages/account_onboarding_page.dart';
 import '../../../route_planner/presentation/pages/route_planner_page.dart';
 import '../widgets/language_chip.dart';
@@ -24,13 +24,6 @@ class WelcomePage extends StatelessWidget {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const RoutePlannerPage()),
     );
-  }
-
-  Future<void> _openTerms() async {
-    final uri = Uri.parse(AppStrings.afdalWebsiteUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
   }
 
   @override
@@ -108,7 +101,7 @@ class WelcomePage extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               TextButton(
-                onPressed: _openTerms,
+                onPressed: () => showLegalLinksSheet(context),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                 ),

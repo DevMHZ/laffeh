@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/services/consent_store.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -14,6 +15,7 @@ import '../../../auth/presentation/widgets/auth_error_banner.dart';
 import '../../../auth/presentation/widgets/auth_field_shell.dart';
 import '../../../auth/presentation/widgets/auth_header.dart';
 import '../../../auth/presentation/widgets/auth_text_field.dart';
+import '../../../auth/presentation/widgets/consent_checkbox.dart';
 import '../../../auth/presentation/widgets/password_field.dart';
 import '../../../auth/presentation/widgets/phone_field.dart';
 import '../../../route_planner/presentation/pages/route_planner_page.dart';
@@ -43,6 +45,7 @@ class AccountOnboardingPage extends StatelessWidget {
         sl<ProfileRepository>(),
         startStep: startStep,
         credentialsDone: credentialsDone,
+        consent: sl<ConsentStore>(),
       ),
       child: const _OnboardingView(),
     );
@@ -318,6 +321,12 @@ class _CredentialsStep extends StatelessWidget {
           textInputAction: TextInputAction.done,
           onChanged: cubit.setConfirm,
           onSubmitted: cubit.next,
+        ),
+        const SizedBox(height: 20),
+        ConsentCheckbox(
+          value: state.acceptedTerms,
+          onChanged: cubit.setAcceptedTerms,
+          errorText: AuthMessages.validation(state.termsError),
         ),
         if (state.submitErrorCode != null) ...[
           const SizedBox(height: 18),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 
 import '../../../../core/error/exceptions.dart' as core;
+import '../../../../core/error/supabase_error_debug.dart';
 
 /// Translates provider (Supabase) auth errors into stable, provider-agnostic
 /// codes. The presentation layer maps these codes to localized copy — the raw
@@ -20,7 +21,14 @@ class AuthErrorMapper {
   static const backendUnavailable = 'backendUnavailable';
   static const unknown = 'unknown';
 
-  static core.AuthException map(Object error) {
+  /// Maps [error] to a stable code, printing the raw provider error to the
+  /// debug console on the way through — this is the single funnel every
+  /// repository `catch` goes through, so logging here covers all of them.
+  ///
+  /// [context] names the failing call (`'save_onboarding'`) in that log line.
+  static core.AuthException map(Object error, {String? context}) {
+    SupabaseErrorDebug.dump(error, context: context);
+
     if (error is core.AuthException) return error;
 
     if (error is SocketException || error is HttpException) {
