@@ -39,3 +39,16 @@ class ValidationFailure extends Failure {
 class UnknownFailure extends Failure {
   const UnknownFailure(super.message);
 }
+
+/// Authentication / account errors surfaced to the UI.
+///
+/// [code] is a stable, provider-agnostic identifier (e.g. `invalidCredentials`,
+/// `phoneInUse`) mapped to localized copy by the presentation layer — the raw
+/// Supabase message is never shown to the user.
+class AuthFailure extends Failure {
+  final String code;
+  const AuthFailure(this.code, [String message = '']) : super(message);
+
+  @override
+  List<Object?> get props => [code, message];
+}

@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/config/supabase_config.dart';
 import 'core/constants/app_constants.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
@@ -26,6 +27,8 @@ Future<void> main() async {
   try {
     await dotenv.load(fileName: '.env');
   } catch (_) {}
+
+  await SupabaseConfig.init();
 
   final prefs = await SharedPreferences.getInstance();
   final savedLanguage = prefs.getString(AppStrings.localeStorageKey);

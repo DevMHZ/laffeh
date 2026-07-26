@@ -33,3 +33,14 @@ class InvalidResponseException implements Exception {
   final String message;
   const InvalidResponseException(this.message);
 }
+
+/// Thrown by the auth datasource; carries a provider-agnostic [code] plus the
+/// original message for logging (never shown to the user directly).
+class AuthException implements Exception {
+  final String code;
+  final String message;
+  const AuthException(this.code, [this.message = '']);
+
+  @override
+  String toString() => 'AuthException($code): $message';
+}

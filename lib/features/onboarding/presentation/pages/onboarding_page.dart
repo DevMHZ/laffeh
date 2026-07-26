@@ -3,11 +3,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/routing/auth_gate.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/location_utils.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../route_planner/presentation/pages/route_planner_page.dart';
 import '../widgets/onboarding_mock.dart';
 
 part 'onboarding_page_widgets.dart';
@@ -46,7 +46,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 420),
-        pageBuilder: (_, __, ___) => const RoutePlannerPage(),
+        pageBuilder: (_, __, ___) => const AuthGate(),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
           child: child,

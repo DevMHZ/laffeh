@@ -17,6 +17,13 @@ class AppStrings {
   static const afdalWebsiteUrl = 'https://www.afdal.tech/';
   static const localeStorageKey = 'laffeh.language_code';
   static const onboardingDoneKey = 'laffeh.onboarding_done';
+
+  // Auth / onboarding / tracking storage keys.
+  static const deviceIdKey = 'laffeh.device_id';
+  static const welcomeSeenKey = 'laffeh.welcome_seen';
+  static const nudgeLaunchesKey = 'laffeh.account_nudge_launches';
+  static const nudgeLastShownKey = 'laffeh.account_nudge_last_shown';
+  static const nudgeDismissedKey = 'laffeh.account_nudge_dismissed';
   static final ValueNotifier<Locale> localeNotifier = ValueNotifier(
     const Locale('en'),
   );
@@ -451,6 +458,141 @@ class AppStrings {
   static String get onbLocationBody => _t('onbLocationBody');
   static String get onbAllowLocation => _t('onbAllowLocation');
   static String get onbMaybeLater => _t('onbMaybeLater');
+
+  // ── Auth / Onboarding ──────────────────────────────────
+  static String get languageLabel => _t('languageLabel');
+  static String get termsAndPrivacy => _t('termsAndPrivacy');
+
+  // Welcome
+  static String get welcomeTitle => _t('welcomeTitle');
+  static String get welcomeBody => _t('welcomeBody');
+  static String get welcomeCreateAccount => _t('welcomeCreateAccount');
+  static String get welcomeHaveAccount => _t('welcomeHaveAccount');
+  static String get welcomeSkip => _t('welcomeSkip');
+
+  // Common auth actions
+  static String get authContinue => _t('authContinue');
+  static String get authBack => _t('authBack');
+  static String get edit => _t('edit');
+
+  // Sign in
+  static String get signInTitle => _t('signInTitle');
+  static String get signInButton => _t('signInButton');
+  static String get signInNoAccount => _t('signInNoAccount');
+  static String get signInCreateNew => _t('signInCreateNew');
+  static String get signInSubtitle => _t('signInSubtitle');
+  static String get forgotPassword => _t('forgotPassword');
+
+  // Fields
+  static String get phoneLabel => _t('phoneLabel');
+  static String get countrySearchHint => _t('countrySearchHint');
+  static String get passwordLabel => _t('passwordLabel');
+  static String get passwordHint => _t('passwordHint');
+  static String get passwordConfirmLabel => _t('passwordConfirmLabel');
+  static String get passwordConfirmHint => _t('passwordConfirmHint');
+  static String get passwordShow => _t('passwordShow');
+  static String get passwordHide => _t('passwordHide');
+
+  // Create-account steps
+  static String get createAccountTitle => _t('createAccountTitle');
+  static String get stepCredentialsTitle => _t('stepCredentialsTitle');
+  static String get stepCredentialsSubtitle => _t('stepCredentialsSubtitle');
+
+  /// "Step 2 of 4" — the counter above the create-account progress bar.
+  static String stepCounter(int step, int total) => _t(
+    'stepCounter',
+  ).replaceAll('{n}', '$step').replaceAll('{total}', '$total');
+  static String get nameQuestion => _t('nameQuestion');
+  static String get nameHint => _t('nameHint');
+  static String get companyQuestion => _t('companyQuestion');
+  static String get companyHint => _t('companyHint');
+  static String get useCaseQuestion => _t('useCaseQuestion');
+  static String get useCaseOtherHint => _t('useCaseOtherHint');
+  static String get useCaseSelectAtLeastOne => _t('useCaseSelectAtLeastOne');
+
+  // Summary + finish
+  static String get summaryTitle => _t('summaryTitle');
+  static String get summaryPhone => _t('summaryPhone');
+  static String get summaryName => _t('summaryName');
+  static String get summaryCompany => _t('summaryCompany');
+  static String get summaryUseCases => _t('summaryUseCases');
+  static String get finishButton => _t('finishButton');
+  static String get successTitle => _t('successTitle');
+
+  // Use-case labels (mirror the seeded `use_cases.code`)
+  static String get ucDelivery => _t('ucDelivery');
+  static String get ucPersonalUse => _t('ucPersonalUse');
+  static String get ucNavigation => _t('ucNavigation');
+  static String get ucDriver => _t('ucDriver');
+  static String get ucDeliveryDriver => _t('ucDeliveryDriver');
+  static String get ucFleetManagement => _t('ucFleetManagement');
+  static String get ucBusinessManagement => _t('ucBusinessManagement');
+  static String get ucRoutePlanning => _t('ucRoutePlanning');
+  static String get ucFieldOperations => _t('ucFieldOperations');
+  static String get ucFieldSales => _t('ucFieldSales');
+  static String get ucOther => _t('ucOther');
+
+  // Forgot password / support
+  static String get forgotPasswordTitle => _t('forgotPasswordTitle');
+  static String get forgotPasswordBody => _t('forgotPasswordBody');
+  static String get contactSupport => _t('contactSupport');
+  static String get whatsappForgotMessage => _t('whatsappForgotMessage');
+
+  // Account nudge
+  static String get nudgeTitle => _t('nudgeTitle');
+  static String get nudgeBody => _t('nudgeBody');
+  static String get nudgeDismiss => _t('nudgeDismiss');
+  static String get nudgeLater => _t('nudgeLater');
+
+  // Account section in Settings (sign out / delete account)
+  static String get account => _t('account');
+  static String get accountSignedIn => _t('accountSignedIn');
+  static String get accountGuest => _t('accountGuest');
+  static String get accountGuestHint => _t('accountGuestHint');
+  static String get signOut => _t('signOut');
+  static String get signOutConfirmTitle => _t('signOutConfirmTitle');
+  static String get signOutConfirmBody => _t('signOutConfirmBody');
+  static String get signOutDone => _t('signOutDone');
+  static String get deleteAccount => _t('deleteAccount');
+  static String get deleteAccountTitle => _t('deleteAccountTitle');
+  static String get deleteAccountBody => _t('deleteAccountBody');
+  static String get deleteAccountItemLogin => _t('deleteAccountItemLogin');
+  static String get deleteAccountItemProfile => _t('deleteAccountItemProfile');
+  static String get deleteAccountItemLocation =>
+      _t('deleteAccountItemLocation');
+  static String get deleteAccountIrreversible =>
+      _t('deleteAccountIrreversible');
+  static String get deleteAccountAck => _t('deleteAccountAck');
+  static String get deleteAccountConfirm => _t('deleteAccountConfirm');
+  static String get deleteAccountDone => _t('deleteAccountDone');
+
+  // Auth errors
+  static String get errInvalidCredentials => _t('errInvalidCredentials');
+  static String get errPhoneInUse => _t('errPhoneInUse');
+  static String get errWeakPassword => _t('errWeakPassword');
+  static String get errRateLimited => _t('errRateLimited');
+  static String get errAuthNetwork => _t('errAuthNetwork');
+  static String get errSignupsDisabled => _t('errSignupsDisabled');
+  static String get errBackendUnavailable => _t('errBackendUnavailable');
+  static String get errUnknownAuth => _t('errUnknownAuth');
+
+  // Validation
+  static String get valPasswordRequired => _t('valPasswordRequired');
+  static String get valPasswordTooShort => _t('valPasswordTooShort');
+  static String get valPasswordConfirmRequired =>
+      _t('valPasswordConfirmRequired');
+  static String get valPasswordMismatch => _t('valPasswordMismatch');
+  static String get valNameRequired => _t('valNameRequired');
+  static String get valNameTooShort => _t('valNameTooShort');
+  static String get valNameTooLong => _t('valNameTooLong');
+  static String get valNameNumeric => _t('valNameNumeric');
+  static String get valCompanyRequired => _t('valCompanyRequired');
+  static String get valCompanyTooLong => _t('valCompanyTooLong');
+  static String get valPhoneInvalid => _t('valPhoneInvalid');
+  static String get valPhoneRequired => _t('valPhoneRequired');
+  static String get valPhoneTooShort => _t('valPhoneTooShort');
+  static String get valPhoneTooLong => _t('valPhoneTooLong');
+  static String get valPhoneNotMobile => _t('valPhoneNotMobile');
 }
 
 /// Unit suffix helpers.
@@ -760,6 +902,116 @@ const Map<String, Map<String, String>> _copy = {
         'Allow location so Laffah can set your departure and guide you while you drive.',
     'onbAllowLocation': 'Allow location',
     'onbMaybeLater': 'Maybe later',
+    // ── Auth / Onboarding ──
+    'languageLabel': 'Language',
+    'termsAndPrivacy': 'Terms & Privacy Policy',
+    'welcomeTitle': 'Plan smarter routes',
+    'welcomeBody':
+        'Optimize your stops, save your trips, and get where you\'re going faster.',
+    'welcomeCreateAccount': 'Create account',
+    'welcomeHaveAccount': 'I already have an account',
+    'welcomeSkip': 'Skip for now',
+    'authContinue': 'Continue',
+    'authBack': 'Back',
+    'edit': 'Edit',
+    'signInTitle': 'Welcome back',
+    'signInButton': 'Sign in',
+    'signInNoAccount': 'Don\'t have an account?',
+    'signInCreateNew': 'Create a new account',
+    'signInSubtitle': 'Sign in with your phone number to get your trips back.',
+    'forgotPassword': 'Forgot password?',
+    'phoneLabel': 'Phone number',
+    'countrySearchHint': 'Search country',
+    'passwordLabel': 'Password',
+    'passwordHint': 'At least 8 characters',
+    'passwordConfirmLabel': 'Confirm password',
+    'passwordConfirmHint': 'Re-enter your password',
+    'passwordShow': 'Show password',
+    'passwordHide': 'Hide password',
+    'createAccountTitle': 'Create account',
+    'stepCounter': 'Step {n} of {total}',
+    'stepCredentialsTitle': 'Your phone & password',
+    'stepCredentialsSubtitle':
+        'You sign in with your phone number. Pick a password of at least 8 characters.',
+    'nameQuestion': 'What\'s your name?',
+    'nameHint': 'Enter your full name.',
+    'companyQuestion': 'Which company do you work for?',
+    'companyHint': 'Enter the company name.',
+    'useCaseQuestion':
+        'Why do you want to use the app? You can select more than one option.',
+    'useCaseOtherHint': 'Tell us how you plan to use the app.',
+    'useCaseSelectAtLeastOne': 'Select at least one option to continue.',
+    'summaryTitle': 'Review your details',
+    'summaryPhone': 'Phone number',
+    'summaryName': 'Full name',
+    'summaryCompany': 'Company',
+    'summaryUseCases': 'Reasons for use',
+    'finishButton': 'Get started',
+    'successTitle': 'Great, your account is ready.',
+    'ucDelivery': 'Delivery',
+    'ucPersonalUse': 'Personal use',
+    'ucNavigation': 'Navigation and transportation',
+    'ucDriver': 'Working as a driver',
+    'ucDeliveryDriver': 'Delivery driver',
+    'ucFleetManagement': 'Fleet management',
+    'ucBusinessManagement': 'Business or company management',
+    'ucRoutePlanning': 'Trip and route planning',
+    'ucFieldOperations': 'Field operations',
+    'ucFieldSales': 'Sales and field visits',
+    'ucOther': 'Other use',
+    'forgotPasswordTitle': 'Forgot password',
+    'forgotPasswordBody': 'Contact support to recover your account.',
+    'contactSupport': 'Contact support',
+    'whatsappForgotMessage': 'I forgot my password',
+    'nudgeTitle': 'Create your account',
+    'nudgeBody': 'Save your routes and keep them across devices.',
+    'nudgeDismiss': 'Not now',
+    'nudgeLater': 'Later',
+    'account': 'Account',
+    'accountSignedIn': 'Signed in',
+    'accountGuest': 'Not signed in',
+    'accountGuestHint': 'Sign in to keep your trips',
+    'signOut': 'Sign out',
+    'signOutConfirmTitle': 'Sign out?',
+    'signOutConfirmBody':
+        'You can sign back in anytime with your phone number. Nothing is deleted.',
+    'signOutDone': 'Signed out.',
+    'deleteAccount': 'Delete account',
+    'deleteAccountTitle': 'Delete your account?',
+    'deleteAccountBody': 'This permanently deletes:',
+    'deleteAccountItemLogin': 'Your phone number and sign-in details',
+    'deleteAccountItemProfile': 'Your name, company and selected use cases',
+    'deleteAccountItemLocation': 'Your last saved location',
+    'deleteAccountIrreversible':
+        'This cannot be undone. You will need to create a new account to sign in again.',
+    'deleteAccountAck': 'I understand this is permanent',
+    'deleteAccountConfirm': 'Delete permanently',
+    'deleteAccountDone': 'Your account and its data have been deleted.',
+    'errInvalidCredentials': 'Incorrect phone number or password.',
+    'errPhoneInUse':
+        'This phone number is already linked to an account. Try signing in.',
+    'errWeakPassword': 'Please choose a stronger password.',
+    'errRateLimited': 'Too many attempts. Please try again later.',
+    'errAuthNetwork': 'No internet connection. Please check and try again.',
+    'errSignupsDisabled': 'New sign-ups are currently unavailable.',
+    'errBackendUnavailable': 'The service is unavailable right now.',
+    'errUnknownAuth': 'Something went wrong. Please try again.',
+    'valPasswordRequired': 'Please enter a password.',
+    'valPasswordTooShort': 'Password must be at least 8 characters.',
+    'valPasswordConfirmRequired': 'Please confirm your password.',
+    'valPasswordMismatch': 'Passwords do not match.',
+    'valNameRequired': 'Please enter your name.',
+    'valNameTooShort': 'Name is too short.',
+    'valNameTooLong': 'Name is too long.',
+    'valNameNumeric': 'Please enter a valid name.',
+    'valCompanyRequired': 'Please enter the company name.',
+    'valCompanyTooLong': 'Company name is too long.',
+    'valPhoneInvalid': 'Please enter a valid phone number.',
+    'valPhoneRequired': 'Please enter your phone number.',
+    'valPhoneTooShort': 'Too short for {country}. Example: {example}',
+    'valPhoneTooLong': 'Too long for {country}. Example: {example}',
+    'valPhoneNotMobile':
+        'That isn\'t a {country} mobile number. Example: {example}',
   },
   'ar': {
     'appName': 'لفّة',
@@ -1055,6 +1307,112 @@ const Map<String, Map<String, String>> _copy = {
         'اسمح بالوصول إلى الموقع ليحدّد لفّة نقطة انطلاقك ويرشدك أثناء القيادة.',
     'onbAllowLocation': 'السماح بالموقع',
     'onbMaybeLater': 'لاحقاً',
+    // ── Auth / Onboarding ──
+    'languageLabel': 'اللغة',
+    'termsAndPrivacy': 'الشروط وسياسة الخصوصية',
+    'welcomeTitle': 'خطّط مساراتك بذكاء',
+    'welcomeBody': 'رتّب محطّاتك، احفظ رحلاتك، ووصّل أسرع إلى وجهتك.',
+    'welcomeCreateAccount': 'إنشاء حساب',
+    'welcomeHaveAccount': 'لدي حساب',
+    'welcomeSkip': 'تخطّي الآن',
+    'authContinue': 'متابعة',
+    'authBack': 'رجوع',
+    'edit': 'تعديل',
+    'signInTitle': 'مرحباً بعودتك',
+    'signInButton': 'تسجيل الدخول',
+    'signInNoAccount': 'ليس لديك حساب؟',
+    'signInCreateNew': 'إنشاء حساب جديد',
+    'signInSubtitle': 'سجّل دخولك برقم هاتفك لتستعيد رحلاتك.',
+    'forgotPassword': 'نسيت كلمة المرور؟',
+    'phoneLabel': 'رقم الهاتف',
+    'countrySearchHint': 'ابحث عن الدولة',
+    'passwordLabel': 'كلمة المرور',
+    'passwordHint': '8 محارف على الأقل',
+    'passwordConfirmLabel': 'تأكيد كلمة المرور',
+    'passwordConfirmHint': 'أعد إدخال كلمة المرور',
+    'passwordShow': 'إظهار كلمة المرور',
+    'passwordHide': 'إخفاء كلمة المرور',
+    'createAccountTitle': 'إنشاء حساب',
+    'stepCounter': 'الخطوة {n} من {total}',
+    'stepCredentialsTitle': 'رقم هاتفك وكلمة المرور',
+    'stepCredentialsSubtitle':
+        'ستسجّل دخولك برقم هاتفك. اختر كلمة مرور من 8 محارف على الأقل.',
+    'nameQuestion': 'ما اسمك؟',
+    'nameHint': 'أدخل اسمك الكامل.',
+    'companyQuestion': 'ما اسم الشركة التي تعمل فيها؟',
+    'companyHint': 'أدخل اسم الشركة.',
+    'useCaseQuestion': 'لماذا تريد استخدام التطبيق؟ يمكنك اختيار أكثر من خيار.',
+    'useCaseOtherHint': 'اكتب كيف تريد استخدام التطبيق.',
+    'useCaseSelectAtLeastOne': 'اختر خياراً واحداً على الأقل للمتابعة.',
+    'summaryTitle': 'راجع معلوماتك',
+    'summaryPhone': 'رقم الهاتف',
+    'summaryName': 'الاسم الكامل',
+    'summaryCompany': 'الشركة',
+    'summaryUseCases': 'أسباب الاستخدام',
+    'finishButton': 'ابدأ الآن',
+    'successTitle': 'ممتاز، أصبح حسابك جاهزاً.',
+    'ucDelivery': 'التوصيل',
+    'ucPersonalUse': 'الاستخدام الشخصي',
+    'ucNavigation': 'الملاحة والتنقل',
+    'ucDriver': 'العمل كسائق',
+    'ucDeliveryDriver': 'مندوب توصيل',
+    'ucFleetManagement': 'إدارة أسطول مركبات',
+    'ucBusinessManagement': 'إدارة أعمال أو شركة',
+    'ucRoutePlanning': 'تخطيط الرحلات والمسارات',
+    'ucFieldOperations': 'متابعة العمليات الميدانية',
+    'ucFieldSales': 'المبيعات والزيارات الميدانية',
+    'ucOther': 'استخدام آخر',
+    'forgotPasswordTitle': 'نسيت كلمة المرور',
+    'forgotPasswordBody': 'لاستعادة حسابك، تواصل مع فريق الدعم.',
+    'contactSupport': 'تواصل مع الدعم',
+    'whatsappForgotMessage': 'لقد نسيت كلمة المرور',
+    'nudgeTitle': 'أنشئ حسابك',
+    'nudgeBody': 'احفظ مساراتك واحتفظ بها عبر أجهزتك.',
+    'nudgeDismiss': 'ليس الآن',
+    'nudgeLater': 'لاحقاً',
+    'account': 'الحساب',
+    'accountSignedIn': 'مسجّل الدخول',
+    'accountGuest': 'غير مسجّل',
+    'accountGuestHint': 'سجّل دخولك لتحتفظ برحلاتك',
+    'signOut': 'تسجيل الخروج',
+    'signOutConfirmTitle': 'تسجيل الخروج؟',
+    'signOutConfirmBody':
+        'يمكنك تسجيل الدخول مجدداً في أي وقت برقم هاتفك. لن يُحذف أي شيء.',
+    'signOutDone': 'تم تسجيل الخروج.',
+    'deleteAccount': 'حذف الحساب',
+    'deleteAccountTitle': 'حذف حسابك؟',
+    'deleteAccountBody': 'سيتم حذف ما يلي نهائياً:',
+    'deleteAccountItemLogin': 'رقم هاتفك وبيانات تسجيل الدخول',
+    'deleteAccountItemProfile': 'اسمك وشركتك وأسباب الاستخدام المختارة',
+    'deleteAccountItemLocation': 'آخر موقع محفوظ لك',
+    'deleteAccountIrreversible':
+        'لا يمكن التراجع عن هذا. ستحتاج إلى إنشاء حساب جديد لتسجيل الدخول مرة أخرى.',
+    'deleteAccountAck': 'أفهم أن هذا الإجراء نهائي',
+    'deleteAccountConfirm': 'حذف نهائي',
+    'deleteAccountDone': 'تم حذف حسابك وبياناته.',
+    'errInvalidCredentials': 'رقم الهاتف أو كلمة المرور غير صحيحة.',
+    'errPhoneInUse': 'يوجد حساب مرتبط بهذا الرقم. جرّب تسجيل الدخول.',
+    'errWeakPassword': 'اختر كلمة مرور أقوى.',
+    'errRateLimited': 'محاولات كثيرة. حاول مرة أخرى لاحقاً.',
+    'errAuthNetwork': 'لا يوجد اتصال بالإنترنت. تحقّق وحاول مجدداً.',
+    'errSignupsDisabled': 'إنشاء الحسابات غير متاح حالياً.',
+    'errBackendUnavailable': 'الخدمة غير متاحة حالياً.',
+    'errUnknownAuth': 'حدث خطأ ما. حاول مرة أخرى.',
+    'valPasswordRequired': 'الرجاء إدخال كلمة المرور.',
+    'valPasswordTooShort': 'يجب أن تكون كلمة المرور 8 محارف على الأقل.',
+    'valPasswordConfirmRequired': 'الرجاء تأكيد كلمة المرور.',
+    'valPasswordMismatch': 'كلمتا المرور غير متطابقتين.',
+    'valNameRequired': 'الرجاء إدخال اسمك.',
+    'valNameTooShort': 'الاسم قصير جداً.',
+    'valNameTooLong': 'الاسم طويل جداً.',
+    'valNameNumeric': 'الرجاء إدخال اسم صالح.',
+    'valCompanyRequired': 'الرجاء إدخال اسم الشركة.',
+    'valCompanyTooLong': 'اسم الشركة طويل جداً.',
+    'valPhoneInvalid': 'الرجاء إدخال رقم هاتف صالح.',
+    'valPhoneRequired': 'الرجاء إدخال رقم هاتفك.',
+    'valPhoneTooShort': 'الرقم قصير بالنسبة لـ{country}. مثال: {example}',
+    'valPhoneTooLong': 'الرقم طويل بالنسبة لـ{country}. مثال: {example}',
+    'valPhoneNotMobile': 'هذا ليس رقم موبايل في {country}. مثال: {example}',
   },
   'fr': {
     'appName': 'Laffah',
@@ -1364,5 +1722,120 @@ const Map<String, Map<String, String>> _copy = {
         'Autorisez la localisation pour que Laffah definisse votre depart et vous guide pendant la conduite.',
     'onbAllowLocation': 'Autoriser la localisation',
     'onbMaybeLater': 'Plus tard',
+    // ── Auth / Onboarding ──
+    'languageLabel': 'Langue',
+    'termsAndPrivacy': 'Conditions et confidentialité',
+    'welcomeTitle': 'Planifiez des trajets plus intelligents',
+    'welcomeBody':
+        'Optimisez vos arrêts, enregistrez vos trajets et arrivez plus vite.',
+    'welcomeCreateAccount': 'Créer un compte',
+    'welcomeHaveAccount': 'J\'ai déjà un compte',
+    'welcomeSkip': 'Passer pour l\'instant',
+    'authContinue': 'Continuer',
+    'authBack': 'Retour',
+    'edit': 'Modifier',
+    'signInTitle': 'Bon retour',
+    'signInButton': 'Se connecter',
+    'signInNoAccount': 'Vous n\'avez pas de compte ?',
+    'signInCreateNew': 'Créer un nouveau compte',
+    'signInSubtitle':
+        'Connectez-vous avec votre numéro pour retrouver vos trajets.',
+    'forgotPassword': 'Mot de passe oublié ?',
+    'phoneLabel': 'Numéro de téléphone',
+    'countrySearchHint': 'Rechercher un pays',
+    'passwordLabel': 'Mot de passe',
+    'passwordHint': 'Au moins 8 caractères',
+    'passwordConfirmLabel': 'Confirmer le mot de passe',
+    'passwordConfirmHint': 'Ressaisissez votre mot de passe',
+    'passwordShow': 'Afficher le mot de passe',
+    'passwordHide': 'Masquer le mot de passe',
+    'createAccountTitle': 'Créer un compte',
+    'stepCounter': 'Étape {n} sur {total}',
+    'stepCredentialsTitle': 'Votre téléphone et mot de passe',
+    'stepCredentialsSubtitle':
+        'Vous vous connecterez avec votre numéro. Choisissez un mot de passe d\'au moins 8 caractères.',
+    'nameQuestion': 'Comment vous appelez-vous ?',
+    'nameHint': 'Saisissez votre nom complet.',
+    'companyQuestion': 'Dans quelle entreprise travaillez-vous ?',
+    'companyHint': 'Saisissez le nom de l\'entreprise.',
+    'useCaseQuestion':
+        'Pourquoi souhaitez-vous utiliser l\'application ? Vous pouvez sélectionner plusieurs options.',
+    'useCaseOtherHint':
+        'Expliquez-nous comment vous souhaitez utiliser l\'application.',
+    'useCaseSelectAtLeastOne':
+        'Sélectionnez au moins une option pour continuer.',
+    'summaryTitle': 'Vérifiez vos informations',
+    'summaryPhone': 'Numéro de téléphone',
+    'summaryName': 'Nom complet',
+    'summaryCompany': 'Entreprise',
+    'summaryUseCases': 'Raisons d\'utilisation',
+    'finishButton': 'Commencer',
+    'successTitle': 'Parfait, votre compte est prêt.',
+    'ucDelivery': 'Livraison',
+    'ucPersonalUse': 'Usage personnel',
+    'ucNavigation': 'Navigation et déplacements',
+    'ucDriver': 'Travail en tant que conducteur',
+    'ucDeliveryDriver': 'Livreur',
+    'ucFleetManagement': 'Gestion de flotte',
+    'ucBusinessManagement': 'Gestion d\'entreprise',
+    'ucRoutePlanning': 'Planification des trajets et itinéraires',
+    'ucFieldOperations': 'Opérations sur le terrain',
+    'ucFieldSales': 'Ventes et visites sur le terrain',
+    'ucOther': 'Autre utilisation',
+    'forgotPasswordTitle': 'Mot de passe oublié',
+    'forgotPasswordBody': 'Contactez le support pour récupérer votre compte.',
+    'contactSupport': 'Contacter le support',
+    'whatsappForgotMessage': 'J\'ai oublié mon mot de passe',
+    'nudgeTitle': 'Créez votre compte',
+    'nudgeBody': 'Enregistrez vos trajets et retrouvez-les sur vos appareils.',
+    'nudgeDismiss': 'Pas maintenant',
+    'nudgeLater': 'Plus tard',
+    'account': 'Compte',
+    'accountSignedIn': 'Connecté',
+    'accountGuest': 'Non connecté',
+    'accountGuestHint': 'Connectez-vous pour conserver vos trajets',
+    'signOut': 'Se déconnecter',
+    'signOutConfirmTitle': 'Se déconnecter ?',
+    'signOutConfirmBody':
+        'Vous pourrez vous reconnecter à tout moment avec votre numéro. Rien n\'est supprimé.',
+    'signOutDone': 'Déconnecté.',
+    'deleteAccount': 'Supprimer le compte',
+    'deleteAccountTitle': 'Supprimer votre compte ?',
+    'deleteAccountBody': 'Ceci supprime définitivement :',
+    'deleteAccountItemLogin': 'Votre numéro et vos identifiants de connexion',
+    'deleteAccountItemProfile':
+        'Votre nom, votre société et vos usages sélectionnés',
+    'deleteAccountItemLocation': 'Votre dernière position enregistrée',
+    'deleteAccountIrreversible':
+        'Cette action est irréversible. Vous devrez créer un nouveau compte pour vous reconnecter.',
+    'deleteAccountAck': 'Je comprends que cette action est définitive',
+    'deleteAccountConfirm': 'Supprimer définitivement',
+    'deleteAccountDone': 'Votre compte et ses données ont été supprimés.',
+    'errInvalidCredentials': 'Numéro de téléphone ou mot de passe incorrect.',
+    'errPhoneInUse':
+        'Un compte est déjà associé à ce numéro. Essayez de vous connecter.',
+    'errWeakPassword': 'Veuillez choisir un mot de passe plus fort.',
+    'errRateLimited': 'Trop de tentatives. Réessayez plus tard.',
+    'errAuthNetwork': 'Pas de connexion internet. Vérifiez et réessayez.',
+    'errSignupsDisabled': 'Les inscriptions sont actuellement indisponibles.',
+    'errBackendUnavailable': 'Le service est actuellement indisponible.',
+    'errUnknownAuth': 'Une erreur s\'est produite. Veuillez réessayer.',
+    'valPasswordRequired': 'Veuillez saisir un mot de passe.',
+    'valPasswordTooShort':
+        'Le mot de passe doit contenir au moins 8 caractères.',
+    'valPasswordConfirmRequired': 'Veuillez confirmer votre mot de passe.',
+    'valPasswordMismatch': 'Les mots de passe ne correspondent pas.',
+    'valNameRequired': 'Veuillez saisir votre nom.',
+    'valNameTooShort': 'Le nom est trop court.',
+    'valNameTooLong': 'Le nom est trop long.',
+    'valNameNumeric': 'Veuillez saisir un nom valide.',
+    'valCompanyRequired': 'Veuillez saisir le nom de l\'entreprise.',
+    'valCompanyTooLong': 'Le nom de l\'entreprise est trop long.',
+    'valPhoneInvalid': 'Veuillez saisir un numéro de téléphone valide.',
+    'valPhoneRequired': 'Veuillez saisir votre numéro de téléphone.',
+    'valPhoneTooShort': 'Trop court pour {country}. Exemple : {example}',
+    'valPhoneTooLong': 'Trop long pour {country}. Exemple : {example}',
+    'valPhoneNotMobile':
+        'Ce n\'est pas un numéro mobile {country}. Exemple : {example}',
   },
 };

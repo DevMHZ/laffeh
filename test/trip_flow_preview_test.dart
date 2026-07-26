@@ -79,7 +79,7 @@ Widget _harness(RoutePlannerState state, Widget child,
     {bool inStack = false}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: AppTheme.light,
+    theme: AppTheme.data,
     home: BlocProvider<RoutePlannerCubit>.value(
       value: _FakeRouteCubit(state),
       child: Scaffold(
@@ -217,9 +217,7 @@ void main() {
       _harness(
         state,
         RoutePointsSheet(
-          onAddHere: () {},
-          onShowImport: () {},
-          onOpenWhatsapp: () {},
+          onAddPoint: () {},
         ),
       ),
     );

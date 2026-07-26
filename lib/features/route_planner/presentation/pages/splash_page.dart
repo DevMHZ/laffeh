@@ -7,11 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/routing/auth_gate.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../onboarding/presentation/pages/onboarding_page.dart';
 import '../widgets/laffa_road_loader.dart';
-import 'route_planner_page.dart';
 
 part 'splash_page_widgets.dart';
 
@@ -68,10 +68,8 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
 
     // Shared show window: the road-logo car and the bottom-strip car both run
     // over this exact span so they start and finish together.
-    _intro = AnimationController(
-      vsync: this,
-      duration: _showDuration,
-    )..forward();
+    _intro = AnimationController(vsync: this, duration: _showDuration)
+      ..forward();
     _loop = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -97,8 +95,10 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     // planner. The flag is written when onboarding finishes.
     final prefs = sl<SharedPreferences>();
     final seenOnboarding = prefs.getBool(AppStrings.onboardingDoneKey) ?? false;
+    // After the first-run walkthrough, routing is decided by [AuthGate]
+    // (session / profile / welcome state).
     final Widget next = seenOnboarding
-        ? const RoutePlannerPage()
+        ? const AuthGate()
         : const OnboardingPage();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
@@ -149,9 +149,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
             // road begins at the top of the phone screen — edge-to-edge,
             // running up behind the status bar. A top-down car drives the
             // whole winding road and pops the three pins as it passes.
-            const LaffaRoadLoader(
-              driveDuration: _showDuration,
-            ),
+            const LaffaRoadLoader(driveDuration: _showDuration),
 
             // Everything below sits in the remaining space, bottom-safe.
             Expanded(

@@ -73,8 +73,6 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>يحتاج التطبيق لموقعك لعرضه على الخريطة وحساب أفضل مسار.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>يحتاج التطبيق لموقعك لعرضه على الخريطة وحساب أفضل مسار.</string>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 	<key>LSApplicationQueriesSchemes</key>
