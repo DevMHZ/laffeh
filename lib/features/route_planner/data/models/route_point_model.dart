@@ -1,8 +1,9 @@
 /// Wire model for a delivery stop sent to the Afdal VRP API.
 ///
-/// Matches the schema from `api_test/25_orders.json`:
+/// Matches the `Delivery` schema published by the backend:
 /// ```json
-/// {"address": "...", "lat": 24.7034, "lon": 46.6921, "weight": 15}
+/// {"address": "...", "lat": 24.7034, "lon": 46.6921, "weight": 15,
+///  "time_window_start": 0, "time_window_end": 480}
 /// ```
 class RoutePointModel {
   final String address;
@@ -10,22 +11,42 @@ class RoutePointModel {
   final double lon;
   final int weight;
 
+  /// Earliest / latest arrival the solver may schedule, in **minutes after
+  /// departure** (not clock time). Both null means "any time" — we then omit
+  /// the keys so the backend applies its own `0 .. driver_hours * 60`
+  /// defaults rather than us hard-coding them.
+  final int? timeWindowStart;
+  final int? timeWindowEnd;
+
   /// Sequence in the optimized itinerary (response-only).
   final int? sequence;
+
+  /// The solver's own arrival estimate, minutes after departure
+  /// (response-only). The deployed backend always reports `0` here, so the
+  /// repository computes ETAs from the road legs instead and only falls back
+  /// to this field if a future version starts filling it in.
+  final int? arrivalTimeMinutes;
 
   const RoutePointModel({
     required this.address,
     required this.lat,
     required this.lon,
     required this.weight,
+    this.timeWindowStart,
+    this.timeWindowEnd,
     this.sequence,
+    this.arrivalTimeMinutes,
   });
+
+  bool get hasTimeWindow => timeWindowStart != null || timeWindowEnd != null;
 
   Map<String, dynamic> toJson() => {
     'address': address,
     'lat': lat,
     'lon': lon,
     'weight': weight,
+    if (timeWindowStart != null) 'time_window_start': timeWindowStart,
+    if (timeWindowEnd != null) 'time_window_end': timeWindowEnd,
   };
 
   /// Defensive parser — the response payload is not fully spec'd
@@ -47,6 +68,9 @@ class RoutePointModel {
       weight: weight,
       sequence: json['sequence'] is num
           ? (json['sequence'] as num).toInt()
+          : null,
+      arrivalTimeMinutes: json['arrival_time'] is num
+          ? (json['arrival_time'] as num).toInt()
           : null,
     );
   }

@@ -24,6 +24,7 @@ class AppStrings {
   static const nudgeLaunchesKey = 'laffeh.account_nudge_launches';
   static const nudgeLastShownKey = 'laffeh.account_nudge_last_shown';
   static const nudgeDismissedKey = 'laffeh.account_nudge_dismissed';
+  static const registrationSkippedAtKey = 'laffeh.registration_skipped_at';
   static const termsVersionKey = 'laffeh.terms_version';
   static const termsAcceptedAtKey = 'laffeh.terms_accepted_at';
   static final ValueNotifier<Locale> localeNotifier = ValueNotifier(
@@ -361,6 +362,103 @@ class AppStrings {
   static String get routeOrder => _t('routeOrder');
   static String get points => _t('points');
 
+  // Arrival time windows
+  static String get arrivalTime => _t('arrivalTime');
+  static String get setArrivalTime => _t('setArrivalTime');
+  static String get clearArrivalTime => _t('clearArrivalTime');
+  static String get arrivalWindowHint => _t('arrivalWindowHint');
+  static String get anyTime => _t('anyTime');
+  static String get fromTime => _t('fromTime');
+  static String get toTime => _t('toTime');
+  static String get departureTimeLabel => _t('departureTimeLabel');
+  static String get departureNow => _t('departureNow');
+  static String get departureHint => _t('departureHint');
+  static String get timeWindowMissedTitle => _t('timeWindowMissedTitle');
+  static String get timeWindowMissedBody => _t('timeWindowMissedBody');
+  static String get timeWindowMissedBadge => _t('timeWindowMissedBadge');
+  static String get sameTimeError => _t('sameTimeError');
+  static String get seeDetails => _t('seeDetails');
+  static String get youWantedToArrive => _t('youWantedToArrive');
+  static String get youWouldArrive => _t('youWouldArrive');
+  static String get howToFixIt => _t('howToFixIt');
+  static String get fixMoveDeadline => _t('fixMoveDeadline');
+  static String get fixMoveDeadlineWhy => _t('fixMoveDeadlineWhy');
+  static String get fixLeaveEarlier => _t('fixLeaveEarlier');
+  static String get fixLeaveEarlierWhy => _t('fixLeaveEarlierWhy');
+  static String get fixDropStop => _t('fixDropStop');
+  static String get fixDropStopWhy => _t('fixDropStopWhy');
+  static String get keepAsIs => _t('keepAsIs');
+  static String get expectedArrival => _t('expectedArrival');
+  static String get requiredArrival => _t('requiredArrival');
+
+  /// "25 min late" — the size of the overshoot, the number that tells the
+  /// user whether this is a nudge or a re-plan.
+  static String lateByMinutes(int minutes) {
+    if (minutes >= 60) {
+      final h = minutes ~/ 60;
+      final m = minutes % 60;
+      switch (_languageCode) {
+        case 'ar':
+          final hours = h == 1 ? 'ساعة' : 'بـ$h ساعات';
+          final prefix = h == 1 ? 'متأخر بساعة' : 'متأخر $hours';
+          return m == 0 ? prefix : '$prefix و$m دقيقة';
+        case 'fr':
+          return m == 0 ? '$h h de retard' : '$h h $m min de retard';
+        default:
+          return m == 0 ? '$h h late' : '$h h $m min late';
+      }
+    }
+    switch (_languageCode) {
+      case 'ar':
+        return 'متأخر بـ$minutes دقيقة';
+      case 'fr':
+        return '$minutes min de retard';
+      default:
+        return '$minutes min late';
+    }
+  }
+
+  /// "Leave 35 min earlier — at 07:25"
+  static String leaveEarlierBy(int minutes, String newClock) {
+    switch (_languageCode) {
+      case 'ar':
+        return 'الانطلاق مبكراً بـ$minutes دقيقة — عند الساعة $newClock';
+      case 'fr':
+        return 'Partez $minutes min plus tot — a $newClock';
+      default:
+        return 'Leave $minutes min earlier — at $newClock';
+    }
+  }
+
+  /// "Arrive 14:00 – 15:30" — the window summary shown on a stop.
+  static String arrivalWindowRange(String from, String to) {
+    switch (_languageCode) {
+      case 'ar':
+        return '$from – $to';
+      default:
+        return '$from – $to';
+    }
+  }
+
+  /// "3 stops can't be reached in time" — plural-aware.
+  static String timeWindowMissedCount(int count) {
+    switch (_languageCode) {
+      case 'ar':
+        if (count == 1) return 'نقطة واحدة يتعذّر الوصول إليها في وقتها';
+        // Arabic counts 3–10 with a plural noun and 11+ with a singular one.
+        final noun = count <= 10 ? 'نقاط' : 'نقطة';
+        return '$count $noun يتعذّر الوصول إليها في وقتها';
+      case 'fr':
+        return count == 1
+            ? '1 arret ne peut pas etre atteint a temps'
+            : '$count arrets ne peuvent pas etre atteints a temps';
+      default:
+        return count == 1
+            ? "1 stop can't be reached in time"
+            : "$count stops can't be reached in time";
+    }
+  }
+
   static String pointsCount(int count) {
     switch (_languageCode) {
       case 'ar':
@@ -546,6 +644,38 @@ class AppStrings {
   static String get nudgeDismiss => _t('nudgeDismiss');
   static String get nudgeLater => _t('nudgeLater');
 
+  // Registration grace period (skipped users)
+  static String get registrationRequiredTitle =>
+      _t('registrationRequiredTitle');
+  static String get registrationRequiredBody => _t('registrationRequiredBody');
+  static String get registrationRequiredNote => _t('registrationRequiredNote');
+  static String get welcomeSignInInstead => _t('welcomeSignInInstead');
+
+  /// "3 days left to use the app without an account" — the countdown shown in
+  /// the nudge as the trial runs out.
+  static String trialDaysLeft(int days) {
+    switch (_languageCode) {
+      case 'ar':
+        // MSA agreement: 1 = يوم واحد, 2 = يومان, 3–10 take the plural noun,
+        // 11+ the singular.
+        final phrase = switch (days) {
+          <= 1 => 'يوم واحد',
+          2 => 'يومان',
+          <= 10 => '$days أيام',
+          _ => '$days يوماً',
+        };
+        return 'يتبقى $phrase لاستخدام التطبيق دون حساب.';
+      case 'fr':
+        return days == 1
+            ? 'Il vous reste 1 jour pour utiliser l\'application sans compte.'
+            : 'Il vous reste $days jours pour utiliser l\'application sans compte.';
+      default:
+        return days == 1
+            ? '1 day left to use the app without an account.'
+            : '$days days left to use the app without an account.';
+    }
+  }
+
   // Account section in Settings (sign out / delete account)
   static String get account => _t('account');
   static String get accountSignedIn => _t('accountSignedIn');
@@ -589,6 +719,7 @@ class AppStrings {
   static String get valNameTooLong => _t('valNameTooLong');
   static String get valNameNumeric => _t('valNameNumeric');
   static String get valCompanyRequired => _t('valCompanyRequired');
+  static String get valCompanyTooShort => _t('valCompanyTooShort');
   static String get valCompanyTooLong => _t('valCompanyTooLong');
   static String get valPhoneInvalid => _t('valPhoneInvalid');
   static String get valPhoneRequired => _t('valPhoneRequired');
@@ -817,6 +948,35 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'Return',
     'routeOrder': 'Route order',
     'points': 'points',
+    'arrivalTime': 'Arrival time',
+    'setArrivalTime': 'Set an arrival time',
+    'clearArrivalTime': 'Remove the arrival time',
+    'arrivalWindowHint':
+        'The optimizer orders your stops so you get here inside this window.',
+    'anyTime': 'Any time',
+    'fromTime': 'From',
+    'toTime': 'To',
+    'departureTimeLabel': 'Departure',
+    'departureNow': 'Now',
+    'departureHint': 'Arrival times are counted from here.',
+    'timeWindowMissedTitle': "Can't make it in time",
+    'timeWindowMissedBody':
+        'These stops stay in your route — change their time, the departure, or drop a stop.',
+    'timeWindowMissedBadge': 'Late',
+    'sameTimeError': 'Pick two different times.',
+    'seeDetails': 'See what to do',
+    'youWantedToArrive': 'You asked to be there by',
+    'youWouldArrive': 'You would get there at',
+    'howToFixIt': 'How to fix it',
+    'fixMoveDeadline': 'Move the deadline later',
+    'fixMoveDeadlineWhy': 'Keeps every stop. Pushes each late time just past what the drive actually takes.',
+    'fixLeaveEarlier': 'Leave earlier',
+    'fixLeaveEarlierWhy': 'Keeps your times exactly as they are, and starts the trip sooner.',
+    'fixDropStop': 'Skip a stop',
+    'fixDropStopWhy': 'Frees up the time the other deadlines need.',
+    'keepAsIs': 'Leave it as is',
+    'expectedArrival': 'Expected',
+    'requiredArrival': 'Required',
     'unitKm': 'km',
     'unitMeter': 'm',
     'unitMin': 'min',
@@ -981,6 +1141,14 @@ const Map<String, Map<String, String>> _copy = {
     'nudgeBody': 'Save your routes and keep them across devices.',
     'nudgeDismiss': 'Not now',
     'nudgeLater': 'Later',
+    'registrationRequiredTitle': 'An account is needed to continue',
+    'registrationRequiredBody':
+        'Your week of using the app without an account has ended. Create an '
+        'account — or sign in — to keep planning your routes.',
+    'registrationRequiredNote':
+        'Creating an account takes less than a minute, and your saved routes '
+        'stay with you.',
+    'welcomeSignInInstead': 'Sign in instead',
     'account': 'Account',
     'accountSignedIn': 'Signed in',
     'accountGuest': 'Not signed in',
@@ -1026,6 +1194,7 @@ const Map<String, Map<String, String>> _copy = {
     'valNameTooLong': 'Name is too long.',
     'valNameNumeric': 'Please enter a valid name.',
     'valCompanyRequired': 'Please enter the company name.',
+    'valCompanyTooShort': 'Company name is too short.',
     'valCompanyTooLong': 'Company name is too long.',
     'valPhoneInvalid': 'Please enter a valid phone number.',
     'valPhoneRequired': 'Please enter your phone number.',
@@ -1230,6 +1399,36 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'عودة',
     'routeOrder': 'ترتيب اللفة',
     'points': 'نقطة',
+    'arrivalTime': 'وقت الوصول',
+    'setArrivalTime': 'حدّد وقت الوصول',
+    'clearArrivalTime': 'إزالة وقت الوصول',
+    'arrivalWindowHint':
+        'سيرتّب المُحسِّن نقاطك كي تصل إلى هنا ضمن هذه الفترة.',
+    'anyTime': 'أي وقت',
+    'fromTime': 'من',
+    'toTime': 'إلى',
+    'departureTimeLabel': 'وقت الانطلاق',
+    'departureNow': 'الآن',
+    'departureHint': 'تُحتسب أوقات الوصول ابتداءً من هذه اللحظة.',
+    'timeWindowMissedTitle': 'يتعذّر الوصول في الوقت المحدّد',
+    'timeWindowMissedBody':
+        'النقاط ما زالت ضمن مسارك — عدّل وقتها، أو وقت الانطلاق، أو استثنِ نقطة.',
+    'timeWindowMissedBadge': 'متأخر',
+    'sameTimeError': 'اختر وقتين مختلفين.',
+    'seeDetails': 'اطّلع على الحلول المتاحة',
+    'youWantedToArrive': 'الوقت المطلوب للوصول',
+    'youWouldArrive': 'وقت الوصول المتوقّع',
+    'howToFixIt': 'كيف تعالج ذلك',
+    'fixMoveDeadline': 'تأجيل الموعد',
+    'fixMoveDeadlineWhy':
+        'تبقى جميع النقاط، ويُؤجَّل كل موعد متأخر إلى ما بعد المدة التي يستغرقها الطريق فعلياً.',
+    'fixLeaveEarlier': 'الانطلاق مبكراً',
+    'fixLeaveEarlierWhy': 'تبقى مواعيدك كما هي، ويبدأ المسار في وقت أبكر.',
+    'fixDropStop': 'استثناء نقطة',
+    'fixDropStopWhy': 'يوفّر الوقت الذي تحتاجه بقية المواعيد.',
+    'keepAsIs': 'إبقاء الوضع كما هو',
+    'expectedArrival': 'المتوقّع',
+    'requiredArrival': 'المطلوب',
     'unitKm': 'كم',
     'unitMeter': 'م',
     'unitMin': 'دقيقة',
@@ -1391,6 +1590,13 @@ const Map<String, Map<String, String>> _copy = {
     'nudgeBody': 'احفظ مساراتك واحتفظ بها عبر أجهزتك.',
     'nudgeDismiss': 'ليس الآن',
     'nudgeLater': 'لاحقاً',
+    'registrationRequiredTitle': 'يلزم إنشاء حساب للمتابعة',
+    'registrationRequiredBody':
+        'انتهت مدة استخدام التطبيق دون حساب. أنشئ حساباً، أو سجّل الدخول، '
+        'لمتابعة تخطيط مساراتك.',
+    'registrationRequiredNote':
+        'إنشاء الحساب يستغرق أقل من دقيقة، وتبقى مساراتك المحفوظة معك.',
+    'welcomeSignInInstead': 'تسجيل الدخول بدلاً من ذلك',
     'account': 'الحساب',
     'accountSignedIn': 'مسجّل الدخول',
     'accountGuest': 'غير مسجّل',
@@ -1435,6 +1641,7 @@ const Map<String, Map<String, String>> _copy = {
     'valNameTooLong': 'الاسم طويل جداً.',
     'valNameNumeric': 'الرجاء إدخال اسم صالح.',
     'valCompanyRequired': 'الرجاء إدخال اسم الشركة.',
+    'valCompanyTooShort': 'اسم الشركة قصير جداً.',
     'valCompanyTooLong': 'اسم الشركة طويل جداً.',
     'valPhoneInvalid': 'الرجاء إدخال رقم هاتف صالح.',
     'valPhoneRequired': 'الرجاء إدخال رقم هاتفك.',
@@ -1649,6 +1856,35 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'Retour',
     'routeOrder': 'Ordre du trajet',
     'points': 'points',
+    'arrivalTime': 'Heure d\'arrivee',
+    'setArrivalTime': 'Definir une heure d\'arrivee',
+    'clearArrivalTime': 'Retirer l\'heure d\'arrivee',
+    'arrivalWindowHint':
+        'L\'optimiseur ordonne vos arrets pour arriver dans ce creneau.',
+    'anyTime': 'N\'importe quand',
+    'fromTime': 'De',
+    'toTime': 'A',
+    'departureTimeLabel': 'Depart',
+    'departureNow': 'Maintenant',
+    'departureHint': 'Les heures d\'arrivee sont comptees a partir d\'ici.',
+    'timeWindowMissedTitle': 'Arrivee a l\'heure impossible',
+    'timeWindowMissedBody':
+        'Ces arrets restent dans le trajet — changez leur heure, le depart, ou retirez un arret.',
+    'timeWindowMissedBadge': 'En retard',
+    'sameTimeError': 'Choisissez deux heures differentes.',
+    'seeDetails': 'Voir quoi faire',
+    'youWantedToArrive': 'Vous vouliez y etre avant',
+    'youWouldArrive': 'Vous y seriez a',
+    'howToFixIt': 'Comment corriger',
+    'fixMoveDeadline': 'Repousser l\'echeance',
+    'fixMoveDeadlineWhy': 'Garde tous les arrets. Repousse chaque heure juste au-dela du temps de route reel.',
+    'fixLeaveEarlier': 'Partir plus tot',
+    'fixLeaveEarlierWhy': 'Garde vos heures telles quelles et avance le depart.',
+    'fixDropStop': 'Retirer un arret',
+    'fixDropStopWhy': 'Libere le temps dont les autres echeances ont besoin.',
+    'keepAsIs': 'Laisser ainsi',
+    'expectedArrival': 'Prevu',
+    'requiredArrival': 'Requis',
     'unitKm': 'km',
     'unitMeter': 'm',
     'unitMin': 'min',
@@ -1818,6 +2054,14 @@ const Map<String, Map<String, String>> _copy = {
     'nudgeBody': 'Enregistrez vos trajets et retrouvez-les sur vos appareils.',
     'nudgeDismiss': 'Pas maintenant',
     'nudgeLater': 'Plus tard',
+    'registrationRequiredTitle': 'Un compte est nécessaire pour continuer',
+    'registrationRequiredBody':
+        'Votre semaine d\'utilisation sans compte est terminée. Créez un '
+        'compte — ou connectez-vous — pour continuer à planifier vos trajets.',
+    'registrationRequiredNote':
+        'La création d\'un compte prend moins d\'une minute, et vos trajets '
+        'enregistrés vous suivent.',
+    'welcomeSignInInstead': 'Se connecter',
     'account': 'Compte',
     'accountSignedIn': 'Connecté',
     'accountGuest': 'Non connecté',
@@ -1865,6 +2109,7 @@ const Map<String, Map<String, String>> _copy = {
     'valNameTooLong': 'Le nom est trop long.',
     'valNameNumeric': 'Veuillez saisir un nom valide.',
     'valCompanyRequired': 'Veuillez saisir le nom de l\'entreprise.',
+    'valCompanyTooShort': 'Le nom de l\'entreprise est trop court.',
     'valCompanyTooLong': 'Le nom de l\'entreprise est trop long.',
     'valPhoneInvalid': 'Veuillez saisir un numéro de téléphone valide.',
     'valPhoneRequired': 'Veuillez saisir votre numéro de téléphone.',

@@ -13,6 +13,7 @@ class OptimizeRouteUseCase {
   Future<ApiResult<OptimizedRoute>> call({
     required List<RoutePoint> points,
     String routingMode = RoutingConfig.defaultRoutingMode,
+    DateTime? departureAt,
   }) async {
     if (points.length < 2) {
       return ApiFailure(ValidationFailure(AppStrings.errMinTwoPoints));
@@ -21,6 +22,10 @@ class OptimizeRouteUseCase {
     if (depotCount != 1) {
       return ApiFailure(ValidationFailure(AppStrings.errOneDepotRequired));
     }
-    return _repository.optimize(points: points, routingMode: routingMode);
+    return _repository.optimize(
+      points: points,
+      routingMode: routingMode,
+      departureAt: departureAt,
+    );
   }
 }

@@ -13,6 +13,7 @@ import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_maneuver.dart';
 import '../../domain/entities/route_metrics.dart';
 import '../../domain/entities/route_point.dart';
+import '../../domain/entities/stop_time_window.dart';
 import '../../domain/repositories/route_repository.dart';
 import '../datasources/ai_route_remote_datasource.dart';
 import '../datasources/osrm_routing_datasource.dart';
@@ -36,6 +37,7 @@ class RouteRepositoryImpl implements RouteRepository {
   Future<ApiResult<OptimizedRoute>> optimize({
     required List<RoutePoint> points,
     String routingMode = RoutingConfig.defaultRoutingMode,
+    DateTime? departureAt,
   }) async {
     if (!await _network.isConnected) {
       return ApiFailure(NetworkFailure(AppStrings.errNoInternet));
@@ -51,11 +53,32 @@ class RouteRepositoryImpl implements RouteRepository {
       return ApiFailure(ValidationFailure(AppStrings.errMinOneStopAfterDepot));
     }
 
+    final departure = departureAt ?? DateTime.now();
+    final departureMinute = StopTimeWindow.minuteOfDay(departure);
+
     // A single destination has only one possible order — nothing for the
     // AI solver to optimize. Skip the VRP round-trip entirely and go
     // straight to road routing (shortest path).
     if (stops.length == 1) {
-      return _directRoute(depot: depot, stop: stops.first, mode: routingMode);
+      return _directRoute(
+        depot: depot,
+        stop: stops.first,
+        mode: routingMode,
+        departureMinute: departureMinute,
+      );
+    }
+
+    // Clock windows → the solver's frame (minutes after departure). The
+    // working day has to stretch far enough to contain the latest one,
+    // otherwise the solver treats an evening stop as unreachable.
+    final windows = <String, RelativeTimeWindow>{
+      for (final s in stops)
+        if (s.timeWindow != null)
+          s.id: s.timeWindow!.relativeTo(departureMinute),
+    };
+    var horizon = RoutingConfig.defaultDriverHours * 60;
+    for (final w in windows.values) {
+      if (w.endMinutes > horizon) horizon = w.endMinutes;
     }
 
     final request = RouteRequestModel(
@@ -65,17 +88,19 @@ class RouteRepositoryImpl implements RouteRepository {
       depotLon: depot.longitude,
       routingMode: routingMode,
       timeLimitSeconds: RoutingConfig.defaultTimeLimitSeconds,
-      maxVehicleTimeMinutes: RoutingConfig.defaultMaxVehicleTimeMinutes,
-      deliveries: stops
-          .map(
-            (s) => RoutePointModel(
-              address: s.address?.isNotEmpty == true ? s.address! : s.label,
-              lat: s.latitude,
-              lon: s.longitude,
-              weight: s.weight,
-            ),
-          )
-          .toList(),
+      driverHours: RoutingConfig.driverHoursForHorizon(horizon),
+      defaultServiceTimeMinutes: RoutingConfig.defaultServiceTimeMinutes,
+      deliveries: stops.map((s) {
+        final w = windows[s.id];
+        return RoutePointModel(
+          address: s.address?.isNotEmpty == true ? s.address! : s.label,
+          lat: s.latitude,
+          lon: s.longitude,
+          weight: s.weight,
+          timeWindowStart: w?.startMinutes,
+          timeWindowEnd: w?.endMinutes,
+        );
+      }).toList(),
     );
 
     try {
@@ -85,13 +110,23 @@ class RouteRepositoryImpl implements RouteRepository {
         return ApiFailure(ServerFailure(AppStrings.errEmptyOptimizedRoute));
       }
 
-      final ordered = _reorderPoints(
+      final reordered = _reorderPoints(
         depot: depot,
         userStops: stops,
         responseStops: response.routes.first.stops,
       );
 
-      final polylines = await _buildPolylines(ordered, mode: routingMode);
+      final polylines = await _buildPolylines(reordered.points, mode: routingMode);
+
+      // The backend never fills `arrival_time`, and it silently drops a stop
+      // whose window it can't satisfy, so both the ETAs and the "can't make
+      // it" flags are worked out here rather than read off the response.
+      final ordered = _applyArrivalTimes(
+        ordered: reordered.points,
+        departureMinute: departureMinute,
+        legDurationsSeconds: polylines.legDurationsSeconds,
+        droppedIds: reordered.droppedIds,
+      );
 
       final metrics = _enrichMetrics(
         base: response.metrics.toEntity(),
@@ -134,14 +169,24 @@ class RouteRepositoryImpl implements RouteRepository {
     required RoutePoint depot,
     required RoutePoint stop,
     required String mode,
+    required int departureMinute,
   }) async {
     try {
-      final ordered = [
+      final planned = [
         depot.copyWith(sequence: 0),
         stop.copyWith(label: AppStrings.stopLabel(1), sequence: 1),
       ];
 
-      final polylines = await _buildPolylines(ordered, mode: mode);
+      final polylines = await _buildPolylines(planned, mode: mode);
+
+      // One destination can't be re-ordered, but it can still be too far to
+      // reach in time — so it gets the same ETA / window check.
+      final ordered = _applyArrivalTimes(
+        ordered: planned,
+        departureMinute: departureMinute,
+        legDurationsSeconds: polylines.legDurationsSeconds,
+        droppedIds: const {},
+      );
 
       final metrics = _enrichMetrics(
         base: const RouteMetrics(),
@@ -174,7 +219,13 @@ class RouteRepositoryImpl implements RouteRepository {
   /// The Afdal VRP response lists stops by `address`. We match each
   /// response stop back to the original user point by address first,
   /// then fall back to lat/lon proximity (≈10 m).
-  List<RoutePoint> _reorderPoints({
+  ///
+  /// Stops the solver left out come back in [_ReorderResult.droppedIds].
+  /// They are still appended to the itinerary (the user shouldn't lose a
+  /// destination), but the caller flags them so the UI can say the
+  /// requested time can't be met — the API drops infeasible stops silently
+  /// and leaves `unassigned_deliveries` empty, so this is the only signal.
+  _ReorderResult _reorderPoints({
     required RoutePoint depot,
     required List<RoutePoint> userStops,
     required List<RoutePointModel> responseStops,
@@ -276,8 +327,12 @@ class RouteRepositoryImpl implements RouteRepository {
       }
     }
 
-    // Append any stops the API didn't return (safety net).
+    // Append any stops the API didn't return (safety net). For a stop with
+    // a time window this is the solver telling us the window is infeasible,
+    // so record it — silently tacking it on the end would hide the problem.
+    final dropped = <String>{};
     for (final r in remaining) {
+      dropped.add(r.id);
       result.add(
         r.copyWith(
           label: AppStrings.stopLabel(result.length + 1),
@@ -294,7 +349,84 @@ class RouteRepositoryImpl implements RouteRepository {
         depot.copyWith(id: '${depot.id}_return', sequence: result.length + 1),
       );
     }
-    return ordered;
+    return _ReorderResult(ordered, dropped);
+  }
+
+  /// Fill in each stop's estimated arrival and flag the ones whose window
+  /// can't be honoured.
+  ///
+  /// Arrival at stop *k* is the sum of the road legs leading to it plus the
+  /// service time spent at every earlier stop — the same accounting the
+  /// solver uses, rebuilt locally because the response's `arrival_time` is
+  /// always 0.
+  ///
+  /// Getting somewhere before its window opens means waiting, not arriving
+  /// early, so the ETA is held at the window's start and the delay carries
+  /// into every later stop — otherwise a 20:00 appointment would show an
+  /// 08:30 arrival and every stop after it would read early too.
+  ///
+  /// Without road legs (OSRM unavailable) ETAs stay null and only
+  /// solver-dropped stops are flagged.
+  List<RoutePoint> _applyArrivalTimes({
+    required List<RoutePoint> ordered,
+    required int departureMinute,
+    required List<double> legDurationsSeconds,
+    required Set<String> droppedIds,
+  }) {
+    // legs[i] runs from ordered[i] to ordered[i+1].
+    final haveLegs = legDurationsSeconds.length >= ordered.length - 1;
+
+    final out = <RoutePoint>[];
+    var elapsedMinutes = 0.0;
+
+    for (var i = 0; i < ordered.length; i++) {
+      final p = ordered[i];
+
+      if (i > 0 && haveLegs) {
+        // Time spent at the previous stop, before driving this leg.
+        if (!ordered[i - 1].isDepot) {
+          elapsedMinutes += RoutingConfig.defaultServiceTimeMinutes;
+        }
+        elapsedMinutes += legDurationsSeconds[i - 1] / 60.0;
+      }
+
+      final window = p.timeWindow?.relativeTo(departureMinute);
+
+      if (i > 0 && haveLegs && window != null) {
+        if (elapsedMinutes < window.startMinutes) {
+          elapsedMinutes = window.startMinutes.toDouble();
+        }
+      }
+
+      final eta = (i == 0)
+          ? 0
+          : haveLegs
+          ? elapsedMinutes.round()
+          : null;
+
+      // How far past the deadline the driver lands. Kept as a number rather
+      // than a boolean so the UI can say "late by 25 min" and offer a
+      // deadline nudge of exactly that size.
+      final lateBy = (window != null && eta != null && eta > window.endMinutes)
+          ? eta - window.endMinutes
+          : null;
+
+      final missed = droppedIds.contains(p.id) || lateBy != null;
+
+      out.add(
+        p.copyWith(
+          etaMinutesFromDeparture: eta,
+          clearEta: eta == null,
+          timeWindowMissed: missed,
+          latenessMinutes: lateBy,
+          // A stop that used to run late and now fits must not keep the
+          // old figure from the previous solve.
+          clearLateness: lateBy == null,
+        ),
+      );
+    }
+
+    return out;
   }
 
   bool _isSameCoord(double a1, double a2, double b1, double b2) {
@@ -377,6 +509,7 @@ class RouteRepositoryImpl implements RouteRepository {
             ? fullRoute.durationSeconds / 60
             : null,
         maneuvers: fullRoute.maneuvers,
+        legDurationsSeconds: fullRoute.legDurationsSeconds,
       );
     }
 
@@ -414,6 +547,7 @@ class RouteRepositoryImpl implements RouteRepository {
           ? fullRoute.durationSeconds / 60
           : null,
       maneuvers: fullRoute.maneuvers,
+      legDurationsSeconds: fullRoute.legDurationsSeconds,
     );
   }
 
@@ -489,6 +623,14 @@ class RouteRepositoryImpl implements RouteRepository {
   }
 }
 
+/// Ordered itinerary plus the ids of stops the solver refused to schedule.
+class _ReorderResult {
+  final List<RoutePoint> points;
+  final Set<String> droppedIds;
+
+  const _ReorderResult(this.points, this.droppedIds);
+}
+
 class _PolylineBundle {
   final List<LatLng> fullPolyline;
   final List<LatLng> goPolyline;
@@ -498,6 +640,11 @@ class _PolylineBundle {
   final double? fullDurationMinutes;
   final List<RouteManeuver> maneuvers;
 
+  /// Drive time of each depot→stop→…→depot leg, in itinerary order. Empty
+  /// when there's no road geometry to measure, which is what makes per-stop
+  /// ETAs unavailable.
+  final List<double> legDurationsSeconds;
+
   const _PolylineBundle({
     required this.fullPolyline,
     required this.goPolyline,
@@ -506,6 +653,7 @@ class _PolylineBundle {
     required this.fullDistanceKm,
     required this.fullDurationMinutes,
     this.maneuvers = const [],
+    this.legDurationsSeconds = const [],
   });
 
   factory _PolylineBundle.empty() => const _PolylineBundle(

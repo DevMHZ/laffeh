@@ -12,8 +12,13 @@ abstract class RouteRepository {
   ///
   /// [points] must include exactly one depot at index 0; the rest
   /// are delivery stops. The cubit guarantees this invariant.
+  ///
+  /// [departureAt] is when the driver sets off; it anchors every stop's
+  /// clock-time window, which the solver only understands as minutes after
+  /// departure. Defaults to now.
   Future<ApiResult<OptimizedRoute>> optimize({
     required List<RoutePoint> points,
     String routingMode,
+    DateTime? departureAt,
   });
 }

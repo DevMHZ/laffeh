@@ -179,6 +179,26 @@ class AccountOnboardingCubit extends Cubit<AccountOnboardingState> {
   /// Final submit from the summary step.
   Future<void> submit() async {
     if (state.isBusy) return;
+
+    // Name and company are mandatory, and the RPC rejects a blank one outright.
+    // Re-checking here means a bad value bounces the user back to the field
+    // that needs fixing instead of surfacing as an opaque backend error.
+    final nameErr = FormValidators.fullName(state.fullName);
+    final companyErr = FormValidators.companyName(state.company);
+    if (nameErr != null || companyErr != null) {
+      emit(
+        state.copyWith(
+          step: 1,
+          nameError: nameErr,
+          companyError: companyErr,
+          clearNameError: nameErr == null,
+          clearCompanyError: companyErr == null,
+          clearSubmitError: true,
+        ),
+      );
+      return;
+    }
+
     emit(state.copyWith(phase: OnbPhase.submitting, clearSubmitError: true));
 
     final other = state.isOtherSelected ? state.otherText.trim() : null;

@@ -10,8 +10,10 @@ import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
+import 'missed_time_window_sheet.dart';
 import 'optimize_route_button.dart';
 import 'point_actions_sheet.dart';
+import 'stop_time_window_sheet.dart';
 
 part 'route_points_sheet_widgets.dart';
 
@@ -31,7 +33,8 @@ class RoutePointsSheet extends StatelessWidget {
           a.status != b.status ||
           a.errorMessage != b.errorMessage ||
           a.isOffline != b.isOffline ||
-          a.draftRestored != b.draftRestored,
+          a.draftRestored != b.draftRestored ||
+          a.departureAt != b.departureAt,
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
 
@@ -46,6 +49,9 @@ class RoutePointsSheet extends StatelessWidget {
         final destinations = state.points
             .where((p) => !(p.isDepot && p.id.startsWith('depot_current')))
             .toList();
+
+        // Stops the last optimization couldn't reach inside their window.
+        final missedWindows = state.missedTimeWindowPoints;
 
         // No title / count header: the add controls below make the
         // sheet's purpose obvious and the empty state has its own hint,
@@ -122,6 +128,25 @@ class RoutePointsSheet extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 6),
+
+              // Departure clock — only meaningful once a stop has an
+              // arrival window to measure against.
+              if (state.hasTimeWindows) ...[
+                const SizedBox(height: 4),
+                _DepartureRow(
+                  departureAt: state.departureAt,
+                  onChanged: cubit.setDepartureAt,
+                ),
+                const SizedBox(height: 6),
+              ],
+
+              if (missedWindows.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                MissedWindowBanner(
+                  points: missedWindows,
+                  onTap: () => showMissedTimeWindowSheet(context),
+                ),
+              ],
 
               if (state.errorMessage != null &&
                   state.status == RoutePlannerStatus.optimizedFailure) ...[

@@ -195,6 +195,33 @@ void main() {
     expect(c.state.step, 2);
   });
 
+  test('a blank company alone still blocks step 1', () async {
+    final c = build(startStep: 1, credsDone: true);
+    c.setFullName('Mohamad');
+    c.setCompany('   ');
+    await c.next();
+    expect(c.state.step, 1);
+    expect(c.state.nameError, isNull);
+    expect(c.state.companyError, 'companyRequired');
+  });
+
+  test('submit refuses a blank company and returns to the name step', () async {
+    final c = build(startStep: 3, credsDone: true);
+    c.setFullName('Mohamad');
+    c.toggleUseCase('delivery');
+    // Company never filled in — the RPC would reject it, so the cubit does.
+    await c.submit();
+    expect(profile.saveCalls, 0);
+    expect(c.state.step, 1);
+    expect(c.state.companyError, 'companyRequired');
+    expect(c.state.phase, OnbPhase.editing);
+
+    c.setCompany('Afdal');
+    await c.submit();
+    expect(profile.saveCalls, 1);
+    expect(c.state.phase, OnbPhase.success);
+  });
+
   test('use-case selection is required and multi-select works', () async {
     final c = build(startStep: 2, credsDone: true);
     await c.next(); // none selected

@@ -8,14 +8,17 @@ import '../../features/profile/presentation/pages/account_onboarding_page.dart';
 import '../../features/route_planner/presentation/pages/route_planner_page.dart';
 import '../constants/app_constants.dart';
 import '../di/service_locator.dart';
+import '../services/registration_gate.dart';
 import '../theme/app_colors.dart';
 
 /// Decides where to send the user after the splash / walkthrough, based on the
-/// session and profile state. Login is optional, so an unauthenticated user who
-/// has already seen the welcome screen still lands in the planner.
+/// session and profile state. Login is optional *for a week*, so an
+/// unauthenticated user who has already seen the welcome screen still lands in
+/// the planner — until the trial they started by skipping runs out.
 ///
 ///   * signed in + onboarding complete   → planner
 ///   * signed in + onboarding incomplete → resume account onboarding
+///   * signed out + trial expired        → welcome, account required
 ///   * signed out + welcome already seen → planner (nudge shows there)
 ///   * signed out + first time           → welcome
 class AuthGate extends StatefulWidget {
@@ -42,6 +45,9 @@ class _AuthGateState extends State<AuthGate> {
       destination = complete
           ? const RoutePlannerPage()
           : const AccountOnboardingPage(startStep: 1, credentialsDone: true);
+    } else if (sl<RegistrationGate>().isRequired) {
+      // Skipped, and the week that bought is over.
+      destination = const WelcomePage(registrationRequired: true);
     } else {
       final welcomeSeen = prefs.getBool(AppStrings.welcomeSeenKey) ?? false;
       destination = welcomeSeen

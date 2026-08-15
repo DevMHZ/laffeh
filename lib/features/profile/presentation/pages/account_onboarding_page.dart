@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/services/consent_store.dart';
+import '../../../../core/services/registration_gate.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -81,6 +82,10 @@ class _OnboardingViewState extends State<_OnboardingView> {
   Future<void> _onSuccess() async {
     final prefs = sl<SharedPreferences>();
     await prefs.setBool(AppStrings.welcomeSeenKey, true);
+    // The user has an account now, so the "without an account" clock stops. If
+    // they ever sign out and skip again, it starts fresh rather than resuming
+    // an already-expired trial.
+    await sl<RegistrationGate>().clear();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const RoutePlannerPage()),

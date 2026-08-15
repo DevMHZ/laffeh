@@ -20,6 +20,11 @@ class PlannerDraftModel {
   /// Which leg the map was showing: 'full' | 'go' | 'returnLeg'.
   final String displaySegment;
 
+  /// The trip's planned departure, or null for "leaving now". Kept because
+  /// it's the anchor every stop's time window is measured from — restoring
+  /// the windows without it would shift the whole plan.
+  final DateTime? departureAt;
+
   final String updatedAtIso;
 
   const PlannerDraftModel({
@@ -27,6 +32,7 @@ class PlannerDraftModel {
     required this.optimized,
     required this.displaySegment,
     required this.updatedAtIso,
+    this.departureAt,
   });
 
   bool get isEmpty => points.isEmpty;
@@ -35,6 +41,7 @@ class PlannerDraftModel {
     'points': points.map((p) => p.toJson()).toList(),
     'optimized': optimized?.toJson(),
     'displaySegment': displaySegment,
+    'departureAt': departureAt?.toIso8601String(),
     'updatedAt': updatedAtIso,
   };
 
@@ -49,6 +56,7 @@ class PlannerDraftModel {
           ? SavedRouteModel.fromJson(rawOptimized)
           : null,
       displaySegment: j['displaySegment']?.toString() ?? 'full',
+      departureAt: DateTime.tryParse(j['departureAt']?.toString() ?? ''),
       updatedAtIso:
           j['updatedAt']?.toString() ?? DateTime.now().toIso8601String(),
     );
@@ -63,6 +71,7 @@ class PlannerDraftModel {
     required OptimizedRoute? optimizedRoute,
     required String displaySegment,
     required String routingMode,
+    DateTime? departureAt,
   }) {
     SavedRouteModel? optimized;
     if (optimizedRoute != null) {
@@ -86,6 +95,7 @@ class PlannerDraftModel {
       points: points.map(PointDto.fromEntity).toList(),
       optimized: optimized,
       displaySegment: displaySegment,
+      departureAt: departureAt,
       updatedAtIso: DateTime.now().toIso8601String(),
     );
   }

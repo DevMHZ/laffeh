@@ -131,6 +131,11 @@ class RoutePlannerState extends Equatable {
   /// Gates the centre crosshair so an untouched map stays clean.
   final bool manualPlacement;
 
+  /// When the driver sets off. Null — the default — means "now", resolved
+  /// at optimize time. Only matters once a stop carries a time window,
+  /// since windows are clock times that have to be measured from somewhere.
+  final DateTime? departureAt;
+
   const RoutePlannerState({
     this.status = RoutePlannerStatus.initial,
     this.points = const [],
@@ -160,6 +165,7 @@ class RoutePlannerState extends Equatable {
     this.draftRestored = false,
     this.movingPointId,
     this.manualPlacement = false,
+    this.departureAt,
   });
 
   bool get hasOptimizedRoute => optimizedRoute != null;
@@ -174,6 +180,14 @@ class RoutePlannerState extends Equatable {
 
   /// At least a depot + one active stop, and not mid-run.
   bool get canOptimize => routableCount >= 2 && !isOptimizing;
+
+  /// True once any stop carries a clock window — gates the departure-time
+  /// control, which is meaningless without one.
+  bool get hasTimeWindows => points.any((p) => p.hasTimeWindow);
+
+  /// Stops whose requested time the last optimization couldn't hit.
+  List<RoutePoint> get missedTimeWindowPoints =>
+      points.where((p) => p.timeWindowMissed).toList();
 
   RoutePlannerState copyWith({
     RoutePlannerStatus? status,
@@ -204,12 +218,14 @@ class RoutePlannerState extends Equatable {
     bool? draftRestored,
     String? movingPointId,
     bool? manualPlacement,
+    DateTime? departureAt,
     bool clearOptimizedRoute = false,
     bool clearError = false,
     bool clearNavigationHeading = false,
     bool clearNavigationSpeed = false,
     bool clearNavigationStopDistance = false,
     bool clearMovingPoint = false,
+    bool clearDepartureAt = false,
   }) {
     return RoutePlannerState(
       status: status ?? this.status,
@@ -250,6 +266,7 @@ class RoutePlannerState extends Equatable {
           ? null
           : (movingPointId ?? this.movingPointId),
       manualPlacement: manualPlacement ?? this.manualPlacement,
+      departureAt: clearDepartureAt ? null : (departureAt ?? this.departureAt),
     );
   }
 
@@ -283,5 +300,6 @@ class RoutePlannerState extends Equatable {
     draftRestored,
     movingPointId,
     manualPlacement,
+    departureAt,
   ];
 }

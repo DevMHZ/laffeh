@@ -10,6 +10,7 @@ class FormValidators {
   static const int minPasswordLength = 8;
   static const int minNameLength = 2;
   static const int maxNameLength = 120;
+  static const int minCompanyLength = 2;
   static const int maxCompanyLength = 160;
 
   // ── Password ────────────────────────────────────────────
@@ -44,10 +45,15 @@ class FormValidators {
   }
 
   // ── Company ─────────────────────────────────────────────
-  /// `null` when valid, else `companyRequired` | `companyTooLong`.
+  /// Mandatory at sign-up — the server rejects a blank one too, so this is the
+  /// friendly half of the same rule.
+  ///
+  /// `null` when valid, else `companyRequired` | `companyTooShort` |
+  /// `companyTooLong`.
   static String? companyName(String? value) {
     final v = (value ?? '').trim();
     if (v.isEmpty) return 'companyRequired';
+    if (v.length < minCompanyLength) return 'companyTooShort';
     if (v.length > maxCompanyLength) return 'companyTooLong';
     return null;
   }

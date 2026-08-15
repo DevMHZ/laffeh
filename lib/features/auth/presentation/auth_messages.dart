@@ -31,6 +31,8 @@ class AuthMessages {
         return AppStrings.valNameNumeric;
       case 'companyRequired':
         return AppStrings.valCompanyRequired;
+      case 'companyTooShort':
+        return AppStrings.valCompanyTooShort;
       case 'companyTooLong':
         return AppStrings.valCompanyTooLong;
       case 'phoneInvalid':
@@ -75,6 +77,14 @@ class AuthMessages {
         return AppStrings.errSignupsDisabled;
       case AuthErrorMapper.backendUnavailable:
         return AppStrings.errBackendUnavailable;
+      // Server-side echoes of the form rules — same copy as the field errors,
+      // so the user reads one message for one rule wherever it is caught.
+      case AuthErrorMapper.serverNameRequired:
+        return AppStrings.valNameRequired;
+      case AuthErrorMapper.serverCompanyRequired:
+        return AppStrings.valCompanyRequired;
+      case AuthErrorMapper.serverUseCaseRequired:
+        return AppStrings.useCaseSelectAtLeastOne;
       default:
         return AppStrings.errUnknownAuth;
     }

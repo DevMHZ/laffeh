@@ -9,6 +9,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_dialog.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
+import 'stop_time_window_sheet.dart';
 
 /// Opens the per-point actions sheet: full label + address, then rename,
 /// move on map, mark optional / active, and remove.
@@ -40,6 +41,24 @@ Future<void> showPointActions(BuildContext context, RoutePoint point) {
         Navigator.pop(sheetCtx);
         cubit.beginMovePoint(point.id);
       },
+      // The depot is where the trip starts, so it has no arrival time —
+      // its clock is the departure control in the planning sheet instead.
+      onSetTime: point.isDepot
+          ? null
+          : () async {
+              Navigator.pop(sheetCtx);
+              final choice = await showStopTimeWindowSheet(
+                context,
+                pointLabel: point.label,
+                initial: point.timeWindow,
+              );
+              if (choice == null) return;
+              if (choice.isCleared) {
+                cubit.clearPointTimeWindow(point.id);
+              } else {
+                cubit.setPointTimeWindow(point.id, choice.window!);
+              }
+            },
       // One toggle: the stop is either in the route or skipped.
       onToggleInclude: point.isDepot
           ? null
@@ -163,6 +182,7 @@ class _PointActionsSheet extends StatelessWidget {
   final VoidCallback onRename;
   final VoidCallback onMove;
   final VoidCallback? onToggleInclude;
+  final VoidCallback? onSetTime;
   final VoidCallback onRemove;
 
   const _PointActionsSheet({
@@ -170,6 +190,7 @@ class _PointActionsSheet extends StatelessWidget {
     required this.onRename,
     required this.onMove,
     required this.onToggleInclude,
+    required this.onSetTime,
     required this.onRemove,
   });
 
@@ -276,6 +297,30 @@ class _PointActionsSheet extends StatelessWidget {
               color: AppColors.info,
               onTap: onMove,
             ),
+            // Arrival time — the trailing value doubles as the current
+            // state, so the row reads as "Arrival time · 14:00 – 15:30"
+            // or "Arrival time · Any time".
+            if (onSetTime != null)
+              _ActionRow(
+                icon: Iconsax.clock,
+                label: AppStrings.arrivalTime,
+                color: point.hasTimeWindow
+                    ? AppColors.primary
+                    : AppColors.textMuted,
+                trailing: point.hasTimeWindow
+                    ? AppStrings.arrivalWindowRange(
+                        formatMinuteOfDay(
+                          context,
+                          point.timeWindow!.startMinuteOfDay,
+                        ),
+                        formatMinuteOfDay(
+                          context,
+                          point.timeWindow!.endMinuteOfDay,
+                        ),
+                      )
+                    : AppStrings.anyTime,
+                onTap: onSetTime!,
+              ),
             // Single include/skip toggle (hidden for the depot, which is
             // always part of the route).
             if (onToggleInclude != null)
@@ -305,6 +350,11 @@ class _ActionRow extends StatelessWidget {
   final String label;
   final Color color;
   final bool destructive;
+
+  /// Optional current value shown at the end of the row, so a setting-style
+  /// action reads as "label · value" without a second line.
+  final String? trailing;
+
   final VoidCallback onTap;
 
   const _ActionRow({
@@ -313,6 +363,7 @@ class _ActionRow extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.destructive = false,
+    this.trailing,
   });
 
   @override
@@ -328,13 +379,23 @@ class _ActionRow extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 21),
             const SizedBox(width: 14),
-            Text(
-              label,
-              style: AppTextStyles.bodyLg.copyWith(
-                color: destructive ? AppColors.danger : AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.bodyLg.copyWith(
+                  color: destructive ? AppColors.danger : AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
+            if (trailing != null)
+              Text(
+                trailing!,
+                style: AppTextStyles.bodySm.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
           ],
         ),
       ),

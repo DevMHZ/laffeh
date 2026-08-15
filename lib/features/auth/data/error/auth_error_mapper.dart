@@ -21,6 +21,14 @@ class AuthErrorMapper {
   static const backendUnavailable = 'backendUnavailable';
   static const unknown = 'unknown';
 
+  // Guard clauses raised by the `save_onboarding` RPC. They mean the same
+  // thing as the matching client-side validators — reaching one means a field
+  // slipped past the form, so the message has to name the field rather than
+  // shrug.
+  static const serverNameRequired = 'serverNameRequired';
+  static const serverCompanyRequired = 'serverCompanyRequired';
+  static const serverUseCaseRequired = 'serverUseCaseRequired';
+
   /// Maps [error] to a stable code, printing the raw provider error to the
   /// debug console on the way through — this is the single funnel every
   /// repository `catch` goes through, so logging here covers all of them.
@@ -33,6 +41,22 @@ class AuthErrorMapper {
 
     if (error is SocketException || error is HttpException) {
       return const core.AuthException(network, 'connectivity');
+    }
+
+    if (error is supa.PostgrestException) {
+      final msg = error.message.toUpperCase();
+      // Postgres prefixes a raised exception with its own context, so match on
+      // "contains" rather than equality.
+      if (msg.contains('FULL_NAME_REQUIRED')) {
+        return core.AuthException(serverNameRequired, error.message);
+      }
+      if (msg.contains('COMPANY_REQUIRED')) {
+        return core.AuthException(serverCompanyRequired, error.message);
+      }
+      if (msg.contains('USE_CASE_REQUIRED')) {
+        return core.AuthException(serverUseCaseRequired, error.message);
+      }
+      return core.AuthException(unknown, error.message);
     }
 
     if (error is supa.AuthException) {

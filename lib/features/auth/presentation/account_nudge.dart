@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/di/service_locator.dart';
+import '../../../core/services/registration_gate.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
@@ -11,6 +12,10 @@ import '../../profile/presentation/pages/account_onboarding_page.dart';
 /// A light, recurring reminder to create an account, shown to users who chose
 /// to skip. Non-intrusive: a bottom sheet on entry, spaced out by launch count,
 /// at most once per app session, and never for signed-in users.
+///
+/// Once the [RegistrationGate] trial is nearly up the sheet starts showing how
+/// many days are left, so the wall at the end is never a surprise. Enforcing
+/// that deadline is not this class's job — `RegistrationGuard` does it.
 class AccountNudge {
   AccountNudge._();
 
@@ -28,16 +33,20 @@ class AccountNudge {
     final launches = (prefs.getInt(AppStrings.nudgeLaunchesKey) ?? 0) + 1;
     await prefs.setInt(AppStrings.nudgeLaunchesKey, launches);
 
+    final gate = sl<RegistrationGate>();
     // Show on the 2nd launch, then every 3rd (2, 5, 8, …). Skips the very
-    // first run so the welcome screen isn't immediately echoed.
-    if (launches < 2 || (launches - 2) % 3 != 0) return;
+    // first run so the welcome screen isn't immediately echoed — but once the
+    // deadline is close the spacing gives way, because from here on the sheet
+    // is carrying a countdown rather than a suggestion.
+    final due = launches >= 2 && (launches - 2) % 3 == 0;
+    if (!due && !gate.isCountingDown) return;
 
     _shownThisSession = true;
     if (!context.mounted) return;
-    await _show(context);
+    await _show(context, daysLeft: gate.isCountingDown ? gate.daysLeft : null);
   }
 
-  static Future<void> _show(BuildContext context) {
+  static Future<void> _show(BuildContext context, {int? daysLeft}) {
     return showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
@@ -80,6 +89,17 @@ class AccountNudge {
                   color: AppColors.textSecondary,
                 ),
               ),
+              if (daysLeft != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  AppStrings.trialDaysLeft(daysLeft),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 22),
               AppButton(
                 label: AppStrings.welcomeCreateAccount,

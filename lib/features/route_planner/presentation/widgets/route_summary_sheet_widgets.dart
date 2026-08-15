@@ -280,12 +280,17 @@ class _SummaryGridCell extends StatelessWidget {
   final Color color;
   final IconData icon;
 
+  /// Departure clock (minutes since midnight) the route was solved for —
+  /// the origin the stop's ETA is offset from.
+  final int departureMinute;
+
   const _SummaryGridCell({
     super.key,
     required this.point,
     required this.index,
     required this.color,
     required this.icon,
+    required this.departureMinute,
   });
 
   @override
@@ -331,9 +336,143 @@ class _SummaryGridCell extends StatelessWidget {
                 ],
               ),
             ),
+            _StopEta(point: point, departureMinute: departureMinute),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Trailing arrival column for a stop in the optimised sequence.
+///
+/// Shows the projected arrival clock (computed from the road legs — the
+/// backend's own `arrival_time` is always 0) and, for a stop the user gave
+/// a deadline, whether that deadline holds.
+class _StopEta extends StatelessWidget {
+  final RoutePoint point;
+  final int departureMinute;
+
+  const _StopEta({required this.point, required this.departureMinute});
+
+  @override
+  Widget build(BuildContext context) {
+    final eta = point.etaMinutesFromDeparture;
+    final window = point.timeWindow;
+    if (eta == null && window == null) return const SizedBox.shrink();
+
+    final missed = point.timeWindowMissed;
+    final tone = missed
+        ? AppColors.danger
+        : window != null
+        ? AppColors.primary
+        : AppColors.textMuted;
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Projected arrival. Labelled once a deadline exists, so it can
+          // never be mistaken for the time the user asked for.
+          if (eta != null)
+            _EtaLine(
+              label: window == null ? null : AppStrings.expectedArrival,
+              value: formatMinuteOfDay(
+                context,
+                StopTimeWindow.clockFromRelative(departureMinute, eta),
+              ),
+              color: tone,
+              emphasised: true,
+            ),
+
+          // The time the user actually asked for. Always shown when a
+          // deadline is set — a late stop needs it *most*, since "you'd
+          // arrive at 1:07" means nothing without "you wanted 12:30".
+          if (window != null) ...[
+            const SizedBox(height: 1),
+            _EtaLine(
+              label: AppStrings.requiredArrival,
+              value: formatMinuteOfDay(context, window.endMinuteOfDay),
+              color: missed ? AppColors.textSecondary : tone,
+              icon: missed ? null : Iconsax.clock,
+            ),
+          ],
+
+          // How far past it we land — the size of the problem.
+          if (missed) ...[
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Iconsax.warning_2, size: 10, color: AppColors.danger),
+                const SizedBox(width: 3),
+                Text(
+                  point.latenessMinutes != null
+                      ? AppStrings.lateByMinutes(point.latenessMinutes!)
+                      : AppStrings.timeWindowMissedBadge,
+                  style: AppTextStyles.bodySm.copyWith(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.danger,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One "label · time" line in a stop's trailing arrival column.
+class _EtaLine extends StatelessWidget {
+  final String? label;
+  final String value;
+  final Color color;
+  final IconData? icon;
+  final bool emphasised;
+
+  const _EtaLine({
+    required this.value,
+    required this.color,
+    this.label,
+    this.icon,
+    this.emphasised = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+        ],
+        if (label != null) ...[
+          Text(
+            label!,
+            style: AppTextStyles.bodySm.copyWith(
+              fontSize: 9,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          value,
+          style: emphasised
+              ? AppTextStyles.titleSm.copyWith(color: color)
+              : AppTextStyles.bodySm.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+        ),
+      ],
     );
   }
 }

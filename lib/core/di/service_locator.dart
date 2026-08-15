@@ -36,6 +36,7 @@ import '../network/dio_client.dart';
 import '../network/network_info.dart';
 import '../services/consent_store.dart';
 import '../services/location_ping_service.dart';
+import '../services/registration_gate.dart';
 
 /// Public service locator entry-point.
 final GetIt sl = GetIt.instance;
@@ -206,6 +207,13 @@ Future<void> setupServiceLocator() async {
   if (!sl.isRegistered<ConsentStore>()) {
     sl.registerLazySingleton<ConsentStore>(
       () => ConsentStore(sl<SharedPreferences>()),
+    );
+  }
+
+  // Clock on the "use the app without an account" trial.
+  if (!sl.isRegistered<RegistrationGate>()) {
+    sl.registerLazySingleton<RegistrationGate>(
+      () => RegistrationGate(sl<SharedPreferences>()),
     );
   }
 }

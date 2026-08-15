@@ -4,6 +4,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../route_planner/domain/entities/route_maneuver.dart';
 import '../../../route_planner/domain/entities/route_metrics.dart';
 import '../../../route_planner/domain/entities/route_point.dart';
+import '../../../route_planner/domain/entities/stop_time_window.dart';
 import '../../domain/entities/saved_route.dart';
 
 /// JSON wire-model for [SavedRoute].
@@ -191,6 +192,19 @@ class PointDto {
   final bool optional;
   final bool active;
 
+  /// The stop's clock arrival window, or null when it can be visited any
+  /// time. Persisted so a restored draft keeps the user's appointments.
+  final StopTimeWindow? timeWindow;
+
+  /// Post-optimization arrival estimate, minutes after departure.
+  final int? etaMinutesFromDeparture;
+
+  /// Whether the last optimization could not honour [timeWindow].
+  final bool timeWindowMissed;
+
+  /// Minutes past the deadline the last optimization landed on.
+  final int? latenessMinutes;
+
   const PointDto({
     required this.id,
     required this.lat,
@@ -202,6 +216,10 @@ class PointDto {
     required this.sequence,
     this.optional = false,
     this.active = true,
+    this.timeWindow,
+    this.etaMinutesFromDeparture,
+    this.timeWindowMissed = false,
+    this.latenessMinutes,
   });
 
   factory PointDto.fromEntity(RoutePoint p) => PointDto(
@@ -215,6 +233,10 @@ class PointDto {
     sequence: p.sequence,
     optional: p.optional,
     active: p.active,
+    timeWindow: p.timeWindow,
+    etaMinutesFromDeparture: p.etaMinutesFromDeparture,
+    timeWindowMissed: p.timeWindowMissed,
+    latenessMinutes: p.latenessMinutes,
   );
 
   RoutePoint toEntity() => RoutePoint(
@@ -228,6 +250,10 @@ class PointDto {
     sequence: sequence,
     optional: optional,
     active: active,
+    timeWindow: timeWindow,
+    etaMinutesFromDeparture: etaMinutesFromDeparture,
+    timeWindowMissed: timeWindowMissed,
+    latenessMinutes: latenessMinutes,
   );
 
   Map<String, dynamic> toJson() => {
@@ -241,6 +267,10 @@ class PointDto {
     'sequence': sequence,
     'optional': optional,
     'active': active,
+    'timeWindow': timeWindow?.toJson(),
+    'eta': etaMinutesFromDeparture,
+    'timeWindowMissed': timeWindowMissed,
+    'lateness': latenessMinutes,
   };
 
   factory PointDto.fromJson(Map<String, dynamic> j) => PointDto(
@@ -255,6 +285,14 @@ class PointDto {
     // Legacy drafts/saved routes predate these flags — default sensibly.
     optional: j['optional'] == true,
     active: j['active'] == null ? true : j['active'] == true,
+    timeWindow: StopTimeWindow.fromJson(j['timeWindow']),
+    etaMinutesFromDeparture: (j['eta'] is num)
+        ? (j['eta'] as num).toInt()
+        : null,
+    timeWindowMissed: j['timeWindowMissed'] == true,
+    latenessMinutes: (j['lateness'] is num)
+        ? (j['lateness'] as num).toInt()
+        : null,
   );
 }
 

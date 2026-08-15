@@ -59,20 +59,69 @@ class _PointGridCell extends StatelessWidget {
                   index: index,
                 ),
                 const SizedBox(width: 7),
-                // Just the label in the cell (2 lines max) — the full
-                // address is one tap away in showPointActions.
+                // Just the label in the cell — the full address is one tap
+                // away in showPointActions. A stop with an arrival time
+                // gives up its second label line to show the deadline,
+                // which is the thing the user is scanning for.
                 Expanded(
-                  child: Text(
-                    point.label,
-                    style: AppTextStyles.titleSm,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        point.label,
+                        style: AppTextStyles.titleSm,
+                        maxLines: point.hasTimeWindow ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (point.hasTimeWindow) _CellTimeLine(point: point),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The "be there by 15:30" line inside a grid cell. Turns red once an
+/// optimization has shown the stop can't be reached in time.
+class _CellTimeLine extends StatelessWidget {
+  final RoutePoint point;
+
+  const _CellTimeLine({required this.point});
+
+  @override
+  Widget build(BuildContext context) {
+    final missed = point.timeWindowMissed;
+    final color = missed ? AppColors.danger : AppColors.info;
+    return Padding(
+      padding: const EdgeInsets.only(top: 1),
+      child: Row(
+        children: [
+          Icon(
+            missed ? Iconsax.warning_2 : Iconsax.clock,
+            size: 10,
+            color: color,
+          ),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              formatMinuteOfDay(context, point.timeWindow!.endMinuteOfDay),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodySm.copyWith(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -195,6 +244,103 @@ class _AddStopCta extends StatelessWidget {
   }
 }
 
+
+/// When the trip starts — the anchor every stop's arrival window is
+/// measured from, since the solver only thinks in minutes-after-departure.
+///
+/// Only shown once at least one stop has a time window; before that the
+/// departure clock changes nothing and would just be another control to
+/// ignore. Defaults to "Now"; tapping picks a time, and a set time can be
+/// handed back to "Now" with the reset button.
+class _DepartureRow extends StatelessWidget {
+  final DateTime? departureAt;
+  final ValueChanged<DateTime?> onChanged;
+
+  const _DepartureRow({required this.departureAt, required this.onChanged});
+
+  Future<void> _pick(BuildContext context) async {
+    final now = DateTime.now();
+    final base = departureAt ?? now;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: base.hour, minute: base.minute),
+    );
+    if (picked == null) return;
+
+    var departure = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      picked.hour,
+      picked.minute,
+    );
+    // A time that has already gone by today means tomorrow's trip.
+    if (departure.isBefore(now)) {
+      departure = departure.add(const Duration(days: 1));
+    }
+    onChanged(departure);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isNow = departureAt == null;
+    final value = isNow
+        ? AppStrings.departureNow
+        : TimeOfDay.fromDateTime(departureAt!).format(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Iconsax.timer_start, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  AppStrings.departureTimeLabel,
+                  style: AppTextStyles.titleSm,
+                ),
+                Text(AppStrings.departureHint, style: AppTextStyles.mutedSm),
+              ],
+            ),
+          ),
+          if (!isNow)
+            IconButton(
+              tooltip: AppStrings.departureNow,
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                onChanged(null);
+              },
+              icon: Icon(
+                Iconsax.refresh_circle,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+            ),
+          TextButton(
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              _pick(context);
+            },
+            child: Text(
+              value,
+              style: AppTextStyles.titleSm.copyWith(color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _OfflineBanner extends StatelessWidget {
   const _OfflineBanner();

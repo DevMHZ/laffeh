@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/services/registration_gate.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/form_validators.dart';
@@ -69,9 +70,14 @@ class _SignInPageState extends State<SignInPage> {
 
     await result.when(
       success: (_) async {
+        // Signed in — the "without an account" trial no longer applies.
+        await sl<RegistrationGate>().clear();
         final complete = await sl<ProfileRepository>().isOnboardingComplete();
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
+        // Clears the stack rather than replacing one entry: this page can sit
+        // on top of the "account required" wall, and that must not survive a
+        // successful sign-in.
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => complete
                 ? const RoutePlannerPage()
@@ -80,6 +86,7 @@ class _SignInPageState extends State<SignInPage> {
                     credentialsDone: true,
                   ),
           ),
+          (_) => false,
         );
       },
       failure: (f) async {

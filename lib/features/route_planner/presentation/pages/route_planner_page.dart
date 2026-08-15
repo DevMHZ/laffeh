@@ -7,6 +7,7 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/routing/registration_guard.dart';
 import '../../../../core/services/location_ping_service.dart';
 import '../../../../core/utils/share_intent_handler.dart';
 import '../../../auth/presentation/account_nudge.dart';
@@ -90,9 +91,12 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     // First chance to capture this launch's single location ping. Best-effort;
     // no-op once captured, or until location permission is granted.
     sl<LocationPingService>().ping();
-    // Light, spaced-out reminder to create an account (skipped users only).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // A skipped user whose trial ran out never gets this far — the wall
+      // takes over the whole stack instead.
+      if (RegistrationGuard.enforceIfBlocked(context)) return;
+      // Otherwise: light, spaced-out reminder to create an account.
       AccountNudge.maybePrompt(
         context,
         isAuthenticated: context.read<AuthCubit>().isAuthenticated,
@@ -112,6 +116,9 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     // Coming back to the app re-checks connectivity so the offline
     // banner clears (or appears) without the user doing anything (#11).
     if (state == AppLifecycleState.resumed && mounted) {
+      // A long background stint can outlast the sign-up trial, so this is also
+      // where an expiry that happened off-screen gets caught.
+      if (RegistrationGuard.enforceIfBlocked(context)) return;
       context.read<RoutePlannerCubit>().refreshConnectivity();
     }
   }

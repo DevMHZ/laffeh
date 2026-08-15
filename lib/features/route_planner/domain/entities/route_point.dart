@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'stop_time_window.dart';
+
 /// Role of a point in the planned route.
 ///
 /// The depot is the start/end anchor for VRP. All other points
@@ -44,6 +46,32 @@ class RoutePoint extends Equatable {
   /// (and on the map, dimmed) but is excluded from the optimize request.
   final bool active;
 
+  /// Clock window the driver must arrive in, or null when the stop can be
+  /// visited whenever the optimizer likes. Sent to the VRP solver as
+  /// `time_window_start` / `time_window_end` (converted to minutes after
+  /// departure first — see [StopTimeWindow.relativeTo]).
+  final StopTimeWindow? timeWindow;
+
+  /// Estimated arrival, in minutes after departure. Computed from the road
+  /// legs after optimization — the backend's own `arrival_time` is always
+  /// 0, so we never rely on it. Null before optimizing.
+  final int? etaMinutesFromDeparture;
+
+  /// True when this stop's [timeWindow] can't actually be honoured: either
+  /// the solver dropped it as infeasible, or the road-time estimate puts
+  /// arrival past the window. The stop stays in the route regardless — the
+  /// UI just flags it so the user can adjust the time or the trip.
+  final bool timeWindowMissed;
+
+  /// How many minutes past the window's end the driver would arrive.
+  ///
+  /// This is the number that makes a missed window actionable — "late by 25
+  /// minutes" tells the user whether to nudge the deadline or drop the stop,
+  /// where a red highlight alone doesn't. Null when the stop is on time, or
+  /// when there's no ETA to measure against (the solver dropped it without
+  /// us being able to compute road time).
+  final int? latenessMinutes;
+
   const RoutePoint({
     required this.id,
     required this.latitude,
@@ -55,6 +83,10 @@ class RoutePoint extends Equatable {
     this.sequence,
     this.optional = false,
     this.active = true,
+    this.timeWindow,
+    this.etaMinutesFromDeparture,
+    this.timeWindowMissed = false,
+    this.latenessMinutes,
   });
 
   LatLng get latLng => LatLng(latitude, longitude);
@@ -68,6 +100,9 @@ class RoutePoint extends Equatable {
   /// True for an optional point the user has switched off.
   bool get isDeactivated => optional && !active;
 
+  /// True when the user pinned a clock time to this stop.
+  bool get hasTimeWindow => timeWindow != null;
+
   RoutePoint copyWith({
     String? id,
     double? latitude,
@@ -79,8 +114,15 @@ class RoutePoint extends Equatable {
     int? sequence,
     bool? optional,
     bool? active,
+    StopTimeWindow? timeWindow,
+    int? etaMinutesFromDeparture,
+    bool? timeWindowMissed,
+    int? latenessMinutes,
     bool clearSequence = false,
     bool clearAddress = false,
+    bool clearTimeWindow = false,
+    bool clearEta = false,
+    bool clearLateness = false,
   }) {
     return RoutePoint(
       id: id ?? this.id,
@@ -93,6 +135,17 @@ class RoutePoint extends Equatable {
       sequence: clearSequence ? null : (sequence ?? this.sequence),
       optional: optional ?? this.optional,
       active: active ?? this.active,
+      timeWindow: clearTimeWindow ? null : (timeWindow ?? this.timeWindow),
+      etaMinutesFromDeparture: clearEta
+          ? null
+          : (etaMinutesFromDeparture ?? this.etaMinutesFromDeparture),
+      // Clearing the window clears the "can't make it" verdict with it.
+      timeWindowMissed: clearTimeWindow
+          ? false
+          : (timeWindowMissed ?? this.timeWindowMissed),
+      latenessMinutes: (clearTimeWindow || clearEta || clearLateness)
+          ? null
+          : (latenessMinutes ?? this.latenessMinutes),
     );
   }
 
@@ -108,5 +161,9 @@ class RoutePoint extends Equatable {
     sequence,
     optional,
     active,
+    timeWindow,
+    etaMinutesFromDeparture,
+    timeWindowMissed,
+    latenessMinutes,
   ];
 }

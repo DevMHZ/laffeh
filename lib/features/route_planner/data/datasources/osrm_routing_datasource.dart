@@ -84,11 +84,27 @@ class OsrmRoutingDataSource {
         polyline: PolylineUtils.decode(encoded),
         distanceMeters: distance,
         durationSeconds: duration,
+        legDurationsSeconds: _parseLegDurations(first),
         maneuvers: includeSteps ? _parseManeuvers(first) : const [],
       );
     } on DioException {
       return OsrmRoute.empty;
     }
+  }
+
+  /// One entry per waypoint-to-waypoint leg, in request order. Drives the
+  /// per-stop ETA the planner shows against each time window.
+  static List<double> _parseLegDurations(Map<String, dynamic> route) {
+    final legs = route['legs'];
+    if (legs is! List) return const [];
+    final out = <double>[];
+    for (final leg in legs) {
+      if (leg is! Map<String, dynamic>) return const [];
+      final d = leg['duration'];
+      if (d is! num) return const [];
+      out.add(d.toDouble());
+    }
+    return out;
   }
 
   // ── Step / maneuver parsing ────────────────────────────────────────────
@@ -233,6 +249,10 @@ class OsrmRoute {
   final double distanceMeters;
   final double durationSeconds;
 
+  /// Drive time of each leg between consecutive waypoints, in request
+  /// order. Empty when OSRM didn't return usable legs.
+  final List<double> legDurationsSeconds;
+
   /// Route-ordered turn instructions; empty unless steps were requested.
   final List<RouteManeuver> maneuvers;
 
@@ -240,6 +260,7 @@ class OsrmRoute {
     required this.polyline,
     required this.distanceMeters,
     required this.durationSeconds,
+    this.legDurationsSeconds = const [],
     this.maneuvers = const [],
   });
 

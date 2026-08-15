@@ -46,6 +46,10 @@ supabase db push
 8. `20260727100000_terms_acceptance.sql` — `profiles.terms_version` +
    `terms_accepted_at`, the `record_terms_acceptance()` RPC, and
    `save_onboarding()` gaining `p_terms_version`
+9. `20260815100000_require_name_and_company.sql` — `save_onboarding()` rejects a
+   blank `full_name` / `company_name` up front (`FULL_NAME_REQUIRED`,
+   `COMPANY_REQUIRED`), plus a `not valid` check so no row can be marked
+   `onboarding_completed` without both
 
 `supabase/ALL_MIGRATIONS.sql` is all of the above concatenated in order — paste
 that one file if you'd rather not run them individually. Everything is
@@ -76,7 +80,8 @@ the Flutter app.
 A `profiles` row is created by a trigger the moment `auth.users` gets a row, so
 the phone is in the table right after sign-up — even if the user abandons the
 flow before the last step. `full_name` / `company_name` are therefore nullable
-until step 4 completes.
+until step 4 completes; from then on they are mandatory, enforced by both
+`save_onboarding()` and the `profiles_onboarding_needs_name_company` check.
 
 `profiles.phone` mirrors `auth.users.phone` and `profiles.use_case_codes`
 mirrors `user_use_cases`; both are read-convenience copies kept in sync by the

@@ -13,8 +13,11 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
+import '../../domain/entities/stop_time_window.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
+import 'missed_time_window_sheet.dart';
+import 'stop_time_window_sheet.dart';
 
 part 'route_summary_sheet_widgets.dart';
 
@@ -27,7 +30,10 @@ class RouteSummarySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-      buildWhen: (a, b) => a.optimizedRoute != b.optimizedRoute,
+      buildWhen: (a, b) =>
+          a.optimizedRoute != b.optimizedRoute ||
+          a.departureAt != b.departureAt ||
+          a.points != b.points,
       builder: (context, state) {
         final route = state.optimizedRoute;
         if (route == null) return const SizedBox.shrink();
@@ -35,12 +41,32 @@ class RouteSummarySheet extends StatelessWidget {
 
         final order = route.orderedPoints;
 
+        // Per-stop ETAs are stored as minutes after departure; turning them
+        // back into a wall clock needs the departure the route was solved
+        // for (null = the trip starts now).
+        final departureMinute = StopTimeWindow.minuteOfDay(
+          state.departureAt ?? DateTime.now(),
+        );
+
+        // Stops whose requested time this route can't hit. Surfaced at the
+        // very top: this is the moment the user learns the plan doesn't
+        // work, and the banner is the way into the fixes.
+        final missedWindows = state.missedTimeWindowPoints;
+
         return AppSheetContainer(
           contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (missedWindows.isNotEmpty) ...[
+                MissedWindowBanner(
+                  points: missedWindows,
+                  onTap: () => showMissedTimeWindowSheet(context),
+                ),
+                const SizedBox(height: 12),
+              ],
+
               // ── Actions: preview → drive → open in Maps ─────────────
               AppButton(
                 label: AppStrings.previewRoute,
@@ -106,7 +132,7 @@ class RouteSummarySheet extends StatelessWidget {
                 children: [
                   for (var i = 0; i < order.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
-                    _orderCell(order[i], i + 1, order.length),
+                    _orderCell(order[i], i + 1, order.length, departureMinute),
                   ],
                 ],
               ),
@@ -160,7 +186,7 @@ class RouteSummarySheet extends StatelessWidget {
   /// One full-width row for a single stop in the optimised sequence — order
   /// number badge, label, and (when known) address. Laid out one per line for
   /// clear order reading.
-  Widget _orderCell(RoutePoint p, int index, int total) {
+  Widget _orderCell(RoutePoint p, int index, int total, int departureMinute) {
     final i = index - 1;
     final isReturn = i == total - 1 && p.isDepot && i != 0;
     final color = p.isDeactivated
@@ -185,6 +211,7 @@ class RouteSummarySheet extends StatelessWidget {
       index: index,
       color: color,
       icon: icon,
+      departureMinute: departureMinute,
     );
   }
 

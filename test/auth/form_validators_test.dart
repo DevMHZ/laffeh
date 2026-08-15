@@ -39,9 +39,14 @@ void main() {
   });
 
   group('companyName', () {
-    test('required / too long / valid', () {
+    test('required / too short / too long / valid', () {
       expect(FormValidators.companyName(''), 'companyRequired');
+      expect(FormValidators.companyName(null), 'companyRequired');
+      // Whitespace is not a company name — sign-up must not accept it.
+      expect(FormValidators.companyName('   '), 'companyRequired');
+      expect(FormValidators.companyName('A'), 'companyTooShort');
       expect(FormValidators.companyName('Afdal'), isNull);
+      expect(FormValidators.companyName('أفضل'), isNull);
       expect(FormValidators.companyName('x' * 161), 'companyTooLong');
     });
   });

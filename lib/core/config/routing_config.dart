@@ -17,8 +17,28 @@ class RoutingConfig {
   /// Seconds the solver may spend searching for the best route.
   static const int defaultTimeLimitSeconds = 4;
 
-  /// Max working time per driver (minutes).
-  static const int defaultMaxVehicleTimeMinutes = 480;
+  /// Length of the driver's working day, in hours — the `driver_hours`
+  /// field of the VRP request. It is also the ceiling every stop time
+  /// window is measured against, so a trip with a late window raises it
+  /// (see [driverHoursForHorizon]).
+  static const int defaultDriverHours = 8;
+
+  /// Hard ceiling for [driverHoursForHorizon]: a single trip never spans
+  /// more than a day.
+  static const int maxDriverHours = 24;
+
+  /// Minutes the solver assumes are spent at each stop before driving on
+  /// (`default_service_time`). Also used when projecting per-stop ETAs.
+  static const int defaultServiceTimeMinutes = 5;
+
+  /// Smallest `driver_hours` that still contains [horizonMinutes] — used so
+  /// a stop due 11 hours after departure isn't rejected by the default
+  /// 8-hour day. Clamped to [maxDriverHours].
+  static int driverHoursForHorizon(int horizonMinutes) {
+    final hours = (horizonMinutes / 60).ceil();
+    if (hours < defaultDriverHours) return defaultDriverHours;
+    return hours > maxDriverHours ? maxDriverHours : hours;
+  }
 
   /// `car` | `bike` | `walking`.
   static const String defaultRoutingMode = 'car';

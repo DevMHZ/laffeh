@@ -16,7 +16,17 @@ class RouteCsvUtils {
     'longitude',
     'address',
     'weight',
+    // Arrival window as 24-hour wall clock, so the export stays readable
+    // (and re-importable) without knowing when the trip departs.
+    'arrive_from',
+    'arrive_to',
   ];
+
+  static String _clock(int minuteOfDay) {
+    final h = (minuteOfDay ~/ 60).toString().padLeft(2, '0');
+    final m = (minuteOfDay % 60).toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 
   static String encodePoints(List<RoutePoint> points) {
     final rows = <List<dynamic>>[
@@ -38,6 +48,8 @@ class RouteCsvUtils {
           // Empty fields are written as an empty cell, never "null".
           p.address ?? '',
           p.weight,
+          p.timeWindow == null ? '' : _clock(p.timeWindow!.startMinuteOfDay),
+          p.timeWindow == null ? '' : _clock(p.timeWindow!.endMinuteOfDay),
         ];
       }),
     ];

@@ -31,6 +31,7 @@ import '../../data/datasources/planner_draft_local_datasource.dart';
 import '../../data/models/planner_draft_model.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
+import '../../domain/entities/stop_time_window.dart';
 import '../../domain/usecases/optimize_route_usecase.dart';
 import '../widgets/map_geometry.dart';
 import 'route_planner_state.dart';
@@ -270,6 +271,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           displaySegment: _segmentFromName(draft.displaySegment),
           cameraTarget: target,
           draftRestored: true,
+          // A departure that's already in the past belongs to yesterday's
+          // plan — fall back to "now" rather than resurrecting a stale clock.
+          departureAt:
+              draft.departureAt != null &&
+                  draft.departureAt!.isAfter(DateTime.now())
+              ? draft.departureAt
+              : null,
         ),
       );
     } catch (e, st) {
@@ -289,6 +297,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         optimizedRoute: state.optimizedRoute,
         displaySegment: state.displaySegment.name,
         routingMode: RoutingConfig.defaultRoutingMode,
+        departureAt: state.departureAt,
       );
       unawaited(_draft.write(draft));
     } catch (e, st) {
@@ -607,6 +616,134 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     await optimize();
   }
 
+  // ── Arrival time windows ──────────────────────────────────
+  //
+  // A stop can carry a clock window ("be there between 14:00 and 15:30").
+  // It's sent to the solver as minutes after departure, so changing either
+  // a window or the departure time invalidates the current route.
+
+  /// Pin an arrival window to the stop [id]. The depot is the trip's start,
+  /// not a delivery, so it can't have one.
+  void setPointTimeWindow(String id, StopTimeWindow window) {
+    final idx = state.points.indexWhere((p) => p.id == id);
+    if (idx < 0 || state.points[idx].isDepot) return;
+
+    final list = [...state.points]..[idx] = state.points[idx].copyWith(
+      timeWindow: window,
+      // A freshly chosen window hasn't been checked against a route yet.
+      timeWindowMissed: false,
+      clearEta: true,
+    );
+    _emitPointsEdit(list);
+  }
+
+  /// Drop the arrival window from stop [id] — it becomes a stop the
+  /// optimizer may schedule whenever it likes.
+  void clearPointTimeWindow(String id) {
+    final idx = state.points.indexWhere((p) => p.id == id);
+    if (idx < 0 || state.points[idx].timeWindow == null) return;
+
+    final list = [...state.points]..[idx] = state.points[idx].copyWith(
+      clearTimeWindow: true,
+      clearEta: true,
+    );
+    _emitPointsEdit(list);
+  }
+
+  /// Push every missed deadline out by exactly the amount it was missed by
+  /// (plus a small buffer), then re-solve.
+  ///
+  /// The one-tap answer to "I can't make it": the stops stay, the times
+  /// become achievable, and the user sees the new clock rather than having
+  /// to guess a workable deadline themselves.
+  Future<void> relaxMissedTimeWindows() async {
+    final list = state.points.map((p) {
+      final window = p.timeWindow;
+      final lateBy = p.latenessMinutes;
+      if (!p.timeWindowMissed || window == null || lateBy == null) return p;
+      return p.copyWith(
+        timeWindow: window.copyWith(
+          endMinuteOfDay:
+              (window.endMinuteOfDay + lateBy + _lateWindowBufferMinutes) %
+              StopTimeWindow.minutesPerDay,
+        ),
+        timeWindowMissed: false,
+        clearLateness: true,
+      );
+    }).toList();
+
+    if (list == state.points) return;
+    _emitPointsEdit(list);
+    await optimize();
+  }
+
+  /// Leave earlier by the worst overshoot (plus a buffer) so every deadline
+  /// comes back within reach, then re-solve.
+  ///
+  /// Only meaningful when the trip departs in the future — you can't set off
+  /// before now. [canDepartEarlier] gates the UI on exactly that.
+  Future<void> departEarlierToMakeWindows() async {
+    final shift = requiredEarlierDepartureMinutes;
+    if (shift == null) return;
+    final departure = state.departureAt;
+    if (departure == null) return;
+
+    setDepartureAt(departure.subtract(Duration(minutes: shift)));
+    await optimize();
+  }
+
+  /// Minutes the departure would have to move earlier for every missed
+  /// deadline to fit, or null when nothing is running late.
+  int? get requiredEarlierDepartureMinutes {
+    var worst = 0;
+    for (final p in state.points) {
+      final lateBy = p.latenessMinutes;
+      if (p.timeWindowMissed && lateBy != null && lateBy > worst) {
+        worst = lateBy;
+      }
+    }
+    return worst == 0 ? null : worst + _lateWindowBufferMinutes;
+  }
+
+  /// True when setting off earlier is actually possible: the trip has an
+  /// explicit future departure, and the shift wouldn't push it into the past.
+  bool get canDepartEarlier {
+    final shift = requiredEarlierDepartureMinutes;
+    final departure = state.departureAt;
+    if (shift == null || departure == null) return false;
+    return departure
+        .subtract(Duration(minutes: shift))
+        .isAfter(DateTime.now());
+  }
+
+  /// Slack added when repairing a missed window, so a route that only just
+  /// fit doesn't come back late again on the next solve.
+  static const int _lateWindowBufferMinutes = 10;
+
+  /// Set the wall-clock moment the trip starts, which every window is
+  /// measured from. Passing null goes back to "leaving now".
+  void setDepartureAt(DateTime? departure) {
+    if (state.departureAt == departure) return;
+    _cancelSimTimer();
+    _cancelNavigationStream();
+    emit(
+      state.copyWith(
+        departureAt: departure,
+        clearDepartureAt: departure == null,
+        status: RoutePlannerStatus.pointsUpdated,
+        // Windows are relative to departure, so the solved order no longer
+        // holds once it moves.
+        clearOptimizedRoute: true,
+        clearError: true,
+        simulationActive: false,
+        simulationPlaying: false,
+        simulationProgress: 0.0,
+        navigationActive: false,
+        navigationProgress: 0.0,
+      ),
+    );
+  }
+
   /// Shared emit for an in-place edit of the working point list:
   /// invalidates the route and stops any running playback.
   void _emitPointsEdit(List<RoutePoint> list) {
@@ -763,7 +900,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       ),
     );
 
-    final result = await _optimize(points: routable);
+    final result = await _optimize(
+      points: routable,
+      departureAt: state.departureAt,
+    );
 
     result.when(
       success: (route) {
