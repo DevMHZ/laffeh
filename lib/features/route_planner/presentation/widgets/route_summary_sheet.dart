@@ -5,11 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/network/network_info.dart';
+import '../../../../core/services/map_pack_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
+import '../../../../core/utils/route_corridor.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/map_pack_progress_view.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
@@ -138,6 +142,11 @@ class RouteSummarySheet extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
+              // ── Offline map — sits directly above save/export because it
+              //    is the last thing worth doing while still on wifi. ────
+              _OfflineMapTile(route: route),
+              const SizedBox(height: 12),
+
               // ── Save / export — kept low, just above the destructive
               //    action so the primary trip actions lead the sheet. ───
               Row(
@@ -248,6 +257,12 @@ class RouteSummarySheet extends StatelessWidget {
         return;
       }
     }
+
+    // The downloaded corridor belongs to the plan being discarded — left
+    // behind it would sit on the device forever with nothing pointing at it.
+    // The area map around the driver is a separate pack and stays put.
+    await MapPackController.route.delete();
+    MapPackController.route.reset();
 
     cubit.clearAll();
   }

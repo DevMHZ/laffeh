@@ -182,6 +182,184 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Offline map for the planned trip.
+//
+// Downloading is an explicit choice rather than something the app does behind
+// the driver's back: a corridor runs to tens of megabytes, and spending a
+// driver's mobile data unasked is not ours to do. The estimate is shown up
+// front for the same reason.
+//
+// This is the trip-specific pack. The map around the driver is downloaded
+// separately from Settings and needs no route — see `OfflineMapSection`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OfflineMapTile extends StatefulWidget {
+  final OptimizedRoute route;
+
+  const _OfflineMapTile({required this.route});
+
+  @override
+  State<_OfflineMapTile> createState() => _OfflineMapTileState();
+}
+
+class _OfflineMapTileState extends State<_OfflineMapTile> {
+  /// The working plan's corridor is stored under one stable id, so
+  /// re-optimizing replaces the stored map instead of stacking copies.
+  static const String _routeId = 'planner.current';
+
+  final MapPackController _pack = MapPackController.route;
+
+  List<CoordinateBounds> get _boxes =>
+      RouteCorridor.chunk(widget.route.fullPolyline);
+
+  @override
+  void initState() {
+    super.initState();
+    _bind();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OfflineMapTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.route, widget.route)) _bind();
+  }
+
+  void _bind() {
+    _pack.bind(packId: _routeId, boxes: _boxes);
+  }
+
+  /// The size quoted when the driver pressed download, held so the figure
+  /// under the bar stays the one they agreed to.
+  double? _quotedMb;
+
+  Future<void> _download() async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!await NetworkInfo().isConnected) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(AppStrings.offlineMapNeedsConnection)),
+      );
+      return;
+    }
+    setState(() => _quotedMb = _pack.estimatedMb);
+    await _pack.download(packId: _routeId, boxes: _boxes);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _pack,
+      builder: (context, _) {
+        final status = _pack.status;
+        final downloading = status == MapPackStatus.downloading;
+
+        final (IconData icon, Color tint) = switch (status) {
+          MapPackStatus.ready => (Iconsax.tick_circle, AppColors.success),
+          MapPackStatus.partial => (Iconsax.warning_2, AppColors.warning),
+          MapPackStatus.failed => (Iconsax.warning_2, AppColors.danger),
+          _ => (Iconsax.map, AppColors.info),
+        };
+
+        final subtitle = switch (status) {
+          MapPackStatus.downloading => AppStrings.offlineMapDownloading,
+          MapPackStatus.ready =>
+            '${AppStrings.offlineMapReady} · '
+                '${AppStrings.megabytes(_pack.storedMb)}',
+          MapPackStatus.partial => AppStrings.offlineMapPartial,
+          MapPackStatus.cancelled => AppStrings.offlineMapCancelled,
+          MapPackStatus.failed => AppStrings.offlineMapFailed,
+          _ =>
+            '${AppStrings.offlineMapIdleHint} '
+                '${AppStrings.approxMegabytes(_pack.estimatedMb)}',
+        };
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, size: 20, color: tint),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppStrings.offlineMapTitle,
+                          style: AppTextStyles.bodySm.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: AppTextStyles.mutedSm.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _packAction(status, downloading),
+                ],
+              ),
+              if (downloading) ...[
+                const SizedBox(height: 10),
+                MapPackProgressView(
+                  pack: _pack,
+                  estimatedMb: _quotedMb ?? _pack.estimatedMb,
+                  barHeight: 4,
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _packAction(MapPackStatus status, bool downloading) {
+    if (status == MapPackStatus.checking) {
+      return const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    // While downloading, cancel lives inside the progress block below —
+    // repeating it here would put two of them on one tile.
+    if (downloading) return const SizedBox.shrink();
+    if (status == MapPackStatus.ready) {
+      return IconButton(
+        tooltip: AppStrings.offlineMapDelete,
+        onPressed: _pack.delete,
+        icon: Icon(Iconsax.trash, size: 19, color: AppColors.danger),
+      );
+    }
+    // A half-finished pack keeps its tiles, so the offer is to carry on
+    // rather than to start over.
+    return TextButton(
+      onPressed: _download,
+      child: Text(
+        switch (status) {
+          MapPackStatus.partial => AppStrings.offlineMapRetry,
+          MapPackStatus.cancelled => AppStrings.offlineMapResume,
+          _ => AppStrings.offlineMapDownload,
+        },
+        style: TextStyle(color: AppColors.primary),
+      ),
+    );
+  }
+}
+
 class _StartNavigationButton extends StatelessWidget {
   final VoidCallback onPressed;
 

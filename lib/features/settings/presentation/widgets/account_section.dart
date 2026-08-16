@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/widgets/app_chevron.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -95,9 +96,9 @@ class _AccountSectionState extends State<AccountSection> {
   }
 
   Future<void> _openSignIn() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SignInPage()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SignInPage()));
   }
 
   Future<void> _confirmSignOut() async {
@@ -171,9 +172,9 @@ class _AccountSectionState extends State<AccountSection> {
       failure is AuthFailure ? failure.code : AuthErrorMapper.unknown;
 
   void _toast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -238,8 +239,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
                       child: Checkbox(
                         value: _acknowledged,
                         activeColor: AppColors.danger,
-                        materialTapTargetSize:
-                            MaterialTapTargetSize.shrinkWrap,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         onChanged: (v) =>
                             setState(() => _acknowledged = v ?? false),
                       ),
@@ -300,9 +300,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
         Expanded(
           child: Text(
             text,
-            style: AppTextStyles.mutedSm.copyWith(
-              color: AppColors.textPrimary,
-            ),
+            style: AppTextStyles.mutedSm.copyWith(color: AppColors.textPrimary),
           ),
         ),
       ],
@@ -362,11 +360,7 @@ class _ActionRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                 ],
-                Icon(
-                  Icons.chevron_left_rounded,
-                  size: 20,
-                  color: AppColors.textMuted,
-                ),
+                const AppChevron(),
               ],
             ),
           ),

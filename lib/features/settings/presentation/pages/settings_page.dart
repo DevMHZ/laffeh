@@ -14,10 +14,12 @@ import '../../../../core/theme/driver_palette.dart';
 import '../../../../core/theme/vehicle_kind.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/widgets/afdal_logo.dart';
+import '../../../../core/widgets/app_chevron.dart';
 import '../../../../core/widgets/app_section_card.dart';
 import '../../../../core/widgets/legal_links_sheet.dart';
 import '../../../../core/widgets/vehicle_turntable.dart';
 import '../widgets/account_section.dart';
+import '../widgets/offline_map_section.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -69,7 +71,7 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 22),
 
-          _SettingsCard(onAboutUsTap: () => _openWebsite(context)),
+          _SettingsGroups(onAboutUsTap: () => _openWebsite(context)),
         ],
       ),
     );
@@ -186,11 +188,25 @@ class _LanguageTile extends StatelessWidget {
   }
 }
 
-/// Single card bundling all collapsible settings (About, Appearance,
-/// Vehicle Icon, Language, About us) so they stick together as one block.
-class _SettingsCard extends StatelessWidget {
+/// The settings list, in four labelled groups.
+///
+/// It used to be one card holding eight unrelated rows: app info, three
+/// preferences, the offline map, the account, and two documents, separated
+/// only by dividers. Nothing told the eye where one concern ended and the
+/// next began, and the least useful row — "About the app" — sat in the most
+/// prominent slot on the page.
+///
+/// The order now follows what a driver actually comes here to do. Their
+/// account first, because that is what decides whether their trips are
+/// being kept. The offline map next: it is the one thing on this page that
+/// *does* something, and the one worth finding quickly before losing
+/// signal. Then the preferences they set once — language ahead of the rest,
+/// since a driver who opened the app in the wrong language cannot read
+/// anything else until they find it. The documents last, where read-once
+/// material belongs.
+class _SettingsGroups extends StatelessWidget {
   final VoidCallback onAboutUsTap;
-  const _SettingsCard({required this.onAboutUsTap});
+  const _SettingsGroups({required this.onAboutUsTap});
 
   @override
   Widget build(BuildContext context) {
@@ -198,36 +214,79 @@ class _SettingsCard extends StatelessWidget {
     // (e.g. the page-level refresh on a language/appearance change) can only
     // propagate into children that are fresh instances — const children are
     // canonicalised and skipped, which used to leave every section's text
-    // stale until Settings was reopened.
-    return AppSectionCard(
+    // stale until Settings was reopened. `_LegalRow` was const and did
+    // exactly that: it still read "Legal" after switching to Arabic.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SettingsGroup(
+          label: AppStrings.settingsGroupAccount,
+          children: [AccountSection()],
+        ),
+        _SettingsGroup(
+          label: AppStrings.settingsGroupMap,
+          children: [OfflineMapSection()],
+        ),
+        _SettingsGroup(
+          label: AppStrings.settingsGroupPreferences,
+          children: [_LanguageSection(), _ThemeSection(), _VehicleSection()],
+        ),
+        _SettingsGroup(
+          label: AppStrings.settingsGroupAbout,
+          children: [
+            _AboutSection(),
+            _LegalRow(),
+            _AboutUsRow(onTap: onAboutUsTap),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// One labelled group: a quiet heading over a card of related rows.
+///
+/// The heading is what turns a long list into a short one — four things to
+/// scan instead of eight — and it carries the dividers, so no caller has to
+/// remember to interleave them.
+class _SettingsGroup extends StatelessWidget {
+  final String label;
+  final List<Widget> children;
+
+  const _SettingsGroup({required this.label, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _AboutSection(),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-          _ThemeSection(),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-          _VehicleSection(),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-          _LanguageSection(),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-          AccountSection(),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-          const _LegalRow(),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 14),
-          _AboutUsRow(onTap: onAboutUsTap),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 6, bottom: 8),
+            child: Text(
+              label,
+              style: AppTextStyles.mutedSm.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ),
+          AppSectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  if (i > 0) ...[
+                    const SizedBox(height: 14),
+                    Divider(height: 1, color: AppColors.border),
+                    const SizedBox(height: 14),
+                  ],
+                  children[i],
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -942,11 +1001,7 @@ class _LegalRow extends StatelessWidget {
                   style: AppTextStyles.titleMd,
                 ),
               ),
-              Icon(
-                Icons.chevron_left_rounded,
-                size: 20,
-                color: AppColors.textMuted,
-              ),
+              const AppChevron(),
             ],
           ),
         ),
@@ -983,11 +1038,7 @@ class _AboutUsRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_left_rounded,
-                size: 20,
-                color: AppColors.textMuted,
-              ),
+              const AppChevron(),
             ],
           ),
         ),

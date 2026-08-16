@@ -48,6 +48,21 @@ class MapConfig {
   /// logical px away from their current position.
   static const double recenterDriftPx = 90;
 
+  // ── Live location (planning mode) ────────────────────────
+  /// How far the driver must move before the blue dot follows.
+  ///
+  /// Planning is not driving: this stream exists so the dot on an idle map
+  /// is where the driver actually is — the whole point of the map working
+  /// offline — not so it can steer a car. A 12 m filter keeps it honest at
+  /// walking and city-driving speed while costing a fraction of the
+  /// navigation stream's battery. Drive mode has its own, far tighter
+  /// stream (see [NavigationConfig]) and this one stands down while it runs.
+  static const int liveLocationDistanceFilterMeters = 12;
+
+  /// Android's polling interval for the same stream. iOS derives its own
+  /// cadence from the distance filter.
+  static const Duration liveLocationInterval = Duration(seconds: 5);
+
   /// A long-press within this distance (km) of a marker offers to
   /// remove it.
   static const double removeTapRadiusKm = 0.15;

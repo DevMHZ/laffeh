@@ -136,6 +136,12 @@ class NavigationConfig {
   /// failed fetch), so a flaky network or GPS can't hammer the router.
   static const Duration rerouteCooldown = Duration(seconds: 8);
 
+  /// Backoff used instead once a failed reroute is traced to having no
+  /// connection. Drive mode keeps running off the saved geometry either
+  /// way, so there is nothing to gain from retrying at the online cadence —
+  /// and a phone with no signal burns real battery hunting for one.
+  static const Duration rerouteOfflineCooldown = Duration(minutes: 1);
+
   // ── Turn guidance ────────────────────────────────────────
   /// The upcoming maneuver's road segment is highlighted (bright white)
   /// once the vehicle is within this many metres of it.

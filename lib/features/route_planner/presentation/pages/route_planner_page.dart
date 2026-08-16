@@ -113,13 +113,27 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+
+    // `inactive` is deliberately not treated as leaving: iOS passes through
+    // it for a pulled-down notification shade or an incoming call banner,
+    // with the map still on screen behind it.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      context.read<RoutePlannerCubit>().setAppForeground(false);
+      return;
+    }
+
     // Coming back to the app re-checks connectivity so the offline
     // banner clears (or appears) without the user doing anything (#11).
-    if (state == AppLifecycleState.resumed && mounted) {
+    if (state == AppLifecycleState.resumed) {
       // A long background stint can outlast the sign-up trial, so this is also
       // where an expiry that happened off-screen gets caught.
       if (RegistrationGuard.enforceIfBlocked(context)) return;
-      context.read<RoutePlannerCubit>().refreshConnectivity();
+      final cubit = context.read<RoutePlannerCubit>();
+      cubit.setAppForeground(true);
+      cubit.refreshConnectivity();
     }
   }
 

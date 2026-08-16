@@ -11,6 +11,7 @@ import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'missed_time_window_sheet.dart';
+import 'offline_area_offer.dart';
 import 'optimize_route_button.dart';
 import 'point_actions_sheet.dart';
 import 'stop_time_window_sheet.dart';
@@ -76,9 +77,15 @@ class RoutePointsSheet extends StatelessWidget {
               if (state.isOffline) ...[
                 const _OfflineBanner(),
                 const SizedBox(height: 10),
-              ] else if (state.draftRestored && state.hasPoints) ...[
-                const _DraftRestoredHint(),
-                const SizedBox(height: 10),
+              ] else ...[
+                // Only worth offering while there is still a connection to
+                // download over — which is exactly when the driver is least
+                // likely to think of it.
+                const OfflineAreaOffer(),
+                if (state.draftRestored && state.hasPoints) ...[
+                  const _DraftRestoredHint(),
+                  const SizedBox(height: 10),
+                ],
               ],
 
               if (state.errorMessage != null &&

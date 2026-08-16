@@ -66,6 +66,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   mocktail: ^1.0.5
+  # Lets tests stand in for GeolocatorPlatform, so the live-location stream
+  # can be driven with synthetic fixes instead of a real GPS.
+  plugin_platform_interface: ^2.1.8
 
 flutter:
   uses-material-design: true

@@ -1,10 +1,6 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-/// Type-safe accessor over the `.env` file.
-///
-/// Loaded once from `main.dart` via [dotenv.load]. After loading,
-/// any module can read values through this class instead of
-/// reaching into [dotenv.env] directly.
+
 class EnvConfig {
   EnvConfig._();
 

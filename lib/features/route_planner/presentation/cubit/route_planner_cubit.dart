@@ -48,6 +48,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   Timer? _simTimer;
   StreamSubscription<Position>? _navSub;
 
+  /// Keeps the blue dot on the driver while they are *not* driving a route.
+  ///
+  /// Without it the dot is wherever the last explicit fix put it, which on
+  /// a map that has to work with no signal is the difference between "here
+  /// I am" and a marker of where the app last had a reason to look. Stands
+  /// down while [_navSub] is live — drive mode's stream supersedes it.
+  StreamSubscription<Position>? _liveSub;
+
+  /// Whether the dot *should* be following, independent of whether it is
+  /// subscribed right now. Distinguishes a stream parked on purpose (app
+  /// backgrounded, drive mode running) from one that never had permission
+  /// to run, so returning to the app resumes only the former.
+  bool _liveWanted = false;
+
   /// Smoothed compass heading so the drive camera glides on noisy bearings.
   double? _smoothedHeading;
 
@@ -125,6 +139,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
               : loc,
         ),
       );
+      // Permission is granted and a fix landed, so the dot can start
+      // following the driver instead of freezing here.
+      _startLiveLocation();
     } on LocationException catch (e) {
       developer.log('Location unavailable: ${e.message}');
       emit(
@@ -183,6 +200,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           clearError: true,
         ),
       );
+      // Covers the driver who denied location at launch and granted it
+      // later from the error banner: the first successful fix is also when
+      // the dot earns the right to start following.
+      _startLiveLocation();
       return true;
     } on LocationException catch (e) {
       developer.log('recenterOnUser: location unavailable: ${e.message}');
@@ -196,6 +217,128 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       }
       return false;
     }
+  }
+
+  // ── Live location (planning mode) ─────────────────────────
+  //
+  // Drive mode runs its own navigation-grade stream. This is the quiet one
+  // that keeps the dot honest the rest of the time — idle map, planning, a
+  // driver walking back to the van — which is what makes the app usable as
+  // a plain "where am I" map with no trip and no signal.
+
+  /// Subscribes the planning-mode position stream.
+  ///
+  /// Idempotent, and refuses to start while drive mode or the simulation
+  /// owns the dot, so it can be called from anywhere a fix or a mode change
+  /// suggests the dot should be following again.
+  ///
+  /// [asOf] is the state to judge by. It matters when called from
+  /// [onChange], which runs *before* the new state is installed — reading
+  /// the getter there would still see the drive that just ended and refuse
+  /// to bring the dot back.
+  void _startLiveLocation({RoutePlannerState? asOf}) {
+    final s = asOf ?? state;
+    _liveWanted = true;
+    if (_liveSub != null) return;
+    if (s.navigationActive || s.simulationActive) return;
+
+    _liveSub = Geolocator.getPositionStream(
+      locationSettings: _liveLocationSettings(),
+    ).listen(_onLivePosition, onError: _onLiveError);
+    DebugLog.loc(
+      'liveLocation ▶ subscribed (distanceFilter='
+      '${MapConfig.liveLocationDistanceFilterMeters}m)',
+    );
+  }
+
+  void _stopLiveLocation() {
+    if (_liveSub == null) return;
+    _liveSub!.cancel();
+    _liveSub = null;
+    DebugLog.loc('liveLocation ⏹ cancelled');
+  }
+
+  /// Moves the dot, and deliberately nothing else.
+  ///
+  /// `cameraTarget` is left alone: a map that pans itself while the driver
+  /// is reading it is worse than one that sits still. Recentring stays the
+  /// "my location" button's job — same division of labour as every map app.
+  void _onLivePosition(Position position) {
+    if (isClosed) return;
+    // Drive mode may have taken the wheel between two fixes.
+    if (state.navigationActive || state.simulationActive) {
+      _stopLiveLocation();
+      return;
+    }
+    emit(
+      state.copyWith(
+        userLocation: LatLng(position.latitude, position.longitude),
+      ),
+    );
+  }
+
+  /// A background stream that dies is not worth a banner: the dot simply
+  /// stops moving, exactly as it behaved before this stream existed. The
+  /// explicit "my location" action still reports failures properly, which
+  /// is where the user is actually asking a question of the GPS.
+  void _onLiveError(Object error) {
+    DebugLog.loc('liveLocation ⚠️ stream error: $error');
+    developer.log('live location stream error', error: error);
+    // Whatever broke the stream (permission revoked mid-session, services
+    // switched off) will break it again on the next resume, so stay down
+    // until something with a real answer — the my-location button, or the
+    // end of a drive — asks for it again.
+    _liveWanted = false;
+    _stopLiveLocation();
+  }
+
+  /// Suspends the dot while the app is off-screen and brings it back on
+  /// return.
+  ///
+  /// Drive mode is deliberately excluded: a driver who switches apps
+  /// mid-trip still expects to be navigated. The planning dot has nothing
+  /// to update while no map is on screen, so it stands down instead.
+  void setAppForeground(bool foreground) {
+    if (state.navigationActive || state.simulationActive) return;
+    if (foreground) {
+      if (_liveWanted) _startLiveLocation();
+    } else {
+      _stopLiveLocation();
+    }
+  }
+
+  /// Battery-conscious counterpart to [_navLocationSettings]: a real
+  /// distance filter and no navigation activity type, because a dot on a
+  /// map being *read* needs to be right to within metres, not centimetres,
+  /// and this stream may run for as long as the app is open.
+  LocationSettings _liveLocationSettings() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: MapConfig.liveLocationDistanceFilterMeters,
+        intervalDuration: MapConfig.liveLocationInterval,
+      );
+    }
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        activityType: ActivityType.otherNavigation,
+        distanceFilter: MapConfig.liveLocationDistanceFilterMeters,
+        // Both flags stay off deliberately. iOS's automatic pausing is not
+        // reliably self-reversing — a paused stream can leave the dot
+        // frozen exactly when the driver looks at it — and this stream
+        // exists for a map on screen, so it has no business running once
+        // the app is in the background.
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: false,
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: MapConfig.liveLocationDistanceFilterMeters,
+    );
   }
 
   /// When location can't be resolved, keep any restored draft in frame
@@ -242,6 +385,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         a.optimizedRoute != b.optimizedRoute ||
         a.displaySegment != b.displaySegment) {
       _schedulePersist();
+    }
+
+    // The planning-mode dot follows the driver whenever drive mode and the
+    // simulation are both idle. Reconciling it here rather than at each
+    // call site is what keeps it correct: a dozen paths enter and leave
+    // those modes (stop, clear, load a saved route, reroute, error), and
+    // every one of them ends in exactly this transition.
+    if (a.navigationActive != b.navigationActive ||
+        a.simulationActive != b.simulationActive) {
+      if (b.navigationActive || b.simulationActive) {
+        _stopLiveLocation();
+      } else {
+        _startLiveLocation(asOf: b);
+      }
     }
   }
 
@@ -1813,9 +1970,22 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         return;
       }
       if (fresh.isEmpty || fresh.polyline.length < 2) {
-        DebugLog.nav('REROUTE ✋ router returned no geometry — backing off');
+        // The routing datasource turns a dead network into an empty route,
+        // so an empty result is the shape "no signal" arrives in. Without
+        // this check a driver out of coverage silently retries every few
+        // seconds for the rest of the trip; instead they get the offline
+        // banner, and the retry slows to something the radio can afford.
+        // The saved geometry keeps drive mode running the whole time.
+        await _refreshConnectivity();
+        if (isClosed) return;
+        final offline = state.isOffline;
+        DebugLog.nav(
+          'REROUTE ✋ no geometry — backing off (offline=$offline)',
+        );
         _rerouteBackoffUntil = DateTime.now().add(
-          NavigationConfig.rerouteCooldown,
+          offline
+              ? NavigationConfig.rerouteOfflineCooldown
+              : NavigationConfig.rerouteCooldown,
         );
         emit(state.copyWith(isRerouting: false));
         return;
@@ -2331,6 +2501,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   Future<void> close() {
     _cancelSimTimer();
     _cancelNavigationStream();
+    _stopLiveLocation();
     // Flush any pending draft write so work isn't lost if the app is
     // being torn down mid-debounce.
     if (_persistDebounce?.isActive ?? false) {

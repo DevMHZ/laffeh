@@ -362,7 +362,137 @@ class AppStrings {
   static String get routeOrder => _t('routeOrder');
   static String get points => _t('points');
 
-  // Arrival time windows
+  // Offline map pack
+  static String get offlineMapTitle => _t('offlineMapTitle');
+  static String get offlineMapIdleHint => _t('offlineMapIdleHint');
+  static String get offlineMapDownloading => _t('offlineMapDownloading');
+  static String get offlineMapReady => _t('offlineMapReady');
+  static String get offlineMapPartial => _t('offlineMapPartial');
+  static String get offlineMapFailed => _t('offlineMapFailed');
+  static String get offlineMapDownload => _t('offlineMapDownload');
+  static String get offlineMapRetry => _t('offlineMapRetry');
+  static String get offlineMapCancel => _t('offlineMapCancel');
+  static String get offlineMapDelete => _t('offlineMapDelete');
+  static String get offlineMapNeedsConnection =>
+      _t('offlineMapNeedsConnection');
+  static String get offlineMapPreparing => _t('offlineMapPreparing');
+  static String get offlineMapCancelling => _t('offlineMapCancelling');
+  static String get offlineMapCancelled => _t('offlineMapCancelled');
+  static String get offlineMapResume => _t('offlineMapResume');
+
+  /// "42%" — the headline number during a download.
+  static String percent(int value) =>
+      _languageCode == 'ar' ? '$value٪' : '$value%';
+
+  /// "4 of ~10 MB" — what has actually landed against what was promised,
+  /// so the bar is never the only thing to go on. The unit is stated once:
+  /// repeating it on both sides reads as two different measurements.
+  static String offlineMapDownloadedOf(num doneMb, num totalMb) {
+    final done = _mbNumber(doneMb);
+    final total = approxMegabytes(totalMb);
+    switch (_languageCode) {
+      case 'ar':
+        return '$done من $total';
+      case 'fr':
+        return '$done sur $total';
+      default:
+        return '$done of $total';
+    }
+  }
+
+  /// "Part 3 of 12" — the reassurance that a long download is moving even
+  /// while the megabyte counter sits still between boxes.
+  static String offlineMapPartOf(int done, int total) {
+    switch (_languageCode) {
+      case 'ar':
+        return 'الجزء $done من $total';
+      case 'fr':
+        return 'Partie $done sur $total';
+      default:
+        return 'Part $done of $total';
+    }
+  }
+
+  // Offline map around the driver — no trip required.
+  static String get offlineAreaTitle => _t('offlineAreaTitle');
+  static String get offlineAreaHint => _t('offlineAreaHint');
+  static String get offlineAreaNotSaved => _t('offlineAreaNotSaved');
+  static String get offlineAreaUpdate => _t('offlineAreaUpdate');
+  static String get offlineAreaNeedsLocation => _t('offlineAreaNeedsLocation');
+  static String get offlineAreaDeleteTitle => _t('offlineAreaDeleteTitle');
+  static String get offlineAreaDeleteMessage => _t('offlineAreaDeleteMessage');
+
+  // The offer that raises offline maps before the driver loses signal.
+  static String get offlineAreaOfferTitle => _t('offlineAreaOfferTitle');
+  static String get offlineAreaOfferBody => _t('offlineAreaOfferBody');
+  static String get offlineAreaOfferAccept => _t('offlineAreaOfferAccept');
+  static String get offlineAreaOfferDismiss => _t('offlineAreaOfferDismiss');
+
+  // Framing the area to save on the map.
+  static String get offlineAreaPickTitle => _t('offlineAreaPickTitle');
+  static String get offlineAreaPickHint => _t('offlineAreaPickHint');
+  static String get offlineAreaMeasuring => _t('offlineAreaMeasuring');
+  static String get offlineAreaTooLarge => _t('offlineAreaTooLarge');
+  static String get offlineAreaMyLocation => _t('offlineAreaMyLocation');
+  static String get offlineAreaSavedHere => _t('offlineAreaSavedHere');
+  static String get offlineAreaAtCeiling => _t('offlineAreaAtCeiling');
+
+  /// "You have 3 saved areas" — shown while the frame is somewhere new, so
+  /// the driver knows the other maps are still there and that this download
+  /// adds to them rather than replacing one.
+  static String offlineAreaSavedCount(int count) {
+    switch (_languageCode) {
+      case 'ar':
+        // MSA number agreement: 1 and 2 take the noun's own forms, 3–10 take
+        // the plural, 11+ takes the singular again.
+        final noun = switch (count) {
+          1 => 'منطقة محفوظة',
+          2 => 'منطقتان محفوظتان',
+          >= 3 && <= 10 => 'مناطق محفوظة',
+          _ => 'منطقة محفوظة',
+        };
+        return count <= 2 ? 'لديك $noun' : 'لديك $count $noun';
+      case 'fr':
+        return count == 1
+            ? 'Vous avez 1 zone enregistree'
+            : 'Vous avez $count zones enregistrees';
+      default:
+        return count == 1
+            ? 'You have 1 saved area'
+            : 'You have $count saved areas';
+    }
+  }
+
+  /// The delete confirmation, naming the area by what it covers and costs —
+  /// with several stored, "the saved map" would not say which one.
+  static String offlineAreaDeleteMessageOf(String dimensions, String size) {
+    switch (_languageCode) {
+      case 'ar':
+        return 'ستُحذف المنطقة المحفوظة ($dimensions · $size) من هذا '
+            'الجهاز، ويمكنك تنزيلها من جديد متى توفّر اتصال بالإنترنت.';
+      case 'fr':
+        return 'La zone enregistree ($dimensions · $size) sera retiree de '
+            'cet appareil. Vous pourrez la telecharger a nouveau des que '
+            'vous aurez une connexion.';
+      default:
+        return 'The saved area ($dimensions · $size) will be removed from '
+            'this device. You can download it again whenever you have a '
+            'connection.';
+    }
+  }
+
+  /// "24 × 18 km" — the ground the frame covers, which is what a driver
+  /// pictures when deciding whether it holds the roads they need.
+  ///
+  /// Rounded to a whole number past 10 km: a frame that reads "23.7 × 18.2"
+  /// invites a precision the driver has no way to aim for with their thumb.
+  static String offlineAreaDimensions(num widthKm, num heightKm) {
+    String side(num km) =>
+        km >= 10 ? km.round().toString() : km.toStringAsFixed(1);
+    return '${side(widthKm)} × ${side(heightKm)} ${AppUnits.km}';
+  }
+
+  /// Customer availability windows
   static String get arrivalTime => _t('arrivalTime');
   static String get setArrivalTime => _t('setArrivalTime');
   static String get clearArrivalTime => _t('clearArrivalTime');
@@ -440,22 +570,54 @@ class AppStrings {
     }
   }
 
-  /// "3 stops can't be reached in time" — plural-aware.
+  /// "3 stops fall outside their availability" — plural-aware.
   static String timeWindowMissedCount(int count) {
     switch (_languageCode) {
       case 'ar':
-        if (count == 1) return 'نقطة واحدة يتعذّر الوصول إليها في وقتها';
+        if (count == 1) {
+          return 'نقطة واحدة يتعذّر الوصول إليها ضمن فترة توفّرها';
+        }
         // Arabic counts 3–10 with a plural noun and 11+ with a singular one.
         final noun = count <= 10 ? 'نقاط' : 'نقطة';
-        return '$count $noun يتعذّر الوصول إليها في وقتها';
+        return '$count $noun يتعذّر الوصول إليها ضمن فترة توفّرها';
       case 'fr':
         return count == 1
-            ? '1 arret ne peut pas etre atteint a temps'
-            : '$count arrets ne peuvent pas etre atteints a temps';
+            ? '1 arret ne peut pas etre atteint pendant sa disponibilite'
+            : '$count arrets ne peuvent pas etre atteints pendant leur disponibilite';
       default:
         return count == 1
-            ? "1 stop can't be reached in time"
-            : "$count stops can't be reached in time";
+            ? '1 stop falls outside its availability window'
+            : '$count stops fall outside their availability windows';
+    }
+  }
+
+  /// "12 MB" — a downloaded corridor's footprint, rounded to whole MB
+  /// because the exact byte count is noise to the driver.
+  static String megabytes(num mb) {
+    switch (_languageCode) {
+      case 'ar':
+        return '${_mbNumber(mb)} ميغابايت';
+      default:
+        return '${_mbNumber(mb)} MB';
+    }
+  }
+
+  /// The bare figure behind [megabytes] — a whole number once past 1 MB,
+  /// where a decimal would be false precision on an estimate.
+  static String _mbNumber(num mb) =>
+      mb < 1 ? mb.toStringAsFixed(1) : mb.round().toString();
+
+  /// "~12 MB" — a pre-download estimate, marked approximate on purpose.
+  ///
+  /// Not "≈": U+2248 is missing from Almarai and renders as a tofu box on
+  /// the very screens this appears on (seen in the download preview).
+  static String approxMegabytes(num mb) {
+    final size = megabytes(mb);
+    switch (_languageCode) {
+      case 'ar':
+        return 'نحو $size';
+      default:
+        return '~$size';
     }
   }
 
@@ -730,6 +892,13 @@ class AppStrings {
 
   // ── Legal / consent ────────────────────────────────────
   static String get legalTitle => _t('legalTitle');
+
+  // Headings over the four groups the Settings page is built from.
+  static String get settingsGroupAccount => _t('settingsGroupAccount');
+  static String get settingsGroupMap => _t('settingsGroupMap');
+  static String get settingsGroupPreferences =>
+      _t('settingsGroupPreferences');
+  static String get settingsGroupAbout => _t('settingsGroupAbout');
   static String get legalPrivacy => _t('legalPrivacy');
   static String get legalTerms => _t('legalTerms');
   static String get legalAccountDeletion => _t('legalAccountDeletion');
@@ -948,35 +1117,75 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'Return',
     'routeOrder': 'Route order',
     'points': 'points',
-    'arrivalTime': 'Arrival time',
-    'setArrivalTime': 'Set an arrival time',
-    'clearArrivalTime': 'Remove the arrival time',
+    'offlineMapTitle': 'Offline map for this trip',
+    'offlineMapIdleHint': 'Download it and the map keeps working with no signal.',
+    'offlineMapDownloading': 'Downloading the map…',
+    'offlineMapReady': 'Saved on your device',
+    'offlineMapPartial': 'Part of the map is missing — tap to finish it.',
+    'offlineMapFailed': "Couldn't download the map.",
+    'offlineMapDownload': 'Download',
+    'offlineMapRetry': 'Finish',
+    'offlineMapCancel': 'Cancel',
+    'offlineMapDelete': 'Delete',
+    'offlineMapNeedsConnection': 'Downloading the map needs a connection.',
+    'offlineMapPreparing': 'Preparing the download…',
+    'offlineMapCancelling': 'Stopping…',
+    'offlineMapCancelled': 'Stopped. What was downloaded is kept.',
+    'offlineMapResume': 'Continue',
+    'offlineAreaTitle': 'Offline map',
+    'offlineAreaHint':
+        'Save any area of the map and its streets keep showing with no '
+        'signal — trip or no trip.',
+    'offlineAreaNotSaved': 'Not saved',
+    'offlineAreaUpdate': 'Update',
+    'offlineAreaNeedsLocation':
+        'Your location is needed to centre the map on you.',
+    'offlineAreaDeleteTitle': 'Delete the saved map?',
+    'offlineAreaDeleteMessage':
+        'The saved map will be removed from this device. You can download '
+        'it again whenever you have a connection.',
+    'offlineAreaPickTitle': 'Choose the area to save',
+    'offlineAreaPickHint': 'Move the map so the frame holds what you need.',
+    'offlineAreaMeasuring': 'Measuring the area…',
+    'offlineAreaTooLarge': 'Too much to download — zoom in a little.',
+    'offlineAreaMyLocation': 'Centre on me',
+    'offlineAreaSavedHere': 'This area is saved',
+    'offlineAreaAtCeiling':
+        'You have reached the limit of saved areas — delete one first.',
+    'offlineAreaOfferTitle': 'Save a map for offline?',
+    'offlineAreaOfferBody':
+        'Then it keeps working where there is no signal.',
+    'offlineAreaOfferAccept': 'Choose area',
+    'offlineAreaOfferDismiss': 'Not now',
+    'arrivalTime': 'Customer availability',
+    'setArrivalTime': 'Set when the customer is available',
+    'clearArrivalTime': 'Remove the availability window',
     'arrivalWindowHint':
-        'The optimizer orders your stops so you get here inside this window.',
-    'anyTime': 'Any time',
+        'The optimizer orders your stops so you get here while the customer is available.',
+    'anyTime': 'Available any time',
     'fromTime': 'From',
     'toTime': 'To',
     'departureTimeLabel': 'Departure',
     'departureNow': 'Now',
     'departureHint': 'Arrival times are counted from here.',
-    'timeWindowMissedTitle': "Can't make it in time",
+    'timeWindowMissedTitle': "Can't make it while they're available",
     'timeWindowMissedBody':
-        'These stops stay in your route — change their time, the departure, or drop a stop.',
+        'These stops stay in your route — change their availability, the departure, or drop a stop.',
     'timeWindowMissedBadge': 'Late',
     'sameTimeError': 'Pick two different times.',
     'seeDetails': 'See what to do',
-    'youWantedToArrive': 'You asked to be there by',
+    'youWantedToArrive': 'Customer is available',
     'youWouldArrive': 'You would get there at',
     'howToFixIt': 'How to fix it',
-    'fixMoveDeadline': 'Move the deadline later',
-    'fixMoveDeadlineWhy': 'Keeps every stop. Pushes each late time just past what the drive actually takes.',
+    'fixMoveDeadline': 'Extend the availability',
+    'fixMoveDeadlineWhy': 'Keeps every stop. Pushes each unreachable window just past what the drive actually takes.',
     'fixLeaveEarlier': 'Leave earlier',
-    'fixLeaveEarlierWhy': 'Keeps your times exactly as they are, and starts the trip sooner.',
+    'fixLeaveEarlierWhy': 'Keeps every availability window as it is, and starts the trip sooner.',
     'fixDropStop': 'Skip a stop',
-    'fixDropStopWhy': 'Frees up the time the other deadlines need.',
+    'fixDropStopWhy': 'Frees up the time the other windows need.',
     'keepAsIs': 'Leave it as is',
-    'expectedArrival': 'Expected',
-    'requiredArrival': 'Required',
+    'expectedArrival': 'You arrive',
+    'requiredArrival': 'Available',
     'unitKm': 'km',
     'unitMeter': 'm',
     'unitMin': 'min',
@@ -1172,6 +1381,10 @@ const Map<String, Map<String, String>> _copy = {
     'valTermsRequired':
         'Please accept the Terms of Service and Privacy Policy to continue.',
     'legalTitle': 'Legal',
+    'settingsGroupAccount': 'Account',
+    'settingsGroupMap': 'Map',
+    'settingsGroupPreferences': 'Preferences',
+    'settingsGroupAbout': 'About',
     'legalPrivacy': 'Privacy Policy',
     'legalTerms': 'Terms of Service',
     'legalAccountDeletion': 'Account deletion',
@@ -1399,36 +1612,75 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'عودة',
     'routeOrder': 'ترتيب اللفة',
     'points': 'نقطة',
-    'arrivalTime': 'وقت الوصول',
-    'setArrivalTime': 'حدّد وقت الوصول',
-    'clearArrivalTime': 'إزالة وقت الوصول',
+    'offlineMapTitle': 'خريطة هذه الرحلة دون إنترنت',
+    'offlineMapIdleHint': 'نزّلها لتبقى الخريطة ظاهرة عند انقطاع الشبكة.',
+    'offlineMapDownloading': 'جارٍ تنزيل الخريطة…',
+    'offlineMapReady': 'محفوظة على جهازك',
+    'offlineMapPartial': 'لم يكتمل تنزيل الخريطة — اضغط لإتمامها.',
+    'offlineMapFailed': 'تعذّر تنزيل الخريطة.',
+    'offlineMapDownload': 'تنزيل',
+    'offlineMapRetry': 'إتمام',
+    'offlineMapCancel': 'إلغاء',
+    'offlineMapDelete': 'حذف',
+    'offlineMapNeedsConnection': 'يحتاج تنزيل الخريطة اتصالاً بالإنترنت.',
+    'offlineMapPreparing': 'جارٍ تحضير التنزيل…',
+    'offlineMapCancelling': 'جارٍ الإيقاف…',
+    'offlineMapCancelled': 'أوقفتَ التنزيل، وما نُزّل محفوظ.',
+    'offlineMapResume': 'متابعة',
+    'offlineAreaTitle': 'خريطة دون إنترنت',
+    'offlineAreaHint':
+        'احفظ أي منطقة من الخريطة لتبقى شوارعها ظاهرة عند انقطاع الشبكة، '
+        'مع رحلة أو بدونها.',
+    'offlineAreaNotSaved': 'غير محفوظة',
+    'offlineAreaUpdate': 'تحديث',
+    'offlineAreaNeedsLocation': 'نحتاج موقعك لتوسيط الخريطة عليه.',
+    'offlineAreaDeleteTitle': 'حذف الخريطة المحفوظة؟',
+    'offlineAreaDeleteMessage':
+        'ستُحذف الخريطة المحفوظة من هذا الجهاز، ويمكنك تنزيلها من جديد متى '
+        'توفّر اتصال بالإنترنت.',
+    'offlineAreaPickTitle': 'اختر المنطقة المراد حفظها',
+    'offlineAreaPickHint': 'حرّك الخريطة حتى يضمّ الإطار ما تحتاجه.',
+    'offlineAreaMeasuring': 'جارٍ قياس المنطقة…',
+    'offlineAreaTooLarge': 'المنطقة أكبر مما يمكن تنزيله — قرّب الخريطة قليلًا.',
+    'offlineAreaMyLocation': 'توسيط على موقعي',
+    'offlineAreaSavedHere': 'هذه المنطقة محفوظة',
+    'offlineAreaAtCeiling':
+        'بلغتَ الحد الأقصى للمناطق المحفوظة — احذف واحدة أولًا.',
+    'offlineAreaOfferTitle': 'أتحبّ حفظ خريطة للعمل دون إنترنت؟',
+    'offlineAreaOfferBody': 'لتبقى الخريطة تعمل حيث لا تصل الشبكة.',
+    'offlineAreaOfferAccept': 'اختر المنطقة',
+    'offlineAreaOfferDismiss': 'ليس الآن',
+    'arrivalTime': 'وقت توفّر العميل',
+    'setArrivalTime': 'حدّد وقت توفّر العميل',
+    'clearArrivalTime': 'إزالة وقت التوفّر',
     'arrivalWindowHint':
-        'سيرتّب المُحسِّن نقاطك كي تصل إلى هنا ضمن هذه الفترة.',
-    'anyTime': 'أي وقت',
+        'سيرتّب المُحسِّن نقاطك كي تصل ضمن فترة توفّر العميل.',
+    'anyTime': 'متوفّر في أي وقت',
     'fromTime': 'من',
     'toTime': 'إلى',
     'departureTimeLabel': 'وقت الانطلاق',
     'departureNow': 'الآن',
     'departureHint': 'تُحتسب أوقات الوصول ابتداءً من هذه اللحظة.',
-    'timeWindowMissedTitle': 'يتعذّر الوصول في الوقت المحدّد',
+    'timeWindowMissedTitle': 'يتعذّر الوصول ضمن فترة التوفّر',
     'timeWindowMissedBody':
-        'النقاط ما زالت ضمن مسارك — عدّل وقتها، أو وقت الانطلاق، أو استثنِ نقطة.',
+        'النقاط ما زالت ضمن مسارك — عدّل فترة توفّرها، أو وقت الانطلاق، أو استثنِ نقطة.',
     'timeWindowMissedBadge': 'متأخر',
     'sameTimeError': 'اختر وقتين مختلفين.',
     'seeDetails': 'اطّلع على الحلول المتاحة',
-    'youWantedToArrive': 'الوقت المطلوب للوصول',
-    'youWouldArrive': 'وقت الوصول المتوقّع',
+    'youWantedToArrive': 'فترة توفّر العميل',
+    'youWouldArrive': 'وقت وصولك المتوقّع',
     'howToFixIt': 'كيف تعالج ذلك',
-    'fixMoveDeadline': 'تأجيل الموعد',
+    'fixMoveDeadline': 'تأجيل فترة التوفّر',
     'fixMoveDeadlineWhy':
-        'تبقى جميع النقاط، ويُؤجَّل كل موعد متأخر إلى ما بعد المدة التي يستغرقها الطريق فعلياً.',
+        'تبقى جميع النقاط، وتُؤجَّل كل فترة متعذّرة إلى ما بعد المدة التي يستغرقها الطريق فعلياً.',
     'fixLeaveEarlier': 'الانطلاق مبكراً',
-    'fixLeaveEarlierWhy': 'تبقى مواعيدك كما هي، ويبدأ المسار في وقت أبكر.',
+    'fixLeaveEarlierWhy':
+        'تبقى فترات التوفّر كما هي، ويبدأ المسار في وقت أبكر.',
     'fixDropStop': 'استثناء نقطة',
-    'fixDropStopWhy': 'يوفّر الوقت الذي تحتاجه بقية المواعيد.',
+    'fixDropStopWhy': 'يوفّر الوقت الذي تحتاجه بقية فترات التوفّر.',
     'keepAsIs': 'إبقاء الوضع كما هو',
-    'expectedArrival': 'المتوقّع',
-    'requiredArrival': 'المطلوب',
+    'expectedArrival': 'وصولك',
+    'requiredArrival': 'التوفّر',
     'unitKm': 'كم',
     'unitMeter': 'م',
     'unitMin': 'دقيقة',
@@ -1620,6 +1872,10 @@ const Map<String, Map<String, String>> _copy = {
     'valTermsRequired':
         'الرجاء الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة.',
     'legalTitle': 'المستندات القانونية',
+    'settingsGroupAccount': 'الحساب',
+    'settingsGroupMap': 'الخريطة',
+    'settingsGroupPreferences': 'التفضيلات',
+    'settingsGroupAbout': 'عن التطبيق',
     'legalPrivacy': 'سياسة الخصوصية',
     'legalTerms': 'شروط الاستخدام',
     'legalAccountDeletion': 'حذف الحساب',
@@ -1856,35 +2112,78 @@ const Map<String, Map<String, String>> _copy = {
     'returnBadge': 'Retour',
     'routeOrder': 'Ordre du trajet',
     'points': 'points',
-    'arrivalTime': 'Heure d\'arrivee',
-    'setArrivalTime': 'Definir une heure d\'arrivee',
-    'clearArrivalTime': 'Retirer l\'heure d\'arrivee',
+    'offlineMapTitle': 'Carte hors ligne pour ce trajet',
+    'offlineMapIdleHint':
+        'Telechargez-la et la carte reste affichee sans reseau.',
+    'offlineMapDownloading': 'Telechargement de la carte…',
+    'offlineMapReady': 'Enregistree sur votre appareil',
+    'offlineMapPartial': 'La carte est incomplete — appuyez pour la finir.',
+    'offlineMapFailed': 'Telechargement de la carte impossible.',
+    'offlineMapDownload': 'Telecharger',
+    'offlineMapRetry': 'Terminer',
+    'offlineMapCancel': 'Annuler',
+    'offlineMapDelete': 'Supprimer',
+    'offlineMapPreparing': 'Preparation du telechargement…',
+    'offlineMapCancelling': 'Arret…',
+    'offlineMapCancelled': 'Arrete. Ce qui est telecharge est conserve.',
+    'offlineMapResume': 'Continuer',
+    'offlineMapNeedsConnection':
+        'Le telechargement de la carte necessite une connexion.',
+    'offlineAreaTitle': 'Carte hors ligne',
+    'offlineAreaHint':
+        'Enregistrez n\'importe quelle zone de la carte et ses rues restent '
+        'affichees sans reseau, avec ou sans trajet.',
+    'offlineAreaNotSaved': 'Non enregistree',
+    'offlineAreaUpdate': 'Mettre a jour',
+    'offlineAreaNeedsLocation':
+        'Votre position est necessaire pour centrer la carte sur vous.',
+    'offlineAreaDeleteTitle': 'Supprimer la carte enregistree ?',
+    'offlineAreaDeleteMessage':
+        'La carte enregistree sera retiree de cet appareil. Vous pourrez '
+        'la telecharger a nouveau des que vous aurez une connexion.',
+    'offlineAreaPickTitle': 'Choisissez la zone a enregistrer',
+    'offlineAreaPickHint':
+        'Deplacez la carte pour que le cadre contienne ce qu\'il vous faut.',
+    'offlineAreaMeasuring': 'Mesure de la zone…',
+    'offlineAreaTooLarge': 'Trop a telecharger — zoomez un peu.',
+    'offlineAreaMyLocation': 'Centrer sur moi',
+    'offlineAreaSavedHere': 'Cette zone est enregistree',
+    'offlineAreaAtCeiling':
+        'Vous avez atteint la limite de zones — supprimez-en une.',
+    'offlineAreaOfferTitle': 'Enregistrer une carte hors ligne ?',
+    'offlineAreaOfferBody':
+        'Elle continuera de fonctionner sans reseau.',
+    'offlineAreaOfferAccept': 'Choisir la zone',
+    'offlineAreaOfferDismiss': 'Pas maintenant',
+    'arrivalTime': 'Disponibilite du client',
+    'setArrivalTime': 'Definir la disponibilite du client',
+    'clearArrivalTime': 'Retirer le creneau de disponibilite',
     'arrivalWindowHint':
-        'L\'optimiseur ordonne vos arrets pour arriver dans ce creneau.',
-    'anyTime': 'N\'importe quand',
+        'L\'optimiseur ordonne vos arrets pour arriver pendant la disponibilite du client.',
+    'anyTime': 'Disponible a tout moment',
     'fromTime': 'De',
     'toTime': 'A',
     'departureTimeLabel': 'Depart',
     'departureNow': 'Maintenant',
     'departureHint': 'Les heures d\'arrivee sont comptees a partir d\'ici.',
-    'timeWindowMissedTitle': 'Arrivee a l\'heure impossible',
+    'timeWindowMissedTitle': 'Arrivee pendant la disponibilite impossible',
     'timeWindowMissedBody':
-        'Ces arrets restent dans le trajet — changez leur heure, le depart, ou retirez un arret.',
+        'Ces arrets restent dans le trajet — changez leur disponibilite, le depart, ou retirez un arret.',
     'timeWindowMissedBadge': 'En retard',
     'sameTimeError': 'Choisissez deux heures differentes.',
     'seeDetails': 'Voir quoi faire',
-    'youWantedToArrive': 'Vous vouliez y etre avant',
+    'youWantedToArrive': 'Le client est disponible',
     'youWouldArrive': 'Vous y seriez a',
     'howToFixIt': 'Comment corriger',
-    'fixMoveDeadline': 'Repousser l\'echeance',
-    'fixMoveDeadlineWhy': 'Garde tous les arrets. Repousse chaque heure juste au-dela du temps de route reel.',
+    'fixMoveDeadline': 'Elargir la disponibilite',
+    'fixMoveDeadlineWhy': 'Garde tous les arrets. Repousse chaque creneau impossible juste au-dela du temps de route reel.',
     'fixLeaveEarlier': 'Partir plus tot',
-    'fixLeaveEarlierWhy': 'Garde vos heures telles quelles et avance le depart.',
+    'fixLeaveEarlierWhy': 'Garde chaque creneau tel quel et avance le depart.',
     'fixDropStop': 'Retirer un arret',
-    'fixDropStopWhy': 'Libere le temps dont les autres echeances ont besoin.',
+    'fixDropStopWhy': 'Libere le temps dont les autres creneaux ont besoin.',
     'keepAsIs': 'Laisser ainsi',
-    'expectedArrival': 'Prevu',
-    'requiredArrival': 'Requis',
+    'expectedArrival': 'Vous arrivez',
+    'requiredArrival': 'Disponible',
     'unitKm': 'km',
     'unitMeter': 'm',
     'unitMin': 'min',
@@ -2086,6 +2385,10 @@ const Map<String, Map<String, String>> _copy = {
     'valTermsRequired':
         'Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité pour continuer.',
     'legalTitle': 'Documents légaux',
+    'settingsGroupAccount': 'Compte',
+    'settingsGroupMap': 'Carte',
+    'settingsGroupPreferences': 'Preferences',
+    'settingsGroupAbout': 'A propos',
     'legalPrivacy': 'Politique de confidentialité',
     'legalTerms': 'Conditions d\'utilisation',
     'legalAccountDeletion': 'Suppression du compte',

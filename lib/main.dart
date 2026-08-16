@@ -8,6 +8,7 @@ import 'app.dart';
 import 'core/config/supabase_config.dart';
 import 'core/constants/app_constants.dart';
 import 'core/di/service_locator.dart';
+import 'core/services/map_cache_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/vehicle_prefs.dart';
 import 'core/utils/debug_log.dart';
@@ -37,11 +38,13 @@ Future<void> main() async {
       : Locale(savedLanguage);
   AppStrings.setLocale(AppStrings.resolveLocale(initialLocale));
 
-  // Restore the saved driver theme before first paint.
   await AppTheme.init();
   await VehiclePrefs.init();
 
   await setupServiceLocator();
+
+
+  await MapCacheService.init();
 
   ShareIntentHandler.init();
 
