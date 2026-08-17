@@ -1,0 +1,4 @@
+/* Localized Info.plist values — French. */
+
+"CFBundleDisplayName" = "Laffah";
+"NSLocationWhenInUseUsageDescription" = "Laffah utilise votre position pour vous afficher sur la carte et calculer le meilleur itinéraire.";

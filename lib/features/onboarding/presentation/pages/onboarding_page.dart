@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,7 +30,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int _index = 0;
   bool _finishing = false;
 
-  static const int _slideCount = 4;
+  /// The WhatsApp/CSV import slide teaches a share gesture that only exists on
+  /// Android — iOS would need a Share Extension, which the app doesn't ship —
+  /// so on iOS the walkthrough is one slide shorter.
+  static final bool _showsImportSlide = !Platform.isIOS;
+
+  int get _slideCount => _showsImportSlide ? 4 : 3;
   int get _last => _slideCount - 1;
 
   @override
@@ -132,12 +139,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     title: AppStrings.onbPlanTitle,
                     body: AppStrings.onbPlanBody,
                   ),
-                  _OnbSlide(
-                    visual: _phone(const OnbWhatsappDemo()),
-                    title: AppStrings.onbImportTitle,
-                    body: AppStrings.onbImportBody,
-                    extra: _importTags(),
-                  ),
+                  if (_showsImportSlide)
+                    _OnbSlide(
+                      visual: _phone(const OnbWhatsappDemo()),
+                      title: AppStrings.onbImportTitle,
+                      body: AppStrings.onbImportBody,
+                      extra: _importTags(),
+                    ),
                   _OnbSlide(
                     visual: _phone(const OnbLocationDemo()),
                     title: AppStrings.onbLocationTitle,

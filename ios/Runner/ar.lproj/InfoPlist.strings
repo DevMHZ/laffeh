@@ -1,0 +1,4 @@
+/* Localized Info.plist values — Arabic. */
+
+"CFBundleDisplayName" = "Laffah";
+"NSLocationWhenInUseUsageDescription" = "يحتاج التطبيق لموقعك لعرضه على الخريطة وحساب أفضل مسار.";

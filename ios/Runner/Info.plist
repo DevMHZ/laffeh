@@ -8,11 +8,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>tech.afdal.laffeh</string>
+			<string>com.afdal.laffah</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>laffeh</string>
-				<string>google.navigation</string>
 			</array>
 		</dict>
 	</array>
@@ -28,6 +27,12 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>laffeh</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ar</string>
+		<string>en</string>
+		<string>fr</string>
+	</array>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -73,18 +78,13 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>يحتاج التطبيق لموقعك لعرضه على الخريطة وحساب أفضل مسار.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>io.flutter.embedded_views_preview</key>
 	<true/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 </dict>
 </plist>

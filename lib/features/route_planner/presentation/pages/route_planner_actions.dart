@@ -270,18 +270,23 @@ class RoutePlannerActions {
                   showPasteLocationSheet(context, cubit);
                 },
               ),
-              const SizedBox(height: 10),
-              _chooserRow(
-                icon: Iconsax.message,
-                iconWidget: WhatsappGlyph(size: 22, color: AppColors.primary),
-                color: AppColors.primary,
-                label: AppStrings.addOptWhatsappTitle,
-                subtitle: AppStrings.addOptWhatsappSub,
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  openWhatsapp(context);
-                },
-              ),
+              // WhatsApp import is Android-only: on iOS receiving a share
+              // needs a Share Extension target, which this app deliberately
+              // does not ship. Never offer what the platform can't deliver.
+              if (!Platform.isIOS) ...[
+                const SizedBox(height: 10),
+                _chooserRow(
+                  icon: Iconsax.message,
+                  iconWidget: WhatsappGlyph(size: 22, color: AppColors.primary),
+                  color: AppColors.primary,
+                  label: AppStrings.addOptWhatsappTitle,
+                  subtitle: AppStrings.addOptWhatsappSub,
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    openWhatsapp(context);
+                  },
+                ),
+              ],
             ],
           ),
         ),

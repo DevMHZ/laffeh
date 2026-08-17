@@ -1,0 +1,5 @@
+/* Localized Info.plist values. The system picks the file matching the device
+   language; en.lproj is also the fallback for any locale the app doesn't ship. */
+
+"CFBundleDisplayName" = "Laffah";
+"NSLocationWhenInUseUsageDescription" = "Laffah uses your location to show you on the map and plan the best route.";

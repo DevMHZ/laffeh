@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:app_links/app_links.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -20,21 +21,27 @@ class ShareIntentHandler {
 
   /// Call once from `main()`. Checks for initial shares/deep links that
   /// launched the app, then subscribes to live updates.
+  ///
+  /// Incoming *shares* are Android-only: on iOS they would arrive through a
+  /// Share Extension target, which the app doesn't ship, so the plugin could
+  /// never deliver anything there. Deep links (`laffeh://`) are wired on both.
   static void init() {
-    ReceiveSharingIntent.instance
-        .getInitialMedia()
-        .then((List<SharedMediaFile> files) {
-          final text = _extractText(files);
-          if (text != null) _emit(text);
-        })
-        .catchError((_) {});
+    if (!Platform.isIOS) {
+      ReceiveSharingIntent.instance
+          .getInitialMedia()
+          .then((List<SharedMediaFile> files) {
+            final text = _extractText(files);
+            if (text != null) _emit(text);
+          })
+          .catchError((_) {});
 
-    _sub = ReceiveSharingIntent.instance.getMediaStream().listen((
-      List<SharedMediaFile> files,
-    ) {
-      final text = _extractText(files);
-      if (text != null) _emit(text);
-    });
+      _sub = ReceiveSharingIntent.instance.getMediaStream().listen((
+        List<SharedMediaFile> files,
+      ) {
+        final text = _extractText(files);
+        if (text != null) _emit(text);
+      });
+    }
 
     _appLinks
         .getInitialLink()
