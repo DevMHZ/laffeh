@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
 import '../config/env_config.dart';
+import '../config/geocoding_config.dart';
 import '../config/network_config.dart';
 
 /// Two named Dio instances:
@@ -14,14 +15,19 @@ import '../config/network_config.dart';
 ///                       (carries the `X-API-Key` header by default).
 ///   * [osrmDio]      → talks to the public OSRM router
 ///                       (OpenStreetMap-based; no key).
-///   * [nominatimDio] → reverse-geocodes coordinates through OSM's
-///                       Nominatim-compatible API.
+///   * [nominatimDio] → structured addresses + reverse geocoding through
+///                       OSM's Nominatim-compatible API.
+///   * [photonDio]    → the autocomplete geocoder (typo-tolerant, biased
+///                       to where the driver is).
+///   * [overpassDio]  → queries OSM by tag, for "every pharmacy near me".
 class DioClient {
   DioClient._();
 
   static Dio? _aiRouteDio;
   static Dio? _osrmDio;
   static Dio? _nominatimDio;
+  static Dio? _photonDio;
+  static Dio? _overpassDio;
 
   static Dio get aiRouteDio {
     _aiRouteDio ??= _buildAiRouteDio();
@@ -36,6 +42,16 @@ class DioClient {
   static Dio get nominatimDio {
     _nominatimDio ??= _buildNominatimDio();
     return _nominatimDio!;
+  }
+
+  static Dio get photonDio {
+    _photonDio ??= _buildPhotonDio();
+    return _photonDio!;
+  }
+
+  static Dio get overpassDio {
+    _overpassDio ??= _buildOverpassDio();
+    return _overpassDio!;
   }
 
   static Dio _buildAiRouteDio() {
@@ -96,6 +112,49 @@ class DioClient {
     return dio;
   }
 
+  static Dio _buildPhotonDio() {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: EnvConfig.photonBaseUrl,
+        connectTimeout: NetworkConfig.timeout,
+        // Short on purpose: this one runs while the driver is typing, and a
+        // stalled autocomplete request has to get out of the way rather
+        // than hold the list hostage for a minute.
+        receiveTimeout: GeocodingConfig.providerTimeout,
+        sendTimeout: GeocodingConfig.providerTimeout,
+        headers: const {
+          'Accept': 'application/json',
+          'User-Agent': 'LaffehRoutePlanner/1.0 (https://www.afdal.tech/)',
+        },
+        responseType: ResponseType.json,
+      ),
+    );
+
+    _attachAdapter(dio);
+    if (kDebugMode) dio.interceptors.add(_logger());
+    return dio;
+  }
+
+  static Dio _buildOverpassDio() {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: EnvConfig.overpassBaseUrl,
+        connectTimeout: NetworkConfig.timeout,
+        receiveTimeout: GeocodingConfig.categoryTimeout,
+        sendTimeout: GeocodingConfig.categoryTimeout,
+        headers: const {
+          'Accept': 'application/json',
+          'User-Agent': 'LaffehRoutePlanner/1.0 (https://www.afdal.tech/)',
+        },
+        responseType: ResponseType.json,
+      ),
+    );
+
+    _attachAdapter(dio);
+    if (kDebugMode) dio.interceptors.add(_logger());
+    return dio;
+  }
+
   static void _attachAdapter(Dio dio) {
     if (kIsWeb) return;
 
@@ -125,5 +184,7 @@ class DioClient {
     _aiRouteDio = null;
     _osrmDio = null;
     _nominatimDio = null;
+    _photonDio = null;
+    _overpassDio = null;
   }
 }

@@ -38,7 +38,9 @@ void main() {
     );
 
     // Let the logo image decode.
-    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 50)));
+    await tester.runAsync(
+      () => Future.delayed(const Duration(milliseconds: 50)),
+    );
     await tester.pump();
 
     var elapsed = 0;

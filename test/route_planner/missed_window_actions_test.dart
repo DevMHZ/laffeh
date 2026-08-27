@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:laffeh/core/network/api_result.dart';
 import 'package:laffeh/core/network/network_info.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osm_geocoding_datasource.dart';
+import 'package:laffeh/features/route_planner/data/repositories/place_search_repository.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osrm_routing_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/planner_draft_local_datasource.dart';
 import 'package:laffeh/features/route_planner/data/models/planner_draft_model.dart';
@@ -20,6 +21,8 @@ class _MockOptimize extends Mock implements OptimizeRouteUseCase {}
 class _MockSavedRoutes extends Mock implements SavedRoutesRepository {}
 
 class _MockGeocoding extends Mock implements OsmGeocodingDataSource {}
+
+class _MockPlaces extends Mock implements PlaceSearchRepository {}
 
 class _MockDraft extends Mock implements PlannerDraftLocalDataSource {}
 
@@ -91,6 +94,7 @@ void main() {
       optimize,
       _MockSavedRoutes(),
       _MockGeocoding(),
+      _MockPlaces(),
       draft,
       _MockNetwork(),
       _MockRouting(),
@@ -108,6 +112,26 @@ void main() {
       ),
     );
   }
+
+  group('missedTimeWindowPoints', () {
+    test('ignores a flagged stop the user set no window on', () {
+      // A stale or defensive flag on a windowless stop must never light up
+      // the warning: with no availability entered there is no deadline to
+      // miss, and every warning surface reads this one list.
+      const noWindow = RoutePoint(
+        id: 'free',
+        latitude: 33.9,
+        longitude: 35.55,
+        label: 'free',
+        weight: 10,
+        kind: RoutePointKind.stop,
+        timeWindowMissed: true,
+      );
+      seed([_depot, noWindow, _lateStop('a', dueHour: 10, lateBy: 20)]);
+
+      expect(cubit.state.missedTimeWindowPoints.map((p) => p.id), ['a']);
+    });
+  });
 
   group('requiredEarlierDepartureMinutes', () {
     test('is null when nothing runs late', () {
@@ -144,10 +168,10 @@ void main() {
     });
 
     test('is true when there is room to set off sooner', () {
-      seed(
-        [_depot, _lateStop('a', dueHour: 10, lateBy: 20)],
-        departureAt: DateTime.now().add(const Duration(hours: 5)),
-      );
+      seed([
+        _depot,
+        _lateStop('a', dueHour: 10, lateBy: 20),
+      ], departureAt: DateTime.now().add(const Duration(hours: 5)));
       expect(cubit.canDepartEarlier, isTrue);
     });
   });
@@ -157,13 +181,15 @@ void main() {
     /// Asserted on rather than `state.points`, because the solver's own
     /// response overwrites the working list right afterwards.
     Map<String, RoutePoint> sentPoints() {
-      final captured = verify(
-        () => optimize(
-          points: captureAny(named: 'points'),
-          routingMode: any(named: 'routingMode'),
-          departureAt: any(named: 'departureAt'),
-        ),
-      ).captured.single as List<RoutePoint>;
+      final captured =
+          verify(
+                () => optimize(
+                  points: captureAny(named: 'points'),
+                  routingMode: any(named: 'routingMode'),
+                  departureAt: any(named: 'departureAt'),
+                ),
+              ).captured.single
+              as List<RoutePoint>;
       return {for (final p in captured) p.id: p};
     }
 
@@ -224,26 +250,31 @@ void main() {
   });
 
   group('departEarlierToMakeWindows', () {
-    test('moves the departure back by the worst overshoot and re-solves',
-        () async {
-      final departure = DateTime.now().add(const Duration(hours: 5));
-      seed([_depot, _lateStop('a', dueHour: 10, lateBy: 25)], departureAt: departure);
+    test(
+      'moves the departure back by the worst overshoot and re-solves',
+      () async {
+        final departure = DateTime.now().add(const Duration(hours: 5));
+        seed([
+          _depot,
+          _lateStop('a', dueHour: 10, lateBy: 25),
+        ], departureAt: departure);
 
-      await cubit.departEarlierToMakeWindows();
+        await cubit.departEarlierToMakeWindows();
 
-      // 25 late + 10 slack = 35 minutes earlier.
-      expect(
-        cubit.state.departureAt,
-        departure.subtract(const Duration(minutes: 35)),
-      );
-      verify(
-        () => optimize(
-          points: any(named: 'points'),
-          routingMode: any(named: 'routingMode'),
-          departureAt: any(named: 'departureAt'),
-        ),
-      ).called(1);
-    });
+        // 25 late + 10 slack = 35 minutes earlier.
+        expect(
+          cubit.state.departureAt,
+          departure.subtract(const Duration(minutes: 35)),
+        );
+        verify(
+          () => optimize(
+            points: any(named: 'points'),
+            routingMode: any(named: 'routingMode'),
+            departureAt: any(named: 'departureAt'),
+          ),
+        ).called(1);
+      },
+    );
 
     test('is a no-op when the trip already leaves now', () async {
       seed([_depot, _lateStop('a', dueHour: 10, lateBy: 25)]);

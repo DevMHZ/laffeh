@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,12 +30,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int _index = 0;
   bool _finishing = false;
 
-  /// The WhatsApp/CSV import slide teaches a share gesture that only exists on
-  /// Android — iOS would need a Share Extension, which the app doesn't ship —
-  /// so on iOS the walkthrough is one slide shorter.
-  static final bool _showsImportSlide = !Platform.isIOS;
+  static const int _slideCount = 4;
 
-  int get _slideCount => _showsImportSlide ? 4 : 3;
+  /// Read once per build rather than stored: `Platform` is cheap, and a
+  /// field would just be a second thing to keep true.
+  bool get _isIos => Platform.isIOS;
   int get _last => _slideCount - 1;
 
   @override
@@ -139,13 +138,25 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     title: AppStrings.onbPlanTitle,
                     body: AppStrings.onbPlanBody,
                   ),
-                  if (_showsImportSlide)
-                    _OnbSlide(
-                      visual: _phone(const OnbWhatsappDemo()),
-                      title: AppStrings.onbImportTitle,
-                      body: AppStrings.onbImportBody,
-                      extra: _importTags(),
+                  // The import slide differs by platform, because the trip
+                  // itself does: Android shares straight into Laffeh, iOS
+                  // goes out through a map app. Showing an iPhone driver the
+                  // Android sheet sends them looking for a "Laffeh" entry
+                  // their phone will never list.
+                  _OnbSlide(
+                    visual: _phone(
+                      _isIos
+                          ? const OnbWhatsappDemoIos()
+                          : const OnbWhatsappDemo(),
                     ),
+                    title: _isIos
+                        ? AppStrings.onbImportTitleIos
+                        : AppStrings.onbImportTitle,
+                    body: _isIos
+                        ? AppStrings.onbImportBodyIos
+                        : AppStrings.onbImportBody,
+                    extra: _isIos ? _importStepsIos() : _importTags(),
+                  ),
                   _OnbSlide(
                     visual: _phone(const OnbLocationDemo()),
                     title: AppStrings.onbLocationTitle,
@@ -279,6 +290,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
       ],
     );
   }
+
+  /// iPhone gets the taps spelled out instead of the decorative tags: the
+  /// route runs through two apps that are not ours, and a driver who loses
+  /// the thread there has no way back into it.
+  Widget _importStepsIos() => _OnbSteps(
+    steps: [
+      AppStrings.onbImportIosStep1,
+      AppStrings.onbImportIosStep2,
+      AppStrings.onbImportIosStep3,
+    ],
+  );
 
   Widget _importTags() {
     return Wrap(

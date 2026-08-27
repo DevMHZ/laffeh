@@ -1,0 +1,14 @@
+// Mirrors ios/Flutter/Profile.xcconfig for the extension target: the CocoaPods
+// settings first, then Generated.xcconfig — which is where FLUTTER_BUILD_NAME
+// and FLUTTER_BUILD_NUMBER come from. The extension's Info.plist reads both,
+// and the App Store rejects an extension whose version does not match the app.
+#include? "../Pods/Target Support Files/Pods-Share Extension/Pods-Share Extension.profile.xcconfig"
+#include "../Flutter/Generated.xcconfig"
+
+// `inherit! :search_paths` hands down the search paths we want AND link flags
+// for every pod the app uses — MapLibre, geolocator, the lot. A share
+// extension that loads all of that is slow to open and, worse, carries the
+// location APIs into a binary whose Info.plist has no purpose strings, which
+// is the ITMS-90683 rejection class. Link only what the extension actually
+// calls. (No $(inherited): this deliberately replaces the value above.)
+OTHER_LDFLAGS = -framework "receive_sharing_intent"

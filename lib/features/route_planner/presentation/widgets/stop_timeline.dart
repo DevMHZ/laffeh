@@ -100,8 +100,8 @@ class _StopTimelineState extends State<StopTimeline>
   void _centerOnTarget() {
     if (!_scroll.hasClients) return;
     final viewport = _scroll.position.viewportDimension;
-    final target = (widget.currentTarget * _itemExtent) -
-        (viewport - _itemExtent) / 2;
+    final target =
+        (widget.currentTarget * _itemExtent) - (viewport - _itemExtent) / 2;
     _scroll.animateTo(
       target.clamp(0.0, _scroll.position.maxScrollExtent),
       duration: const Duration(milliseconds: 420),

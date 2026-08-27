@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../../../core/widgets/app_chevron.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../../auth/data/error/auth_error_mapper.dart';
 import '../../../auth/presentation/auth_messages.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../../../auth/presentation/pages/sign_in_page.dart';
+import '../../../saved_routes/domain/repositories/saved_routes_repository.dart';
 
 /// Account block in Settings: who is signed in, plus sign-out and the
 /// permanent account-deletion path Google Play requires of any app that lets
@@ -102,32 +107,13 @@ class _AccountSectionState extends State<AccountSection> {
   }
 
   Future<void> _confirmSignOut() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.confirm(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(
-          AppStrings.signOutConfirmTitle,
-          style: AppTextStyles.titleMd,
-        ),
-        content: Text(
-          AppStrings.signOutConfirmBody,
-          style: AppTextStyles.mutedSm,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(AppStrings.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              AppStrings.signOut,
-              style: TextStyle(color: AppColors.primary),
-            ),
-          ),
-        ],
-      ),
+      title: AppStrings.signOutConfirmTitle,
+      message: AppStrings.signOutConfirmBody,
+      icon: Iconsax.logout,
+      confirmLabel: AppStrings.signOut,
+      confirmIcon: Iconsax.logout,
     );
     if (confirmed != true || !mounted) return;
 
@@ -159,6 +145,10 @@ class _AccountSectionState extends State<AccountSection> {
 
     result.when(
       success: (_) {
+        // The account's routes went with it on the server (the table cascades
+        // from `auth.users`); this clears the copy sitting on the handset, so
+        // "permanently deleted" is true on both sides.
+        unawaited(sl<SavedRoutesRepository>().forgetAccount());
         _toast(AppStrings.deleteAccountDone);
         // Drop back to the planner. It works fine signed out, and the account
         // this Settings page was describing no longer exists.
@@ -218,6 +208,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
             _bullet(AppStrings.deleteAccountItemLogin),
             _bullet(AppStrings.deleteAccountItemProfile),
             _bullet(AppStrings.deleteAccountItemLocation),
+            _bullet(AppStrings.deleteAccountItemRoutes),
             const SizedBox(height: 12),
             Text(
               AppStrings.deleteAccountIrreversible,

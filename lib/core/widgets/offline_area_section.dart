@@ -1,34 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/widgets/app_chevron.dart';
-import '../../../../core/services/map_cache_service.dart';
-import '../../../../core/services/map_pack_controller.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/offline_area_picker_page.dart';
+import '../constants/app_constants.dart';
+import '../services/map_cache_service.dart';
+import '../services/map_pack_controller.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
+import 'app_chevron.dart';
+import 'offline_area_picker_page.dart';
 
-/// Offline map row in Settings: a saved patch of map, with no trip involved.
+/// Offline map row: a saved patch of map, with no trip involved.
 ///
-/// The trip corridor in the route summary only helps someone who has
-/// already planned one. A driver who opens the app in a basement, or drives
-/// out of coverage before planning anything, needs map under them
-/// regardless — that is what this saves, and why it lives in Settings
-/// rather than anywhere in the planning flow.
+/// The trip corridor only helps someone who has already planned a route. A
+/// driver who opens the app in a basement, or drives out of coverage before
+/// planning anything, needs map under them regardless — that is what this
+/// saves.
+///
+/// Shown in two places, both reading the same saved regions: Settings, and
+/// the offline sheet behind the map's own offline button.
 ///
 /// Deliberately thin: everything about choosing and downloading lives in
 /// [openOfflineAreaPicker], which the offer on the map opens too, so both
 /// routes into the feature behave identically. All this row owes the
 /// driver is whether a map is saved and how big it is.
-class OfflineMapSection extends StatefulWidget {
-  const OfflineMapSection({super.key});
+class OfflineAreaSection extends StatefulWidget {
+  const OfflineAreaSection({super.key});
 
   @override
-  State<OfflineMapSection> createState() => _OfflineMapSectionState();
+  State<OfflineAreaSection> createState() => _OfflineAreaSectionState();
 }
 
-class _OfflineMapSectionState extends State<OfflineMapSection> {
+class _OfflineAreaSectionState extends State<OfflineAreaSection> {
   final MapPackController _pack = MapPackController.area;
 
   /// What is stored right now. Read from the saved regions rather than from

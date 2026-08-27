@@ -18,7 +18,7 @@ only where Apple asks it differently.
 | Device family | ✅ `1` — iPhone only (`UIDeviceFamily => [1]`) |
 | App icon | ✅ full set, 1024×1024 with `hasAlpha: no` |
 | Signing team | ❌ none set — **you do this in Xcode**, see §3.1 |
-| Share-from-WhatsApp on iOS | ⛔️ deliberately not shipped — the affordance is hidden on iOS, see §2.4 |
+| Share-from-WhatsApp on iOS | ✅ ships as a Share Extension — reached through Maps, not from WhatsApp directly, see §2.4 |
 | Cleartext HTTP | ✅ none — no ATS exceptions needed |
 | Version | `1.0.3+3` → `CFBundleShortVersionString` 1.0.3, `CFBundleVersion` 3 |
 
@@ -153,33 +153,76 @@ LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 pod install --project-directory=ios
   forgot-password flows still hand off to WhatsApp, and iOS silently fails
   `canLaunchUrl` for undeclared schemes.
 
-### 2.4 WhatsApp import — deliberately not on iOS ✅
+### 2.4 WhatsApp import — how it reaches iOS ✅
 
 On Android, `receive_sharing_intent` works off `<intent-filter>`s already in the
-manifest. **On iOS it needs a separate Share Extension target** plus an App
-Group — a real chunk of Xcode work. The decision was to **not ship it on iOS**,
-so the app must not advertise it either. Three places now branch on the platform:
+manifest: the driver shares a WhatsApp location straight to Laffah. **iOS has no
+such one-step route, and never will** — tapping a location in WhatsApp for iOS
+opens WhatsApp's own map with a hard-coded "Select an action" sheet listing
+Maps, Google Maps and Waze. That list is WhatsApp's, built from schemes in
+*their* Info.plist, and no third-party app can join it.
 
-- [route_planner_actions.dart](../lib/features/route_planner/presentation/pages/route_planner_actions.dart) —
-  the "From WhatsApp" row is dropped from the add-stop chooser on iOS. The
-  chooser shows three ways instead of four: pick on map, search an address,
-  paste a Google Maps link.
-- [onboarding_page.dart](../lib/features/onboarding/presentation/pages/onboarding_page.dart) —
-  the walkthrough's import slide (`OnbWhatsappDemo`) is skipped on iOS, so the
-  page count and its dots go from 4 to 3.
-- [share_intent_handler.dart](../lib/core/utils/share_intent_handler.dart) —
-  the `receive_sharing_intent` subscription is Android-only. `app_links` still
-  runs on both, because `laffeh://` deep links (the policy pages) do work on iOS.
+What does work is the hop through a map app, which is what ships:
 
-Worth knowing: the Android `https://maps.google.com` intent filters have **no
-iOS equivalent** in any case — Universal Links require a domain you control, and
-you can't claim Google's. So even with a Share Extension, iOS would never catch
-map links the way Android does.
+> WhatsApp → tap the location → **Open in Maps** (or Google Maps) → the share
+> button there → **Laffah**.
 
-If you ever want it on iOS, the plugin's README documents the full path: a Share
-Extension target, App Groups on both targets, a `CUSTOM_GROUP_ID` build setting,
-a `target 'Share Extension'` block in the Podfile, and a `ShareViewController`
-inheriting from `RSIShareViewController`.
+Five taps instead of two, but native, and the payload parses on arrival.
+
+The pieces:
+
+- **`ios/Share Extension/`** — the target itself. `ShareViewController` is a
+  bare subclass of `RSIShareViewController`; everything else is configuration.
+  Its `NSExtensionActivationRule` accepts **text and one web URL only** — no
+  `PHSupportedMediaTypes`, no image/video/file rules, so Laffah stays out of
+  photo share sheets and out of ITMS-90683 territory (§2.2).
+- **App Group `group.com.afdal.laffah`** — declared in
+  `ios/Runner/Runner.entitlements` and `ios/Share Extension/Share Extension.entitlements`,
+  and named by the `CUSTOM_GROUP_ID` build setting on both targets, which the
+  two Info.plists read as `AppGroupId`. The extension writes the shared link
+  there; the app reads it.
+- **`ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)`** in the app's `CFBundleURLTypes` —
+  the private scheme the extension uses to reopen the app. Never typed by a
+  user.
+- **`ios/Share Extension/{Debug,Release,Profile}.xcconfig`** — mirror
+  `ios/Flutter/*.xcconfig` so the extension inherits `FLUTTER_BUILD_NAME` and
+  `FLUTTER_BUILD_NUMBER`; the App Store rejects an extension whose version does
+  not match the app. They also pin `OTHER_LDFLAGS` to
+  `-framework "receive_sharing_intent"`: CocoaPods' `inherit! :search_paths`
+  otherwise links **every** pod into the extension, MapLibre and geolocator
+  included, which is both slow to launch and a purpose-string liability.
+- **Build phase order** — `Embed Foundation Extensions` must sit *above*
+  Flutter's `Thin Binary`, or the extension can't find the framework it imports.
+
+Two behaviours worth knowing before you touch this again, both verified on the
+simulator:
+
+- `APPLICATION_EXTENSION_API_ONLY` must stay at its default `YES`. Setting it to
+  `NO` — tempting, since receive_sharing_intent reaches `UIApplication` through
+  the responder chain — makes the build system refuse the target outright.
+- **A share that launches the app is reported twice** by the plugin: once via
+  `getInitialMedia`, then again on the live stream ~20 ms later, same payload
+  both times. Each one would add a stop.
+  [share_intent_handler.dart](../lib/core/utils/share_intent_handler.dart) drops
+  the repeat. It also drops the `ShareMedia-…` URL that `app_links` reports in
+  parallel, which would otherwise be geocoded as if it were an address.
+
+No `SceneDelegate` work is needed: Flutter's own `FlutterSceneDelegate` forwards
+`scene:openURLContexts:` to plugins that only implement the old
+`application(_:open:options:)`, on cold and warm starts alike.
+
+What the extension receives is a *link*, and the two map apps disagree on its
+shape, so [link_parser.dart](../lib/core/utils/link_parser.dart) and
+[map_link_resolver.dart](../lib/core/utils/map_link_resolver.dart) both learned
+new formats: Apple Maps shares `https://maps.apple/p/<id>` — a bare `maps.apple`
+host, no `.com` — which redirects to `maps.apple.com/place?coordinate=lat,lng`.
+Google Maps shares the familiar `maps.app.goo.gl` short link, or the
+`/maps/@lat,lng,17z` URL when shared out of Safari. Covered by
+[shared_map_link_test.dart](../test/route_planner/shared_map_link_test.dart).
+
+Worth knowing: the Android `https://maps.google.com` intent filters still have
+**no iOS equivalent** — Universal Links require a domain you control, and you
+can't claim Google's. Laffah can be shared *to*, never opened *from* a map link.
 
 ### 2.5 Localized permission strings ✅
 
@@ -222,7 +265,9 @@ profile for you. Note that `project.pbxproj` currently pins
 automatic signing overrides this for archives, but if a distribution build ever
 complains about the identity, that's where it comes from.
 
-Repeat for the `Share Extension` target once it exists.
+Repeat for the `Share Extension` target (`com.afdal.laffah.ShareExtension`).
+Both targets need the **App Groups** capability with `group.com.afdal.laffah`;
+the entitlements files already declare it, so Xcode only has to provision it.
 
 ### 3.2 Version numbers
 
@@ -436,7 +481,7 @@ becomes a rejection.
 
 | Risk | Guideline | Verdict / mitigation |
 |---|---|---|
-| Share-from-WhatsApp taught but absent on iOS | 2.1 App Completeness | ✅ Closed — the affordance and its onboarding slide are hidden on iOS (§2.4) |
+| Share-from-WhatsApp taught but absent on iOS | 2.1 App Completeness | ✅ Closed — the Share Extension ships, and the explainer states the iOS route through Maps (§2.4) |
 | Missing purpose string for photo-library APIs | ITMS-90683 (automated) | ✅ Closed — `file_picker` dropped (§2.2) |
 | Permission APIs compiled in but unused | ITMS-90683 | ✅ Closed — `permission_handler` dropped (§2.2) |
 | iPad layout breakage | 2.1 / 4.0 Design | ✅ Closed — iPhone-only (§3.4) |

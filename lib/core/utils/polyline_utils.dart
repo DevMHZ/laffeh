@@ -117,33 +117,71 @@ class PolylineUtils {
     return _bearing(from, to);
   }
 
-  /// Arc-length fraction (0..1) along [path] of the vertex nearest to
-  /// [target]. Lets callers map a real-world stop to its true position
-  /// along the driven polyline (stops are NOT evenly spaced), so marker
-  /// colours flip exactly as the vehicle passes — not on an even split.
-  static double fractionOfNearest(List<LatLng> path, LatLng target) {
-    if (path.length < 2) return 0;
-    final total = DistanceUtils.pathLengthKm(path);
-    if (total <= 0) return 0;
-    double traveled = 0;
-    double best = double.infinity;
-    double bestFrac = 0;
-    for (var i = 0; i < path.length - 1; i++) {
-      final d = DistanceUtils.haversineKm(path[i], target);
-      if (d < best) {
-        best = d;
-        bestFrac = (traveled / total).clamp(0.0, 1.0);
-      }
-      traveled += DistanceUtils.haversineKm(path[i], path[i + 1]);
-    }
-    if (DistanceUtils.haversineKm(path.last, target) < best) return 1.0;
-    return bestFrac;
-  }
+  /// How far apart two passes over the same place can be and still count
+  /// as the same place: the width of a divided road plus a lane or two.
+  static const double _stopPassToleranceKm = 0.04;
 
   /// True arc-length fraction of each [stops] entry along [path]. Computed
   /// once per route, then compared against live progress.
-  static List<double> stopFractions(List<LatLng> path, List<LatLng> stops) =>
-      [for (final s in stops) fractionOfNearest(path, s)];
+  ///
+  /// Two phases, because a stop is not simply "the nearest vertex":
+  ///
+  ///  1. A monotonic sweep pins each stop at or after the previous one, so
+  ///     the fractions can never run backwards.
+  ///  2. Where the route passes the same place more than once — the
+  ///     outbound carriageway before a U-turn, a loop back through a
+  ///     junction — the *last* of those passes before the next stop wins.
+  ///     That pass is where the leg actually ends; picking the drive-by
+  ///     instead is what collapses "500 m of driving left" into "you're
+  ///     already there".
+  static List<double> stopFractions(List<LatLng> path, List<LatLng> stops) {
+    if (stops.isEmpty) return const [];
+    if (path.length < 2) return List.filled(stops.length, 0.0);
+
+    // Cumulative arc length per vertex (km).
+    final cum = List<double>.filled(path.length, 0);
+    for (var i = 1; i < path.length; i++) {
+      cum[i] = cum[i - 1] + DistanceUtils.haversineKm(path[i - 1], path[i]);
+    }
+    final total = cum.last;
+    if (total <= 0) return List.filled(stops.length, 0.0);
+
+    // Phase 1 — nearest vertex at or after the previous stop's.
+    final idx = <int>[];
+    final nearestKm = <double>[];
+    var from = 0;
+    for (final s in stops) {
+      var best = double.infinity;
+      var bestIdx = from;
+      for (var i = from; i < path.length; i++) {
+        final d = DistanceUtils.haversineKm(path[i], s);
+        if (d < best) {
+          best = d;
+          bestIdx = i;
+        }
+      }
+      idx.add(bestIdx);
+      nearestKm.add(best);
+      from = bestIdx;
+    }
+
+    // Phase 2 — slide each stop forward to its last equally-near pass,
+    // never as far as the next stop (so two doors on the same street keep
+    // their own fractions, and a drive-by that happens later in the trip
+    // can't claim this stop).
+    for (var k = 0; k < stops.length; k++) {
+      final limit = k + 1 < idx.length ? idx[k + 1] - 1 : path.length - 1;
+      final ceiling = nearestKm[k] + _stopPassToleranceKm;
+      for (var i = limit; i > idx[k]; i--) {
+        if (DistanceUtils.haversineKm(path[i], stops[k]) <= ceiling) {
+          idx[k] = i;
+          break;
+        }
+      }
+    }
+
+    return [for (final i in idx) (cum[i] / total).clamp(0.0, 1.0)];
+  }
 
   /// Arc-length fraction of each [targets] entry along [path], where the
   /// targets are known to already be in route order (e.g. OSRM maneuvers).

@@ -25,8 +25,7 @@ enum VehicleKind {
   /// 72-frame turntable sprite sheet (9×8 grid, 5° per frame, garage
   /// three-quarter camera) used by the Settings picker's spinning
   /// showcase. Null for painter-drawn vehicles.
-  String? get turntableAsset =>
-      spriteAsset?.replaceFirst('.png', '_turn.png');
+  String? get turntableAsset => spriteAsset?.replaceFirst('.png', '_turn.png');
 
   /// Nav sprite sheet for the map marker (48 headings × 4 animation
   /// phases, 55° map camera — see `VehicleNavSheet`). Null for

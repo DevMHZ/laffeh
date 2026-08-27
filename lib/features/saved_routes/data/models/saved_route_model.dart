@@ -186,6 +186,10 @@ class PointDto {
   final double lon;
   final String label;
   final String? address;
+
+  /// Contact number for the stop, persisted so a restored route can still
+  /// call or message whoever is waiting there.
+  final String? phone;
   final int weight;
   final String kind; // 'depot' | 'stop'
   final int? sequence;
@@ -211,6 +215,7 @@ class PointDto {
     required this.lon,
     required this.label,
     required this.address,
+    this.phone,
     required this.weight,
     required this.kind,
     required this.sequence,
@@ -228,6 +233,7 @@ class PointDto {
     lon: p.longitude,
     label: p.label,
     address: p.address,
+    phone: p.phone,
     weight: p.weight,
     kind: p.isDepot ? 'depot' : 'stop',
     sequence: p.sequence,
@@ -245,6 +251,7 @@ class PointDto {
     longitude: lon,
     label: label,
     address: address,
+    phone: phone,
     weight: weight,
     kind: kind == 'depot' ? RoutePointKind.depot : RoutePointKind.stop,
     sequence: sequence,
@@ -262,6 +269,7 @@ class PointDto {
     'lon': lon,
     'label': label,
     'address': address,
+    'phone': phone,
     'weight': weight,
     'kind': kind,
     'sequence': sequence,
@@ -279,6 +287,7 @@ class PointDto {
     lon: (j['lon'] is num) ? (j['lon'] as num).toDouble() : 0.0,
     label: j['label']?.toString() ?? '',
     address: j['address']?.toString(),
+    phone: j['phone']?.toString(),
     weight: (j['weight'] is num) ? (j['weight'] as num).toInt() : 0,
     kind: j['kind']?.toString() ?? 'stop',
     sequence: (j['sequence'] is num) ? (j['sequence'] as num).toInt() : null,

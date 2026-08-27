@@ -4,9 +4,9 @@ part of 'laffa_road_loader.dart';
 class _Puff {
   final double x, y, born, r0, life, drift;
   _Puff(this.x, this.y, this.born, math.Random rng)
-      : r0 = 2.5 + rng.nextDouble() * 2,
-        life = 650 + rng.nextDouble() * 350,
-        drift = 4 + rng.nextDouble() * 5;
+    : r0 = 2.5 + rng.nextDouble() * 2,
+      life = 650 + rng.nextDouble() * 350,
+      drift = 4 + rng.nextDouble() * 5;
 }
 
 class _ScenePainter extends CustomPainter {
@@ -19,8 +19,18 @@ class _ScenePainter extends CustomPainter {
   static const _pinOrange = Offset(720, 325);
 
   // Bridge crossings (bitmap coords) where the road passes over the car.
-  static const _bridge1 = Rect.fromLTWH(690.0 - 117.9, 632.0 - 74.0, 117.9 * 2, 74.0 * 2);
-  static const _bridge2 = Rect.fromLTWH(435.0 - 109.9, 577.0 - 92.3, 109.9 * 2, 92.3 * 2);
+  static const _bridge1 = Rect.fromLTWH(
+    690.0 - 117.9,
+    632.0 - 74.0,
+    117.9 * 2,
+    74.0 * 2,
+  );
+  static const _bridge2 = Rect.fromLTWH(
+    435.0 - 109.9,
+    577.0 - 92.3,
+    109.9 * 2,
+    92.3 * 2,
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -34,7 +44,12 @@ class _ScenePainter extends CustomPainter {
 
     // Bitmap sits below the procedural tail.
     final dst = Rect.fromLTWH(0, shift, _imgSize.width, _imgSize.height);
-    final src = Rect.fromLTWH(0, 0, road.width.toDouble(), road.height.toDouble());
+    final src = Rect.fromLTWH(
+      0,
+      0,
+      road.width.toDouble(),
+      road.height.toDouble(),
+    );
     final imgPaint = Paint()..filterQuality = FilterQuality.high;
 
     // 1. The lengthened tail (procedural), then the road bitmap on top of it so
@@ -61,9 +76,27 @@ class _ScenePainter extends CustomPainter {
     }
 
     // 3. Pins (pop up, above road, below car).
-    _drawPin(canvas, _pinOrange.translate(0, shift), AppColors.pinOrange, s._orangeShown, now);
-    _drawPin(canvas, _pinRed.translate(0, shift), AppColors.pinRed, s._redShown, now);
-    _drawPin(canvas, _pinBlue.translate(0, shift), AppColors.pinBlue, s._blueShown, now);
+    _drawPin(
+      canvas,
+      _pinOrange.translate(0, shift),
+      AppColors.pinOrange,
+      s._orangeShown,
+      now,
+    );
+    _drawPin(
+      canvas,
+      _pinRed.translate(0, shift),
+      AppColors.pinRed,
+      s._redShown,
+      now,
+    );
+    _drawPin(
+      canvas,
+      _pinBlue.translate(0, shift),
+      AppColors.pinBlue,
+      s._blueShown,
+      now,
+    );
 
     // 4. The car.
     if (driving) {
@@ -85,18 +118,38 @@ class _ScenePainter extends CustomPainter {
       const mg = 0.02;
       final t1 = s._tunnels[0], t2 = s._tunnels[1];
       if (p > t1[0] - mg && p < t1[1] + mg) {
-        _overpass(canvas, road, src, dst, imgPaint, _bridge1.translate(0, shift));
+        _overpass(
+          canvas,
+          road,
+          src,
+          dst,
+          imgPaint,
+          _bridge1.translate(0, shift),
+        );
       }
       if (p > t2[0] - mg && p < t2[1] + mg) {
-        _overpass(canvas, road, src, dst, imgPaint, _bridge2.translate(0, shift));
+        _overpass(
+          canvas,
+          road,
+          src,
+          dst,
+          imgPaint,
+          _bridge2.translate(0, shift),
+        );
       }
     }
 
     canvas.restore();
   }
 
-  void _overpass(Canvas canvas, ui.Image road, Rect src, Rect dst, Paint paint,
-      Rect clip) {
+  void _overpass(
+    Canvas canvas,
+    ui.Image road,
+    Rect src,
+    Rect dst,
+    Paint paint,
+    Rect clip,
+  ) {
     canvas.save();
     canvas.clipRect(clip);
     canvas.drawImageRect(road, src, dst, paint);
@@ -146,7 +199,13 @@ class _ScenePainter extends CustomPainter {
     }
   }
 
-  void _drawPin(Canvas canvas, Offset tip, Color color, double? shownAt, double now) {
+  void _drawPin(
+    Canvas canvas,
+    Offset tip,
+    Color color,
+    double? shownAt,
+    double now,
+  ) {
     if (shownAt == null) return;
     final elapsed = now - shownAt;
     final pop = (elapsed / 500).clamp(0.0, 1.0);
@@ -170,10 +229,7 @@ class _ScenePainter extends CustomPainter {
       )
       ..close();
 
-    canvas.drawPath(
-      body,
-      Paint()..color = color.withValues(alpha: opacity),
-    );
+    canvas.drawPath(body, Paint()..color = color.withValues(alpha: opacity));
     canvas.drawPath(
       body,
       Paint()
@@ -212,7 +268,10 @@ class _ScenePainter extends CustomPainter {
       canvas.drawRRect(r, wheel);
     }
     // Body
-    canvas.drawRRect(rr(-38, -19, 76, 38, 14), Paint()..color = c(const Color(0xFFE23B2F)));
+    canvas.drawRRect(
+      rr(-38, -19, 76, 38, 14),
+      Paint()..color = c(const Color(0xFFE23B2F)),
+    );
     canvas.drawRRect(
       rr(-38, -19, 76, 38, 14),
       Paint()
@@ -221,10 +280,19 @@ class _ScenePainter extends CustomPainter {
         ..strokeWidth = 2,
     );
     // Roof
-    canvas.drawRRect(rr(-26, -14, 50, 28, 9), Paint()..color = c(const Color(0xFFCF3127)));
+    canvas.drawRRect(
+      rr(-26, -14, 50, 28, 9),
+      Paint()..color = c(const Color(0xFFCF3127)),
+    );
     // Wind-screen + rear window
-    canvas.drawRRect(rr(13, -12, 11, 24, 4), Paint()..color = c(const Color(0xFF222633)));
-    canvas.drawRRect(rr(-22, -12, 9, 24, 4), Paint()..color = c(const Color(0xFF222633)));
+    canvas.drawRRect(
+      rr(13, -12, 11, 24, 4),
+      Paint()..color = c(const Color(0xFF222633)),
+    );
+    canvas.drawRRect(
+      rr(-22, -12, 9, 24, 4),
+      Paint()..color = c(const Color(0xFF222633)),
+    );
     // Centre seam
     canvas.drawRect(
       const Rect.fromLTWH(-6, -13, 2.5, 26),
@@ -235,7 +303,10 @@ class _ScenePainter extends CustomPainter {
     canvas.drawCircle(const Offset(34, -11), 4, hl);
     canvas.drawCircle(const Offset(34, 11), 4, hl);
     // Tail nub
-    canvas.drawRRect(rr(-39, -9, 3, 6, 1.5), Paint()..color = c(const Color(0xFFD23B2F)));
+    canvas.drawRRect(
+      rr(-39, -9, 3, 6, 1.5),
+      Paint()..color = c(const Color(0xFFD23B2F)),
+    );
   }
 
   @override

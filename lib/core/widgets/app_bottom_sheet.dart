@@ -23,6 +23,12 @@ class AppSheetContainer extends StatelessWidget {
   final EdgeInsets contentPadding;
   final bool showDragHandle;
 
+  /// Whether the device's bottom inset is added to [contentPadding].
+  ///
+  /// A sheet that pins its own footer below this content owns that inset;
+  /// adding it here as well leaves a dead gap above the footer.
+  final bool applyBottomInset;
+
   /// Gap between the title/subtitle header and the body. Defaults to a
   /// comfortable 12; sheets whose body sits tight under the subtitle
   /// (e.g. the route summary) can pass a smaller value.
@@ -36,12 +42,15 @@ class AppSheetContainer extends StatelessWidget {
     this.actions = const [],
     this.contentPadding = const EdgeInsets.fromLTRB(20, 6, 20, 18),
     this.showDragHandle = true,
+    this.applyBottomInset = true,
     this.headerSpacing = 12,
   });
 
   @override
   Widget build(BuildContext context) {
-    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final safeBottom = applyBottomInset
+        ? MediaQuery.paddingOf(context).bottom
+        : 0.0;
     final effectivePadding = contentPadding.copyWith(
       bottom: contentPadding.bottom + safeBottom,
     );

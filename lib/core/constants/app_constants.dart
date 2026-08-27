@@ -81,6 +81,7 @@ class AppStrings {
   static String get rename => _t('rename');
   static String get remove => _t('remove');
   static String get removePointTitle => _t('removePointTitle');
+  static String get removePointBody => _t('removePointBody');
   static String get cancel => _t('cancel');
   static String get save => _t('save');
   static String get retry => _t('retry');
@@ -106,6 +107,22 @@ class AppStrings {
   static String get errLocationServiceDisabled =>
       _t('errLocationServiceDisabled');
   static String get enableLocationCta => _t('enableLocationCta');
+
+  /// The splash's location gate — shown when access is missing on the way in.
+  static String get locGateTitle => _t('locGateTitle');
+  static String get locGateBody => _t('locGateBody');
+  static String get locGateBlockedBody => _t('locGateBlockedBody');
+  static String get locGateContinue => _t('locGateContinue');
+
+  /// Per-stop contact + the confirmation shown when a point lands.
+  static String get pointAdded => _t('pointAdded');
+  static String get stopPhoneTitle => _t('stopPhoneTitle');
+  static String get stopPhoneHint => _t('stopPhoneHint');
+  static String get stopPhoneAdd => _t('stopPhoneAdd');
+  static String get stopPhoneEdit => _t('stopPhoneEdit');
+  static String get stopCall => _t('stopCall');
+  static String get stopWhatsapp => _t('stopWhatsapp');
+  static String get stopCallFailed => _t('stopCallFailed');
   static String get errInvalidResponse => _t('errInvalidResponse');
   static String get errEmptyOptimizedRoute => _t('errEmptyOptimizedRoute');
   static String get errTimeout => _t('errTimeout');
@@ -365,6 +382,7 @@ class AppStrings {
   // Offline map pack
   static String get offlineMapTitle => _t('offlineMapTitle');
   static String get offlineMapIdleHint => _t('offlineMapIdleHint');
+  static String get offlineMapNoTrip => _t('offlineMapNoTrip');
   static String get offlineMapDownloading => _t('offlineMapDownloading');
   static String get offlineMapReady => _t('offlineMapReady');
   static String get offlineMapPartial => _t('offlineMapPartial');
@@ -414,6 +432,8 @@ class AppStrings {
   }
 
   // Offline map around the driver — no trip required.
+  static String get offlineMapsSheetTitle => _t('offlineMapsSheetTitle');
+  static String get offlineMapsSheetBody => _t('offlineMapsSheetBody');
   static String get offlineAreaTitle => _t('offlineAreaTitle');
   static String get offlineAreaHint => _t('offlineAreaHint');
   static String get offlineAreaNotSaved => _t('offlineAreaNotSaved');
@@ -577,6 +597,12 @@ class AppStrings {
         if (count == 1) {
           return 'نقطة واحدة يتعذّر الوصول إليها ضمن فترة توفّرها';
         }
+        // Arabic has a dual: two stops are نقطتان, and every pronoun in the
+        // sentence agrees with it. Writing "2 نقاط" is a grammar mistake a
+        // reader notices immediately.
+        if (count == 2) {
+          return 'نقطتان يتعذّر الوصول إليهما ضمن فترة توفّرهما';
+        }
         // Arabic counts 3–10 with a plural noun and 11+ with a singular one.
         final noun = count <= 10 ? 'نقاط' : 'نقطة';
         return '$count $noun يتعذّر الوصول إليها ضمن فترة توفّرها';
@@ -588,6 +614,29 @@ class AppStrings {
         return count == 1
             ? '1 stop falls outside its availability window'
             : '$count stops fall outside their availability windows';
+    }
+  }
+
+  /// "+1 h 35 m" — the same overshoot as [lateByMinutes], squeezed into a
+  /// chip.
+  ///
+  /// The long form crowds out the stop's own name on a one-line banner
+  /// ("متأخر بساعة و35 دقيقة" is wider than most labels), and inside a red
+  /// chip the word "late" is already implied by everything around it. The
+  /// leading "+" keeps it readable as a delta rather than a clock.
+  static String lateByShort(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    switch (_languageCode) {
+      case 'ar':
+        // No leading "+": a sign is bidi-neutral, so at the start of an
+        // Arabic run it lands to the right of the digit and reads as "1+".
+        // A word carries the meaning instead and never moves.
+        if (h == 0) return 'تأخير $minutes د';
+        return m == 0 ? 'تأخير $h س' : 'تأخير $h س $m د';
+      default:
+        if (h == 0) return '+$minutes min';
+        return m == 0 ? '+${h}h' : '+${h}h ${m}m';
     }
   }
 
@@ -678,6 +727,13 @@ class AppStrings {
   static String get onbPlanBody => _t('onbPlanBody');
   static String get onbImportTitle => _t('onbImportTitle');
   static String get onbImportBody => _t('onbImportBody');
+  // iPhone takes a longer road: WhatsApp hands the location to a map app,
+  // and that app's share button is the only door into Laffeh.
+  static String get onbImportTitleIos => _t('onbImportTitleIos');
+  static String get onbImportBodyIos => _t('onbImportBodyIos');
+  static String get onbImportIosStep1 => _t('onbImportIosStep1');
+  static String get onbImportIosStep2 => _t('onbImportIosStep2');
+  static String get onbImportIosStep3 => _t('onbImportIosStep3');
   static String get onbImportWhatsappTag => _t('onbImportWhatsappTag');
   static String get onbImportCsvTag => _t('onbImportCsvTag');
   static String get onbShareToLaffah => _t('onbShareToLaffah');
@@ -696,13 +752,53 @@ class AppStrings {
   static String get importChooserCsv => _t('importChooserCsv');
   static String get whatsappOpenFailed => _t('whatsappOpenFailed');
   static String get waInfoBody => _t('waInfoBody');
+  // The two imports that come from another app, each with its own little
+  // demo and its own way out to that app.
+  static String get openWhatsappCta => _t('openWhatsappCta');
+  static String get gmapsInfoTitle => _t('gmapsInfoTitle');
+  static String get gmapsInfoBody => _t('gmapsInfoBody');
+  static String get openGoogleMapsCta => _t('openGoogleMapsCta');
+  static String get pasteLinkCta => _t('pasteLinkCta');
+
+  /// iOS says it differently: WhatsApp there offers no share-to-Laffah, only
+  /// its own fixed list of map apps, so the trip goes out through Maps.
+  static String get waInfoBodyIos => _t('waInfoBodyIos');
   static String get addPointCta => _t('addPointCta');
+  // ── Single-destination (navigator) shape ──
+  static String get whereTo => _t('whereTo');
+  static String get whereToHint => _t('whereToHint');
+  static String get destinationTitle => _t('destinationTitle');
+  static String get goNow => _t('goNow');
+  static String get findingRoute => _t('findingRoute');
+  static String get routeUnavailableTapGo => _t('routeUnavailableTapGo');
+  static String get addAnotherStop => _t('addAnotherStop');
+  static String get addAnotherStopSub => _t('addAnotherStopSub');
+  static String get changeDestination => _t('changeDestination');
+  // Departure — the trip starts where the driver is, until they say
+  // otherwise.
+  static String get fromLabel => _t('fromLabel');
+  static String get currentLocationLabel => _t('currentLocationLabel');
+  static String get startFromTitle => _t('startFromTitle');
+  static String get useCurrentLocation => _t('useCurrentLocation');
+  static String get useCurrentLocationSub => _t('useCurrentLocationSub');
+  static String get orPickAPlace => _t('orPickAPlace');
+  // The trip's shape, picked before the first point: one place to get to,
+  // or a round with several stops in it.
+  static String get tripShapeTitle => _t('tripShapeTitle');
+  static String get tripShapeSingle => _t('tripShapeSingle');
+  static String get tripShapeSingleHint => _t('tripShapeSingleHint');
+  static String get tripShapeMulti => _t('tripShapeMulti');
+  static String get multiStopCtaSub => _t('multiStopCtaSub');
+  // Short forms — three abreast under the search box, where the full
+  // "pick on the map" / "paste a location link" labels do not fit.
+  static String get methodShortMap => _t('methodShortMap');
+  static String get methodShortLink => _t('methodShortLink');
+  static String get methodShortWhatsapp => _t('methodShortWhatsapp');
   static String get addMethodTitle => _t('addMethodTitle');
   static String get addMethodAddress => _t('addMethodAddress');
   static String get addMethodAddressSub => _t('addMethodAddressSub');
   static String get addMethodMap => _t('addMethodMap');
   static String get addMethodMapSub => _t('addMethodMapSub');
-  static String get addMethodPasteLink => _t('addMethodPasteLink');
   static String get addMethodPasteLinkSub => _t('addMethodPasteLinkSub');
   static String get pasteLocationTitle => _t('pasteLocationTitle');
   static String get pasteLocationSub => _t('pasteLocationSub');
@@ -714,6 +810,21 @@ class AppStrings {
   static String get addressSearchPlaceholder => _t('addressSearchPlaceholder');
   static String get addressSearchPrompt => _t('addressSearchPrompt');
   static String get addressSearchEmpty => _t('addressSearchEmpty');
+  static String get addressSearchRecents => _t('addressSearchRecents');
+  static String get addressSearchNearby => _t('addressSearchNearby');
+  static String get addressSearchRefining => _t('addressSearchRefining');
+  static String get searchPastedCoordinates => _t('searchPastedCoordinates');
+  static String get mapLabelKindCity => _t('mapLabelKindCity');
+  static String get mapLabelKindArea => _t('mapLabelKindArea');
+  static String get mapLabelKindRegion => _t('mapLabelKindRegion');
+  static String get mapLabelKindStreet => _t('mapLabelKindStreet');
+  static String get mapPlaceAddStop => _t('mapPlaceAddStop');
+  static String get mapPlaceSetDeparture => _t('mapPlaceSetDeparture');
+  static String get mapPlaceAlreadyAdded => _t('mapPlaceAlreadyAdded');
+
+  /// Label for a kind of place ("محطة وقود"), used when a result found by
+  /// category has no name of its own. Keys come from the category lexicon.
+  static String placeCategoryLabel(String key) => _t(key);
   static String get placePointHint => _t('placePointHint');
   static String get pressBackAgainToExit => _t('pressBackAgainToExit');
   static String get onbLocationTitle => _t('onbLocationTitle');
@@ -854,6 +965,7 @@ class AppStrings {
   static String get deleteAccountItemProfile => _t('deleteAccountItemProfile');
   static String get deleteAccountItemLocation =>
       _t('deleteAccountItemLocation');
+  static String get deleteAccountItemRoutes => _t('deleteAccountItemRoutes');
   static String get deleteAccountIrreversible =>
       _t('deleteAccountIrreversible');
   static String get deleteAccountAck => _t('deleteAccountAck');
@@ -896,8 +1008,7 @@ class AppStrings {
   // Headings over the four groups the Settings page is built from.
   static String get settingsGroupAccount => _t('settingsGroupAccount');
   static String get settingsGroupMap => _t('settingsGroupMap');
-  static String get settingsGroupPreferences =>
-      _t('settingsGroupPreferences');
+  static String get settingsGroupPreferences => _t('settingsGroupPreferences');
   static String get settingsGroupAbout => _t('settingsGroupAbout');
   static String get legalPrivacy => _t('legalPrivacy');
   static String get legalTerms => _t('legalTerms');
@@ -966,6 +1077,20 @@ const Map<String, Map<String, String>> _copy = {
     'errLocationServiceDisabled':
         'Location service is disabled. Please enable GPS and try again.',
     'enableLocationCta': 'Enable location',
+    'pointAdded': 'Point added',
+    'stopPhoneTitle': 'Phone number',
+    'stopPhoneHint': 'With the country code, e.g. +963944123456',
+    'stopPhoneAdd': 'Add a phone number',
+    'stopPhoneEdit': 'Edit the phone number',
+    'stopCall': 'Call',
+    'stopWhatsapp': 'WhatsApp',
+    'stopCallFailed': 'Could not start the call',
+    'locGateTitle': 'Laffah needs your location',
+    'locGateBody':
+        'Your route starts from where you are, and the map follows you as you drive.',
+    'locGateBlockedBody':
+        'Location is blocked for Laffah. Open the app settings to allow it.',
+    'locGateContinue': 'Continue without location',
     'errInvalidResponse': 'Invalid response from the server',
     'errEmptyOptimizedRoute': 'The model did not return an optimized route',
     'errTimeout': 'The server connection timed out',
@@ -978,6 +1103,8 @@ const Map<String, Map<String, String>> _copy = {
     'errSavedRoutesLoad': 'Could not load saved routes',
     'errSavedRouteSave': 'Could not save route',
     'removePointTitle': 'Remove this point?',
+    'removePointBody':
+        'It leaves the trip. The rest of your stops stay as they are.',
     'errGeneric': 'Something went wrong',
     'errSaveRoute': 'Could not save route',
     'emptyPointsHint': 'Start by adding points on the map',
@@ -988,7 +1115,7 @@ const Map<String, Map<String, String>> _copy = {
     'addMapCenterAction': 'Add map center',
     'pasteListAction': 'Paste a list',
     'setDepartureFirst': 'Set your departure point first',
-    'addOneStopToOptimize': 'Add at least one stop to optimize',
+    'addOneStopToOptimize': 'Add your first stop',
     'readyToOptimize': 'Ready to optimize',
     'routeReadyHint': 'Review, simulate, save, or open your route.',
     'saveRouteAction': 'Save route',
@@ -1118,7 +1245,9 @@ const Map<String, Map<String, String>> _copy = {
     'routeOrder': 'Route order',
     'points': 'points',
     'offlineMapTitle': 'Offline map for this trip',
-    'offlineMapIdleHint': 'Download it and the map keeps working with no signal.',
+    'offlineMapIdleHint':
+        'Download it and the map keeps working with no signal.',
+    'offlineMapNoTrip': 'Available once you have a planned route.',
     'offlineMapDownloading': 'Downloading the map…',
     'offlineMapReady': 'Saved on your device',
     'offlineMapPartial': 'Part of the map is missing — tap to finish it.',
@@ -1132,6 +1261,10 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapCancelling': 'Stopping…',
     'offlineMapCancelled': 'Stopped. What was downloaded is kept.',
     'offlineMapResume': 'Continue',
+    'offlineMapsSheetTitle': 'Offline maps',
+    'offlineMapsSheetBody':
+        'Save the map now and the streets stay on screen when the signal '
+        'goes.',
     'offlineAreaTitle': 'Offline map',
     'offlineAreaHint':
         'Save any area of the map and its streets keep showing with no '
@@ -1153,8 +1286,7 @@ const Map<String, Map<String, String>> _copy = {
     'offlineAreaAtCeiling':
         'You have reached the limit of saved areas — delete one first.',
     'offlineAreaOfferTitle': 'Save a map for offline?',
-    'offlineAreaOfferBody':
-        'Then it keeps working where there is no signal.',
+    'offlineAreaOfferBody': 'Then it keeps working where there is no signal.',
     'offlineAreaOfferAccept': 'Choose area',
     'offlineAreaOfferDismiss': 'Not now',
     'arrivalTime': 'Customer availability',
@@ -1178,9 +1310,11 @@ const Map<String, Map<String, String>> _copy = {
     'youWouldArrive': 'You would get there at',
     'howToFixIt': 'How to fix it',
     'fixMoveDeadline': 'Extend the availability',
-    'fixMoveDeadlineWhy': 'Keeps every stop. Pushes each unreachable window just past what the drive actually takes.',
+    'fixMoveDeadlineWhy':
+        'Keeps every stop. Pushes each unreachable window just past what the drive actually takes.',
     'fixLeaveEarlier': 'Leave earlier',
-    'fixLeaveEarlierWhy': 'Keeps every availability window as it is, and starts the trip sooner.',
+    'fixLeaveEarlierWhy':
+        'Keeps every availability window as it is, and starts the trip sooner.',
     'fixDropStop': 'Skip a stop',
     'fixDropStopWhy': 'Frees up the time the other windows need.',
     'keepAsIs': 'Leave it as is',
@@ -1199,7 +1333,7 @@ const Map<String, Map<String, String>> _copy = {
     'previewRoute': 'Preview trip',
     'endTrip': 'End trip',
     'moreActions': 'More',
-    'googleMapsShort': 'Maps',
+    'googleMapsShort': 'Google Maps',
     'openWithMaps': 'Open with Maps',
     'newRouteShort': 'New',
     'startFresh': 'Delete trip & start fresh',
@@ -1243,6 +1377,12 @@ const Map<String, Map<String, String>> _copy = {
     'onbImportTitle': 'Add stops from WhatsApp',
     'onbImportBody':
         'Share a location to Laffah and it lands right on your route — no typing. A CSV import or a pasted list works too.',
+    'onbImportTitleIos': 'Add stops from WhatsApp via Google Maps',
+    'onbImportIosStep1': 'Tap the location in WhatsApp',
+    'onbImportIosStep2': 'In Google Maps, tap the share button',
+    'onbImportIosStep3': 'Choose Laffah',
+    'onbImportBodyIos':
+        'Tap the location in WhatsApp to open it in Google Maps, then share it to Laffah — the stop lands on your route. A CSV import or a pasted list works too.',
     'onbImportWhatsappTag': 'WhatsApp',
     'onbImportCsvTag': 'CSV & paste',
     'onbShareToLaffah': 'Open with Laffah',
@@ -1262,8 +1402,7 @@ const Map<String, Map<String, String>> _copy = {
     'addMethodAddressSub': 'Search and pick one address',
     'addMethodMap': 'Pick on the map',
     'addMethodMapSub': 'Drop a pin where you want',
-    'addMethodPasteLink': 'Paste a Google location',
-    'addMethodPasteLinkSub': 'Paste a Maps link you copied',
+    'addMethodPasteLinkSub': 'Share a place to Laffah, or paste its link',
     'pasteLocationTitle': 'Paste a Google location',
     'pasteLocationSub': 'Paste a Google Maps link — we\'ll drop a pin for it',
     'pasteLocationPlaceholder': 'Paste a Maps link…',
@@ -1274,10 +1413,72 @@ const Map<String, Map<String, String>> _copy = {
     'addressSearchPlaceholder': 'Street, place, city…',
     'addressSearchPrompt': 'Start typing to search for an address',
     'addressSearchEmpty': 'No matches. Try a different search.',
+    'addressSearchRecents': 'Recent places',
+    'addressSearchNearby': 'Nearby',
+    'addressSearchRefining': 'Still looking…',
+    'searchPastedCoordinates': 'The location you pasted',
+    'mapLabelKindCity': 'City',
+    'mapLabelKindArea': 'Neighbourhood',
+    'mapLabelKindRegion': 'Region',
+    'mapLabelKindStreet': 'Street',
+    'mapPlaceAddStop': 'Add as a stop',
+    'mapPlaceSetDeparture': 'Start the trip here',
+    'mapPlaceAlreadyAdded': 'This place is already on the route',
+    'catFuel': 'Fuel station',
+    'catPharmacy': 'Pharmacy',
+    'catHospital': 'Hospital',
+    'catBank': 'Bank',
+    'catAtm': 'ATM',
+    'catRestaurant': 'Restaurant',
+    'catCafe': 'Cafe',
+    'catSupermarket': 'Supermarket',
+    'catBakery': 'Bakery',
+    'catMosque': 'Place of worship',
+    'catSchool': 'School',
+    'catUniversity': 'University',
+    'catHotel': 'Hotel',
+    'catParking': 'Parking',
+    'catPolice': 'Police station',
+    'catPost': 'Post office',
+    'catCarRepair': 'Car repair',
+    'catBusStation': 'Bus station',
+    'catMarket': 'Market',
+    'catPark': 'Park',
     'placePointHint': 'Move the map, then confirm',
     'whatsappOpenFailed': "Couldn't open WhatsApp",
+    'openWhatsappCta': 'Open WhatsApp',
+    'gmapsInfoTitle': 'Add a stop from Google Maps',
+    'gmapsInfoBody':
+        'Find the place in Google Maps, tap Share, and pick Laffah — the stop lands on your route. Or copy the link and paste it here.',
+    'openGoogleMapsCta': 'Open Google Maps',
+    'pasteLinkCta': 'Paste a link',
     'waInfoBody':
         'In WhatsApp, tap the shared location and choose "Open with Laffah" — the app opens with the stop already on your route. Repeat for each new stop; it stacks onto the previous ones.',
+    'waInfoBodyIos':
+        'In WhatsApp, tap the shared location and open it in Google Maps (or Apple Maps). From there tap the share button and pick Laffah — the app opens with the stop already on your route. Repeat for each new stop; it stacks onto the previous ones.',
+    'whereTo': 'Where to?',
+    'whereToHint': 'Search for a place or an address',
+    'destinationTitle': 'Destination',
+    'goNow': 'Go',
+    'findingRoute': 'Finding the way…',
+    'routeUnavailableTapGo': 'Tap Go to get the route',
+    'addAnotherStop': 'Add another stop',
+    'addAnotherStopSub': 'Laffeh puts them in the best order',
+    'changeDestination': 'Change destination',
+    'fromLabel': 'From',
+    'currentLocationLabel': 'My current location',
+    'startFromTitle': 'Start from',
+    'useCurrentLocation': 'Use my current location',
+    'useCurrentLocationSub': 'The trip starts wherever you are',
+    'orPickAPlace': 'or name a place',
+    'tripShapeTitle': 'Trip type',
+    'tripShapeSingle': 'One destination',
+    'tripShapeSingleHint': 'Straight to one place, the fastest way',
+    'tripShapeMulti': 'Multiple stops',
+    'multiStopCtaSub': 'Add every stop — Laffeh puts them in order',
+    'methodShortMap': 'On map',
+    'methodShortLink': 'Google Maps',
+    'methodShortWhatsapp': 'WhatsApp',
     'addPointCta': 'Add a stop',
     'pressBackAgainToExit': 'Press back again to exit',
     'onbLocationTitle': 'Find your starting point',
@@ -1373,6 +1574,7 @@ const Map<String, Map<String, String>> _copy = {
     'deleteAccountItemLogin': 'Your phone number and sign-in details',
     'deleteAccountItemProfile': 'Your name, company and selected use cases',
     'deleteAccountItemLocation': 'Your last saved location',
+    'deleteAccountItemRoutes': 'Your saved trips on every device',
     'deleteAccountIrreversible':
         'This cannot be undone. You will need to create a new account to sign in again.',
     'deleteAccountAck': 'I understand this is permanent',
@@ -1461,6 +1663,19 @@ const Map<String, Map<String, String>> _copy = {
     'errLocationServiceDisabled':
         'خدمة الموقع غير مفعّلة. يرجى تفعيل GPS وإعادة المحاولة.',
     'enableLocationCta': 'تفعيل الموقع',
+    'pointAdded': 'تمت إضافة النقطة',
+    'stopPhoneTitle': 'رقم الهاتف',
+    'stopPhoneHint': 'مع رمز الدولة، مثل ‎+963944123456',
+    'stopPhoneAdd': 'إضافة رقم هاتف',
+    'stopPhoneEdit': 'تعديل رقم الهاتف',
+    'stopCall': 'اتصال',
+    'stopWhatsapp': 'واتساب',
+    'stopCallFailed': 'تعذر بدء المكالمة',
+    'locGateTitle': 'لفّة تحتاج إلى موقعك',
+    'locGateBody': 'مسارك يبدأ من مكانك، والخريطة تتابعك أثناء القيادة.',
+    'locGateBlockedBody':
+        'الوصول إلى الموقع ممنوع للتطبيق. افتح إعدادات التطبيق للسماح به.',
+    'locGateContinue': 'المتابعة بدون موقع',
     'errInvalidResponse': 'استجابة غير صالحة من الخادم',
     'errEmptyOptimizedRoute': 'لم يُرجِع النموذج أي مسار مُحسَّن',
     'errTimeout': 'انتهت مهلة الاتصال بالخادم',
@@ -1473,6 +1688,7 @@ const Map<String, Map<String, String>> _copy = {
     'errSavedRoutesLoad': 'تعذر تحميل المسارات المحفوظة',
     'errSavedRouteSave': 'تعذر حفظ المسار',
     'removePointTitle': 'حذف هذه النقطة؟',
+    'removePointBody': 'تخرج من الرحلة، وتبقى بقية نقاطك كما هي.',
     'errGeneric': 'حدث خطأ',
     'errSaveRoute': 'تعذر حفظ المسار',
     'emptyPointsHint': 'ابدأ بإضافة نقاط على الخريطة',
@@ -1483,7 +1699,7 @@ const Map<String, Map<String, String>> _copy = {
     'addMapCenterAction': 'إضافة مركز الخريطة',
     'pasteListAction': 'لصق قائمة',
     'setDepartureFirst': 'حدد نقطة الانطلاق أولاً',
-    'addOneStopToOptimize': 'أضف وجهة واحدة على الأقل للتحسين',
+    'addOneStopToOptimize': 'أضف نقطتك الأولى',
     'readyToOptimize': 'جاهز لتحسين المسار',
     'routeReadyHint': 'راجع المسار، شغّل المحاكاة، احفظه، أو افتحه في الملاحة.',
     'saveRouteAction': 'حفظ المسار',
@@ -1614,6 +1830,7 @@ const Map<String, Map<String, String>> _copy = {
     'points': 'نقطة',
     'offlineMapTitle': 'خريطة هذه الرحلة دون إنترنت',
     'offlineMapIdleHint': 'نزّلها لتبقى الخريطة ظاهرة عند انقطاع الشبكة.',
+    'offlineMapNoTrip': 'تصبح متاحة بعد أن يجهز المسار.',
     'offlineMapDownloading': 'جارٍ تنزيل الخريطة…',
     'offlineMapReady': 'محفوظة على جهازك',
     'offlineMapPartial': 'لم يكتمل تنزيل الخريطة — اضغط لإتمامها.',
@@ -1627,6 +1844,9 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapCancelling': 'جارٍ الإيقاف…',
     'offlineMapCancelled': 'أوقفتَ التنزيل، وما نُزّل محفوظ.',
     'offlineMapResume': 'متابعة',
+    'offlineMapsSheetTitle': 'الخرائط دون إنترنت',
+    'offlineMapsSheetBody':
+        'احفظ الخريطة الآن لتبقى الشوارع ظاهرة أمامك عند انقطاع الشبكة.',
     'offlineAreaTitle': 'خريطة دون إنترنت',
     'offlineAreaHint':
         'احفظ أي منطقة من الخريطة لتبقى شوارعها ظاهرة عند انقطاع الشبكة، '
@@ -1641,7 +1861,8 @@ const Map<String, Map<String, String>> _copy = {
     'offlineAreaPickTitle': 'اختر المنطقة المراد حفظها',
     'offlineAreaPickHint': 'حرّك الخريطة حتى يضمّ الإطار ما تحتاجه.',
     'offlineAreaMeasuring': 'جارٍ قياس المنطقة…',
-    'offlineAreaTooLarge': 'المنطقة أكبر مما يمكن تنزيله — قرّب الخريطة قليلًا.',
+    'offlineAreaTooLarge':
+        'المنطقة أكبر مما يمكن تنزيله — قرّب الخريطة قليلًا.',
     'offlineAreaMyLocation': 'توسيط على موقعي',
     'offlineAreaSavedHere': 'هذه المنطقة محفوظة',
     'offlineAreaAtCeiling':
@@ -1653,8 +1874,7 @@ const Map<String, Map<String, String>> _copy = {
     'arrivalTime': 'وقت توفّر العميل',
     'setArrivalTime': 'حدّد وقت توفّر العميل',
     'clearArrivalTime': 'إزالة وقت التوفّر',
-    'arrivalWindowHint':
-        'سيرتّب المُحسِّن نقاطك كي تصل ضمن فترة توفّر العميل.',
+    'arrivalWindowHint': 'سيرتّب المُحسِّن نقاطك كي تصل ضمن فترة توفّر العميل.',
     'anyTime': 'متوفّر في أي وقت',
     'fromTime': 'من',
     'toTime': 'إلى',
@@ -1694,7 +1914,7 @@ const Map<String, Map<String, String>> _copy = {
     'previewRoute': 'معاينة اللفة',
     'endTrip': 'إنهاء الرحلة',
     'moreActions': 'المزيد',
-    'googleMapsShort': 'الخرائط',
+    'googleMapsShort': 'خرائط Google',
     'openWithMaps': 'فتح في الخرائط',
     'newRouteShort': 'جديدة',
     'startFresh': 'احذف اللفة وابدأ من جديد',
@@ -1737,6 +1957,12 @@ const Map<String, Map<String, String>> _copy = {
     'onbImportTitle': 'أضف نقاطاً من واتساب مباشرة',
     'onbImportBody':
         'شارك موقعاً إلى لفّة ليظهر مباشرة على مسارك دون كتابة. ويمكنك أيضاً استيراد ملف CSV أو لصق قائمة عناوين.',
+    'onbImportTitleIos': 'أضف نقاطاً من واتساب عبر خرائط Google',
+    'onbImportIosStep1': 'اضغط الموقع في واتساب',
+    'onbImportIosStep2': 'في خرائط Google، اضغط زر المشاركة',
+    'onbImportIosStep3': 'اختر لفّة',
+    'onbImportBodyIos':
+        'اضغط الموقع في واتساب ليفتح في خرائط Google، ثم اضغط زر المشاركة واختر لفّة — تنزل النقطة على مسارك. ويمكنك أيضاً استيراد ملف CSV أو لصق قائمة عناوين.',
     'onbImportWhatsappTag': 'واتساب',
     'onbImportCsvTag': 'CSV ولصق',
     'onbShareToLaffah': 'فتح بواسطة لفّة',
@@ -1756,8 +1982,7 @@ const Map<String, Map<String, String>> _copy = {
     'addMethodAddressSub': 'ابحث واختر عنواناً واحداً',
     'addMethodMap': 'اختر على الخريطة',
     'addMethodMapSub': 'ضع دبوساً في المكان المطلوب',
-    'addMethodPasteLink': 'الصق موقع من Google',
-    'addMethodPasteLinkSub': 'الصق رابط خرائط نسخته',
+    'addMethodPasteLinkSub': 'شارك المكان إلى لفّة أو الصق رابطه',
     'pasteLocationTitle': 'الصق موقع من Google',
     'pasteLocationSub': 'الصق رابط خرائط Google وسنضع الدبوس مكانه',
     'pasteLocationPlaceholder': 'الصق رابط الخريطة…',
@@ -1768,10 +1993,72 @@ const Map<String, Map<String, String>> _copy = {
     'addressSearchPlaceholder': 'شارع، مكان، مدينة…',
     'addressSearchPrompt': 'ابدأ الكتابة للبحث عن عنوان',
     'addressSearchEmpty': 'لا نتائج. جرّب بحثاً مختلفاً.',
+    'addressSearchRecents': 'أماكن سابقة',
+    'addressSearchNearby': 'قريب منك',
+    'addressSearchRefining': 'ما زال البحث جارياً…',
+    'searchPastedCoordinates': 'الموقع الذي لصقته',
+    'mapLabelKindCity': 'مدينة',
+    'mapLabelKindArea': 'حي',
+    'mapLabelKindRegion': 'محافظة',
+    'mapLabelKindStreet': 'شارع',
+    'mapPlaceAddStop': 'أضِفها كمحطة',
+    'mapPlaceSetDeparture': 'ابدأ الرحلة من هنا',
+    'mapPlaceAlreadyAdded': 'هذا المكان موجود في المسار',
+    'catFuel': 'محطة وقود',
+    'catPharmacy': 'صيدلية',
+    'catHospital': 'مشفى',
+    'catBank': 'مصرف',
+    'catAtm': 'صراف آلي',
+    'catRestaurant': 'مطعم',
+    'catCafe': 'مقهى',
+    'catSupermarket': 'سوبر ماركت',
+    'catBakery': 'مخبز',
+    'catMosque': 'دار عبادة',
+    'catSchool': 'مدرسة',
+    'catUniversity': 'جامعة',
+    'catHotel': 'فندق',
+    'catParking': 'موقف سيارات',
+    'catPolice': 'مركز شرطة',
+    'catPost': 'مكتب بريد',
+    'catCarRepair': 'تصليح سيارات',
+    'catBusStation': 'محطة حافلات',
+    'catMarket': 'سوق',
+    'catPark': 'حديقة',
     'placePointHint': 'حرّك الخريطة ثم أكّد',
     'whatsappOpenFailed': 'تعذّر فتح واتساب',
+    'openWhatsappCta': 'افتح واتساب',
+    'gmapsInfoTitle': 'أضف نقطة من خرائط Google',
+    'gmapsInfoBody':
+        'ابحث عن المكان في خرائط Google، اضغط مشاركة، ثم اختر لفّة — تنزل النقطة على مسارك. أو انسخ الرابط والصقه هنا.',
+    'openGoogleMapsCta': 'افتح خرائط Google',
+    'pasteLinkCta': 'الصق رابطاً',
     'waInfoBody':
         'في واتساب، اضغط على الموقع المُشارَك واختر «فتح بواسطة لفّة» — يفتح التطبيق والنقطة جاهزة على مسارك. كرّر الخطوات لكل نقطة جديدة، لتضاف فوق السابقة.',
+    'waInfoBodyIos':
+        'في واتساب، اضغط على الموقع المُشارَك ثم افتحه في خرائط Google (أو خرائط آبل). ومن هناك اضغط زر المشاركة واختر لفّة — يفتح التطبيق والنقطة جاهزة على مسارك. كرّر الخطوات لكل نقطة جديدة، لتضاف فوق السابقة.',
+    'whereTo': 'إلى أين؟',
+    'whereToHint': 'ابحث عن مكان أو عنوان',
+    'destinationTitle': 'الوجهة',
+    'goNow': 'انطلق',
+    'findingRoute': 'جارٍ إيجاد الطريق…',
+    'routeUnavailableTapGo': 'اضغط انطلق للحصول على الطريق',
+    'addAnotherStop': 'أضف وجهة أخرى',
+    'addAnotherStopSub': 'لفة ترتّبها لك بأفضل تسلسل',
+    'changeDestination': 'تغيير الوجهة',
+    'fromLabel': 'من',
+    'currentLocationLabel': 'موقعي الحالي',
+    'startFromTitle': 'ابدأ من',
+    'useCurrentLocation': 'استخدم موقعي الحالي',
+    'useCurrentLocationSub': 'تبدأ الرحلة من مكانك الحالي',
+    'orPickAPlace': 'أو حدّد مكاناً',
+    'tripShapeTitle': 'نوع الرحلة',
+    'tripShapeSingle': 'وجهة واحدة',
+    'tripShapeSingleHint': 'إلى مكان واحد وبأسرع طريق',
+    'tripShapeMulti': 'نقاط متعددة',
+    'multiStopCtaSub': 'أضف كل نقاطك ولفّة ترتّبها لك',
+    'methodShortMap': 'على الخريطة',
+    'methodShortLink': 'خرائط Google',
+    'methodShortWhatsapp': 'واتساب',
     'addPointCta': 'أضف نقطة',
     'pressBackAgainToExit': 'اضغط رجوع مرة أخرى للخروج',
     'onbLocationTitle': 'حدّد نقطة انطلاقك',
@@ -1864,6 +2151,7 @@ const Map<String, Map<String, String>> _copy = {
     'deleteAccountItemLogin': 'رقم هاتفك وبيانات تسجيل الدخول',
     'deleteAccountItemProfile': 'اسمك وشركتك وأسباب الاستخدام المختارة',
     'deleteAccountItemLocation': 'آخر موقع محفوظ لك',
+    'deleteAccountItemRoutes': 'لفاتك المحفوظة على جميع الأجهزة',
     'deleteAccountIrreversible':
         'لا يمكن التراجع عن هذا. ستحتاج إلى إنشاء حساب جديد لتسجيل الدخول مرة أخرى.',
     'deleteAccountAck': 'أفهم أن هذا الإجراء نهائي',
@@ -1952,6 +2240,20 @@ const Map<String, Map<String, String>> _copy = {
     'errLocationServiceDisabled':
         'Le service de localisation est desactive. Activez le GPS puis reessayez.',
     'enableLocationCta': 'Activer la localisation',
+    'pointAdded': 'Point ajoute',
+    'stopPhoneTitle': 'Numero de telephone',
+    'stopPhoneHint': 'Avec l\'indicatif du pays, ex. +963944123456',
+    'stopPhoneAdd': 'Ajouter un numero',
+    'stopPhoneEdit': 'Modifier le numero',
+    'stopCall': 'Appeler',
+    'stopWhatsapp': 'WhatsApp',
+    'stopCallFailed': "Impossible de lancer l'appel",
+    'locGateTitle': 'Laffah a besoin de votre position',
+    'locGateBody':
+        'Votre itineraire part de la ou vous etes, et la carte vous suit pendant la conduite.',
+    'locGateBlockedBody':
+        "La position est bloquee pour Laffah. Ouvrez les reglages de l'app pour l'autoriser.",
+    'locGateContinue': 'Continuer sans position',
     'errInvalidResponse': 'Reponse invalide du serveur',
     'errEmptyOptimizedRoute':
         'Le modele n\'a renvoye aucun itineraire optimise',
@@ -1965,6 +2267,8 @@ const Map<String, Map<String, String>> _copy = {
     'errSavedRoutesLoad': 'Impossible de charger les trajets enregistres',
     'errSavedRouteSave': 'Impossible d\'enregistrer le trajet',
     'removePointTitle': 'Supprimer ce point ?',
+    'removePointBody':
+        'Il quitte le trajet. Vos autres arrets restent en place.',
     'errGeneric': 'Une erreur est survenue',
     'errSaveRoute': 'Impossible d\'enregistrer le trajet',
     'emptyPointsHint': 'Commencez par ajouter des points sur la carte',
@@ -1977,7 +2281,7 @@ const Map<String, Map<String, String>> _copy = {
     'addMapCenterAction': 'Ajouter le centre',
     'pasteListAction': 'Coller une liste',
     'setDepartureFirst': 'Definissez d\'abord le depart',
-    'addOneStopToOptimize': 'Ajoutez au moins un arret pour optimiser',
+    'addOneStopToOptimize': 'Ajoutez votre premier arret',
     'readyToOptimize': 'Pret a optimiser',
     'routeReadyHint': 'Verifiez, simulez, enregistrez ou ouvrez votre trajet.',
     'saveRouteAction': 'Enregistrer',
@@ -2115,6 +2419,7 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapTitle': 'Carte hors ligne pour ce trajet',
     'offlineMapIdleHint':
         'Telechargez-la et la carte reste affichee sans reseau.',
+    'offlineMapNoTrip': 'Disponible une fois l\'itineraire pret.',
     'offlineMapDownloading': 'Telechargement de la carte…',
     'offlineMapReady': 'Enregistree sur votre appareil',
     'offlineMapPartial': 'La carte est incomplete — appuyez pour la finir.',
@@ -2129,6 +2434,10 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapResume': 'Continuer',
     'offlineMapNeedsConnection':
         'Le telechargement de la carte necessite une connexion.',
+    'offlineMapsSheetTitle': 'Cartes hors ligne',
+    'offlineMapsSheetBody':
+        'Enregistrez la carte maintenant et les rues restent affichees '
+        'quand le reseau disparait.',
     'offlineAreaTitle': 'Carte hors ligne',
     'offlineAreaHint':
         'Enregistrez n\'importe quelle zone de la carte et ses rues restent '
@@ -2151,8 +2460,7 @@ const Map<String, Map<String, String>> _copy = {
     'offlineAreaAtCeiling':
         'Vous avez atteint la limite de zones — supprimez-en une.',
     'offlineAreaOfferTitle': 'Enregistrer une carte hors ligne ?',
-    'offlineAreaOfferBody':
-        'Elle continuera de fonctionner sans reseau.',
+    'offlineAreaOfferBody': 'Elle continuera de fonctionner sans reseau.',
     'offlineAreaOfferAccept': 'Choisir la zone',
     'offlineAreaOfferDismiss': 'Pas maintenant',
     'arrivalTime': 'Disponibilite du client',
@@ -2176,7 +2484,8 @@ const Map<String, Map<String, String>> _copy = {
     'youWouldArrive': 'Vous y seriez a',
     'howToFixIt': 'Comment corriger',
     'fixMoveDeadline': 'Elargir la disponibilite',
-    'fixMoveDeadlineWhy': 'Garde tous les arrets. Repousse chaque creneau impossible juste au-dela du temps de route reel.',
+    'fixMoveDeadlineWhy':
+        'Garde tous les arrets. Repousse chaque creneau impossible juste au-dela du temps de route reel.',
     'fixLeaveEarlier': 'Partir plus tot',
     'fixLeaveEarlierWhy': 'Garde chaque creneau tel quel et avance le depart.',
     'fixDropStop': 'Retirer un arret',
@@ -2197,7 +2506,7 @@ const Map<String, Map<String, String>> _copy = {
     'previewRoute': 'Apercu du trajet',
     'endTrip': 'Terminer le trajet',
     'moreActions': 'Plus',
-    'googleMapsShort': 'Maps',
+    'googleMapsShort': 'Google Maps',
     'openWithMaps': 'Ouvrir dans Maps',
     'newRouteShort': 'Nouveau',
     'startFresh': 'Supprimer le trajet et recommencer',
@@ -2242,6 +2551,12 @@ const Map<String, Map<String, String>> _copy = {
     'onbImportTitle': 'Ajoutez des arrets depuis WhatsApp',
     'onbImportBody':
         'Partagez une position vers Laffah et elle apparait sur votre itineraire, sans saisie. Importer un CSV ou coller une liste fonctionne aussi.',
+    'onbImportTitleIos': 'Ajoutez des arrets depuis WhatsApp via Google Maps',
+    'onbImportIosStep1': 'Touchez la position dans WhatsApp',
+    'onbImportIosStep2': 'Dans Google Maps, touchez le bouton de partage',
+    'onbImportIosStep3': 'Choisissez Laffah',
+    'onbImportBodyIos':
+        "Touchez la position dans WhatsApp pour l'ouvrir dans Google Maps, puis touchez le bouton de partage et choisissez Laffah — l'arret arrive sur votre itineraire. Importer un CSV ou coller une liste fonctionne aussi.",
     'onbImportWhatsappTag': 'WhatsApp',
     'onbImportCsvTag': 'CSV et liste',
     'onbShareToLaffah': 'Ouvrir avec Laffah',
@@ -2261,8 +2576,7 @@ const Map<String, Map<String, String>> _copy = {
     'addMethodAddressSub': 'Rechercher et choisir une adresse',
     'addMethodMap': 'Choisir sur la carte',
     'addMethodMapSub': 'Placez un point où vous voulez',
-    'addMethodPasteLink': 'Coller un lien Google Maps',
-    'addMethodPasteLinkSub': 'Collez un lien Maps copié',
+    'addMethodPasteLinkSub': 'Partagez un lieu vers Laffah ou collez son lien',
     'pasteLocationTitle': 'Coller un lien Google Maps',
     'pasteLocationSub':
         'Collez un lien Google Maps — on y place le point automatiquement',
@@ -2274,10 +2588,76 @@ const Map<String, Map<String, String>> _copy = {
     'addressSearchPlaceholder': 'Rue, lieu, ville…',
     'addressSearchPrompt': 'Commencez à taper pour rechercher une adresse',
     'addressSearchEmpty': 'Aucun résultat. Essayez autrement.',
+    'addressSearchRecents': 'Lieux récents',
+    'addressSearchNearby': 'À proximité',
+    'addressSearchRefining': 'Recherche en cours…',
+    'searchPastedCoordinates': 'Le lieu que vous avez collé',
+    'mapLabelKindCity': 'Ville',
+    'mapLabelKindArea': 'Quartier',
+    'mapLabelKindRegion': 'Région',
+    'mapLabelKindStreet': 'Rue',
+    'mapPlaceAddStop': 'Ajouter comme arrêt',
+    'mapPlaceSetDeparture': 'Partir d\'ici',
+    'mapPlaceAlreadyAdded': 'Ce lieu est déjà sur l\'itinéraire',
+    'catFuel': 'Station-service',
+    'catPharmacy': 'Pharmacie',
+    'catHospital': 'Hôpital',
+    'catBank': 'Banque',
+    'catAtm': 'Distributeur',
+    'catRestaurant': 'Restaurant',
+    'catCafe': 'Café',
+    'catSupermarket': 'Supermarché',
+    'catBakery': 'Boulangerie',
+    'catMosque': 'Lieu de culte',
+    'catSchool': 'École',
+    'catUniversity': 'Université',
+    'catHotel': 'Hôtel',
+    'catParking': 'Parking',
+    'catPolice': 'Poste de police',
+    'catPost': 'Bureau de poste',
+    'catCarRepair': 'Garage',
+    'catBusStation': 'Gare routière',
+    'catMarket': 'Marché',
+    'catPark': 'Parc',
     'placePointHint': 'Déplacez la carte, puis confirmez',
     'whatsappOpenFailed': "Impossible d'ouvrir WhatsApp",
+    'openWhatsappCta': 'Ouvrir WhatsApp',
+    'gmapsInfoTitle': 'Ajouter un arret depuis Google Maps',
+    'gmapsInfoBody':
+        'Trouvez le lieu dans Google Maps, touchez Partager, puis choisissez Laffah — l\'arret arrive sur votre itineraire. Ou copiez le lien et collez-le ici.',
+    'openGoogleMapsCta': 'Ouvrir Google Maps',
+    'pasteLinkCta': 'Coller un lien',
     'waInfoBody':
         "Dans WhatsApp, touchez la position partagee et choisissez « Ouvrir avec Laffah » — l'app s'ouvre avec l'arret deja sur votre itineraire. Repetez pour chaque arret ; il s'ajoute aux precedents.",
+    'waInfoBodyIos':
+        "Dans WhatsApp, touchez la position partagee et ouvrez-la dans Google Maps (ou Plans). De la, touchez le bouton de partage et choisissez Laffah — l'app s'ouvre avec l'arret deja sur votre itineraire. Repetez pour chaque arret ; il s'ajoute aux precedents.",
+    'whereTo': 'Ou allez-vous ?',
+    'whereToHint': 'Cherchez un lieu ou une adresse',
+    'destinationTitle': 'Destination',
+    'goNow': 'Aller',
+    'findingRoute':
+        'Recherche de l'
+        'itineraire…',
+    'routeUnavailableTapGo':
+        'Appuyez sur Aller pour obtenir l'
+        'itineraire',
+    'addAnotherStop': 'Ajouter un autre arret',
+    'addAnotherStopSub': 'Laffeh les met dans le meilleur ordre',
+    'changeDestination': 'Changer de destination',
+    'fromLabel': 'De',
+    'currentLocationLabel': 'Ma position actuelle',
+    'startFromTitle': 'Partir de',
+    'useCurrentLocation': 'Utiliser ma position actuelle',
+    'useCurrentLocationSub': 'Le trajet part de la ou vous etes',
+    'orPickAPlace': 'ou choisissez un lieu',
+    'tripShapeTitle': 'Type de trajet',
+    'tripShapeSingle': 'Une destination',
+    'tripShapeSingleHint': 'Vers un seul lieu, au plus vite',
+    'tripShapeMulti': 'Plusieurs arrets',
+    'multiStopCtaSub': 'Ajoutez chaque arret — Laffeh les met en ordre',
+    'methodShortMap': 'Sur la carte',
+    'methodShortLink': 'Google Maps',
+    'methodShortWhatsapp': 'WhatsApp',
     'addPointCta': 'Ajouter un arret',
     'pressBackAgainToExit': 'Appuyez encore pour quitter',
     'onbLocationTitle': 'Trouvez votre point de depart',
@@ -2377,6 +2757,7 @@ const Map<String, Map<String, String>> _copy = {
     'deleteAccountItemProfile':
         'Votre nom, votre société et vos usages sélectionnés',
     'deleteAccountItemLocation': 'Votre dernière position enregistrée',
+    'deleteAccountItemRoutes': 'Vos trajets enregistrés sur tous les appareils',
     'deleteAccountIrreversible':
         'Cette action est irréversible. Vous devrez créer un nouveau compte pour vous reconnecter.',
     'deleteAccountAck': 'Je comprends que cette action est définitive',

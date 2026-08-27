@@ -116,7 +116,10 @@ class RouteRepositoryImpl implements RouteRepository {
         responseStops: response.routes.first.stops,
       );
 
-      final polylines = await _buildPolylines(reordered.points, mode: routingMode);
+      final polylines = await _buildPolylines(
+        reordered.points,
+        mode: routingMode,
+      );
 
       // The backend never fills `arrival_time`, and it silently drops a stop
       // whose window it can't satisfy, so both the ETAs and the "can't make
@@ -172,10 +175,10 @@ class RouteRepositoryImpl implements RouteRepository {
     required int departureMinute,
   }) async {
     try {
-      final planned = [
-        depot.copyWith(sequence: 0),
-        stop.copyWith(label: AppStrings.stopLabel(1), sequence: 1),
-      ];
+      // The point keeps whatever it is called. Naming is the planner's job
+      // — it already decided this is "the destination", or carried a name in
+      // from a CSV row — and the multi-stop path leaves labels alone too.
+      final planned = [depot.copyWith(sequence: 0), stop.copyWith(sequence: 1)];
 
       final polylines = await _buildPolylines(planned, mode: mode);
 
@@ -411,7 +414,15 @@ class RouteRepositoryImpl implements RouteRepository {
           ? eta - window.endMinutes
           : null;
 
-      final missed = droppedIds.contains(p.id) || lateBy != null;
+      // Only a stop the user actually constrained can miss anything. The
+      // solver also drops stops for reasons that have nothing to do with a
+      // clock (an address it couldn't match, a stop it folded into another),
+      // and flagging those as "late" invents a deadline the user never set —
+      // a red warning on a stop whose sheet shows no time at all. Such a
+      // stop is still appended to the route above; it just isn't accused of
+      // breaking a rule that doesn't exist.
+      final missed =
+          p.hasTimeWindow && (droppedIds.contains(p.id) || lateBy != null);
 
       out.add(
         p.copyWith(

@@ -17,8 +17,9 @@ import 'package:laffeh/core/utils/area_grid.dart';
 import 'package:laffeh/core/utils/tile_math.dart';
 import 'package:laffeh/core/widgets/map_pack_progress_view.dart';
 import 'package:laffeh/core/widgets/offline_area_picker_page.dart';
+import 'package:laffeh/core/widgets/trip_map_pack_tile.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/offline_area_offer.dart';
-import 'package:laffeh/features/settings/presentation/widgets/offline_map_section.dart';
+import 'package:laffeh/core/widgets/offline_area_section.dart';
 
 Future<void> _loadFonts() async {
   final loader = FontLoader('Almarai')
@@ -143,6 +144,57 @@ void main() {
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/offline_download_stopping.png'),
+    );
+  });
+
+  testWidgets('trip map — offered under the route summary', (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 200 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    addTearDown(MapPackController.route.reset);
+
+    // The sheet hands over the driven line; the tile chunks it and prices
+    // the download itself.
+    await tester.pumpWidget(
+      _harness(
+        const TripMapPackTile(
+          polyline: [LatLng(33.51, 36.27), LatLng(33.55, 36.31)],
+        ),
+      ),
+    );
+    // The disk check is a platform call, and platform replies only land
+    // under runAsync — without it the tile is still frozen on its spinner.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/trip_map_offered.png'),
+    );
+  });
+
+  testWidgets('trip map — the same row in Settings, with no plan', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390 * 3, 200 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    // Nothing bound and nothing stored: the row says where the download
+    // lives rather than offering a button that cannot do anything.
+    MapPackController.route.reset();
+
+    await tester.pumpWidget(_harness(const TripMapPackTile()));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/trip_map_settings_no_plan.png'),
     );
   });
 
@@ -298,7 +350,7 @@ void main() {
     addTearDown(tester.view.reset);
     addTearDown(MapPackController.area.reset);
 
-    await tester.pumpWidget(_harness(const OfflineMapSection()));
+    await tester.pumpWidget(_harness(const OfflineAreaSection()));
     MapPackController.area.debugSetProgress(
       status: MapPackStatus.ready,
       progress: 1,

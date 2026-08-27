@@ -5,7 +5,11 @@ class _PinDots extends StatelessWidget {
   final double phase;
   const _PinDots({required this.phase});
 
-  static final _colors = [AppColors.pinBlue, AppColors.pinRed, AppColors.pinOrange];
+  static final _colors = [
+    AppColors.pinBlue,
+    AppColors.pinRed,
+    AppColors.pinOrange,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +58,11 @@ class _RoadTripPainter extends CustomPainter {
 
   _RoadTripPainter({required this.trip, required this.dashPhase});
 
-  static final _pinColors = [AppColors.pinBlue, AppColors.pinRed, AppColors.pinOrange];
+  static final _pinColors = [
+    AppColors.pinBlue,
+    AppColors.pinRed,
+    AppColors.pinOrange,
+  ];
   // Stops along the road (fraction of width).
   static const _stops = [0.28, 0.52, 0.76];
 
@@ -93,7 +101,12 @@ class _RoadTripPainter extends CustomPainter {
       // 0→1 pop driven by how far past the stop the car is.
       final pop = ((carX - stopX) / 60).clamp(0.0, 1.0);
       final bounce = Curves.elasticOut.transform(pop);
-      _drawPin(canvas, Offset(stopX, roadY - roadH / 2 - 6), bounce, _pinColors[i]);
+      _drawPin(
+        canvas,
+        Offset(stopX, roadY - roadH / 2 - 6),
+        bounce,
+        _pinColors[i],
+      );
     }
 
     // ── The car ──
@@ -194,7 +207,11 @@ class _RoadTripPainter extends CustomPainter {
 
     // Wheels (spin with the dashes)
     for (final wx in const [-13.0, 13.0]) {
-      canvas.drawCircle(Offset(wx, -3), 5.5, Paint()..color = AppColors.asphaltDark);
+      canvas.drawCircle(
+        Offset(wx, -3),
+        5.5,
+        Paint()..color = AppColors.asphaltDark,
+      );
       canvas.drawCircle(Offset(wx, -3), 2.4, Paint()..color = AppColors.white);
       final spoke = dashPhase * 2 * math.pi * 3;
       canvas.drawLine(
@@ -212,4 +229,115 @@ class _RoadTripPainter extends CustomPainter {
   @override
   bool shouldRepaint(_RoadTripPainter old) =>
       old.trip != trip || old.dashPhase != dashPhase;
+}
+
+/// The location gate, shown in place of the loading dots when the show ends
+/// without location access.
+///
+/// Painted for the green splash rather than the app's surface: white type, a
+/// white button, and a quiet way past it. The body names the actual obstacle,
+/// because "enable location" means three different things depending on whether
+/// permission was refused, refused for good, or the whole device has location
+/// switched off — and only the first of those is fixed by a prompt.
+class _LocationGatePanel extends StatelessWidget {
+  final LocationAccess access;
+  final bool busy;
+  final VoidCallback onEnable;
+  final VoidCallback onContinue;
+
+  const _LocationGatePanel({
+    required this.access,
+    required this.busy,
+    required this.onEnable,
+    required this.onContinue,
+  });
+
+  String get _body => switch (access) {
+    LocationAccess.servicesOff => AppStrings.errLocationServiceDisabled,
+    LocationAccess.blocked => AppStrings.locGateBlockedBody,
+    _ => AppStrings.locGateBody,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.white.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              access == LocationAccess.servicesOff
+                  ? Icons.location_disabled_rounded
+                  : Icons.my_location_rounded,
+              color: AppColors.white,
+              size: 26,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            AppStrings.locGateTitle,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.h3.copyWith(color: AppColors.white),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _body,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodySm.copyWith(
+              color: AppColors.white.withValues(alpha: 0.88),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: busy ? null : onEnable,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.white,
+                disabledBackgroundColor: AppColors.white.withValues(alpha: 0.6),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: busy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: AppColors.leaf,
+                      ),
+                    )
+                  : Text(
+                      AppStrings.enableLocationCta,
+                      style: AppTextStyles.button.copyWith(
+                        color: AppColors.leaf,
+                      ),
+                    ),
+            ),
+          ),
+          TextButton(
+            onPressed: busy ? null : onContinue,
+            child: Text(
+              AppStrings.locGateContinue,
+              style: AppTextStyles.bodySm.copyWith(
+                color: AppColors.white.withValues(alpha: 0.82),
+                decoration: TextDecoration.underline,
+                decorationColor: AppColors.white.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

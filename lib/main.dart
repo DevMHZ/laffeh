@@ -9,6 +9,7 @@ import 'core/config/supabase_config.dart';
 import 'core/constants/app_constants.dart';
 import 'core/di/service_locator.dart';
 import 'core/services/map_cache_service.dart';
+import 'core/services/saved_routes_sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/vehicle_prefs.dart';
 import 'core/utils/debug_log.dart';
@@ -43,6 +44,10 @@ Future<void> main() async {
 
   await setupServiceLocator();
 
+  // Watches the session so a signed-in driver's route history follows the
+  // account rather than the handset. Best-effort and off the startup path —
+  // the planner never waits on it.
+  sl<SavedRoutesSyncService>().start();
 
   await MapCacheService.init();
 

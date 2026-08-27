@@ -40,7 +40,8 @@ class MapPackResult {
   });
 
   /// True when the pack is usable — every box landed.
-  bool get isComplete => !cancelled && failedChunks == 0 && downloadedChunks > 0;
+  bool get isComplete =>
+      !cancelled && failedChunks == 0 && downloadedChunks > 0;
 }
 
 /// One area the driver has saved for offline use.
@@ -357,8 +358,8 @@ class MapCacheService {
       for (final entry in byPack.entries) {
         final encoded =
             entry.value
-                .map((r) => r.metadata[OfflineMapConfig.metaBounds])
-                .firstWhere((b) => b is String, orElse: () => null)
+                    .map((r) => r.metadata[OfflineMapConfig.metaBounds])
+                    .firstWhere((b) => b is String, orElse: () => null)
                 as String?;
         final bounds = encoded == null ? null : _decodeBounds(encoded);
         if (bounds == null) continue;

@@ -102,5 +102,6 @@ class PlannerDraftModel {
 
   List<RoutePoint> toPoints() => points.map((p) => p.toEntity()).toList();
 
-  OptimizedRoute? toOptimizedRoute() => optimized?.toEntity().toOptimizedRoute();
+  OptimizedRoute? toOptimizedRoute() =>
+      optimized?.toEntity().toOptimizedRoute();
 }

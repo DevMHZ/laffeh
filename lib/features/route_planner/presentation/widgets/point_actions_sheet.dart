@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_dialog.dart';
 import '../../domain/entities/route_point.dart';
+import '../pages/route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
 import 'stop_time_window_sheet.dart';
 
@@ -21,6 +22,10 @@ Future<void> showPointActions(BuildContext context, RoutePoint point) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
+    // The row list grew (contact actions on top of the existing five), and a
+    // stop with a phone now runs past the default 9/16-of-screen cap. Let the
+    // sheet size to its content and scroll when even that isn't enough.
+    isScrollControlled: true,
     builder: (sheetCtx) => _PointActionsSheet(
       point: point,
       onRename: () async {
@@ -37,6 +42,36 @@ Future<void> showPointActions(BuildContext context, RoutePoint point) {
           cubit.renamePoint(point.id, newLabel.trim());
         }
       },
+      onEditPhone: () async {
+        Navigator.pop(sheetCtx);
+        final entered = await AppDialog.input(
+          context: context,
+          title: point.hasPhone
+              ? AppStrings.stopPhoneEdit
+              : AppStrings.stopPhoneAdd,
+          hint: AppStrings.stopPhoneHint,
+          initialValue: point.phone ?? '',
+          icon: Iconsax.call,
+          tone: AppDialogTone.primary,
+          keyboardType: TextInputType.phone,
+        );
+        // Null is "cancelled" and leaves the number alone; an emptied field
+        // is a deliberate "remove it", which setPointPhone treats as a clear.
+        if (entered == null) return;
+        cubit.setPointPhone(point.id, entered);
+      },
+      onWhatsapp: point.hasPhone
+          ? () {
+              Navigator.pop(sheetCtx);
+              RoutePlannerActions.messageStopOnWhatsapp(context, point.phone!);
+            }
+          : null,
+      onCall: point.hasPhone
+          ? () {
+              Navigator.pop(sheetCtx);
+              RoutePlannerActions.callStop(context, point.phone!);
+            }
+          : null,
       onMove: () {
         Navigator.pop(sheetCtx);
         cubit.beginMovePoint(point.id);
@@ -84,69 +119,30 @@ Future<void> showPointActions(BuildContext context, RoutePoint point) {
 
 /// Confirmation dialog before deleting a point. Public so both the map's
 /// long-press-to-delete and the actions sheet can share it.
-Future<void> confirmRemovePoint(BuildContext context, String pointId) {
+Future<void> confirmRemovePoint(BuildContext context, String pointId) async {
   final cubit = context.read<RoutePlannerCubit>();
-  return showDialog<void>(
+  final confirmed = await AppDialog.confirm(
     context: context,
-    builder: (ctx) => AlertDialog(
-      contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.danger.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Iconsax.trash, color: AppColors.danger, size: 26),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            AppStrings.removePointTitle,
-            style: AppTextStyles.h3,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(AppStrings.cancel),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    cubit.removePoint(pointId);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.danger,
-                    foregroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(AppStrings.remove),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
+    title: AppStrings.removePointTitle,
+    message: AppStrings.removePointBody,
+    icon: Iconsax.trash,
+    tone: AppDialogTone.danger,
+    confirmLabel: AppStrings.remove,
+    confirmIcon: Iconsax.trash,
+    destructive: true,
   );
+  if (confirmed != true) return;
+  cubit.removePoint(pointId);
 }
 
 /// Shown when the user re-includes an excluded optional point on an already
 /// optimized route. Offers to re-optimize (fold it in), delete the point, or
 /// cancel (leave it excluded). Public so the map marker and the planning grid
 /// share the exact same flow.
-Future<void> showActivateStopDialog(BuildContext context, RoutePoint point) async {
+Future<void> showActivateStopDialog(
+  BuildContext context,
+  RoutePoint point,
+) async {
   final cubit = context.read<RoutePlannerCubit>();
   final choice = await AppDialog.show<String>(
     context: context,
@@ -180,6 +176,9 @@ Future<void> showActivateStopDialog(BuildContext context, RoutePoint point) asyn
 class _PointActionsSheet extends StatelessWidget {
   final RoutePoint point;
   final VoidCallback onRename;
+  final VoidCallback onEditPhone;
+  final VoidCallback? onWhatsapp;
+  final VoidCallback? onCall;
   final VoidCallback onMove;
   final VoidCallback? onToggleInclude;
   final VoidCallback? onSetTime;
@@ -188,6 +187,9 @@ class _PointActionsSheet extends StatelessWidget {
   const _PointActionsSheet({
     required this.point,
     required this.onRename,
+    required this.onEditPhone,
+    required this.onWhatsapp,
+    required this.onCall,
     required this.onMove,
     required this.onToggleInclude,
     required this.onSetTime,
@@ -223,122 +225,173 @@ class _PointActionsSheet extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(99),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(11),
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        point.isDepot
+                            ? Iconsax.flag
+                            : skipped
+                            ? Iconsax.eye_slash
+                            : Iconsax.location,
+                        color: accent,
+                        size: 22,
+                      ),
                     ),
-                    child: Icon(
-                      point.isDepot
-                          ? Iconsax.flag
-                          : skipped
-                          ? Iconsax.eye_slash
-                          : Iconsax.location,
-                      color: accent,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          point.label,
-                          style: AppTextStyles.titleMd,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          location,
-                          style: AppTextStyles.bodySm.copyWith(
-                            color: AppColors.textSecondary,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            point.label,
+                            style: AppTextStyles.titleMd,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                          const SizedBox(height: 3),
+                          Text(
+                            location,
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (point.hasPhone) ...[
+                            const SizedBox(height: 5),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Iconsax.call,
+                                  size: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 5),
+                                // LTR so a leading + and the digit groups read
+                                // correctly inside an otherwise RTL sheet.
+                                Directionality(
+                                  textDirection: TextDirection.ltr,
+                                  child: Text(
+                                    point.phone!,
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Divider(height: 1, color: AppColors.divider),
-            _ActionRow(
-              icon: Iconsax.edit,
-              label: AppStrings.rename,
-              color: AppColors.primary,
-              onTap: onRename,
-            ),
-            _ActionRow(
-              icon: Iconsax.gps,
-              label: AppStrings.moveOnMap,
-              color: AppColors.info,
-              onTap: onMove,
-            ),
-            // Arrival time — the trailing value doubles as the current
-            // state, so the row reads as "Arrival time · 14:00 – 15:30"
-            // or "Arrival time · Any time".
-            if (onSetTime != null)
+              const SizedBox(height: 14),
+              Divider(height: 1, color: AppColors.divider),
+              // Contact first: at a stop, reaching whoever is waiting beats
+              // every other action on this sheet. Absent without a number.
+              if (onWhatsapp != null)
+                _ActionRow(
+                  icon: Iconsax.message,
+                  label: AppStrings.stopWhatsapp,
+                  color: AppColors.primary,
+                  onTap: onWhatsapp!,
+                ),
+              if (onCall != null)
+                _ActionRow(
+                  icon: Iconsax.call,
+                  label: AppStrings.stopCall,
+                  color: AppColors.info,
+                  onTap: onCall!,
+                ),
               _ActionRow(
-                icon: Iconsax.clock,
-                label: AppStrings.arrivalTime,
-                color: point.hasTimeWindow
-                    ? AppColors.primary
-                    : AppColors.textMuted,
-                trailing: point.hasTimeWindow
-                    ? AppStrings.arrivalWindowRange(
-                        formatMinuteOfDay(
-                          context,
-                          point.timeWindow!.startMinuteOfDay,
-                        ),
-                        formatMinuteOfDay(
-                          context,
-                          point.timeWindow!.endMinuteOfDay,
-                        ),
-                      )
-                    : AppStrings.anyTime,
-                onTap: onSetTime!,
+                icon: Iconsax.edit,
+                label: AppStrings.rename,
+                color: AppColors.primary,
+                onTap: onRename,
               ),
-            // Single include/skip toggle (hidden for the depot, which is
-            // always part of the route).
-            if (onToggleInclude != null)
               _ActionRow(
-                icon: skipped ? Iconsax.tick_circle : Iconsax.eye_slash,
-                label: skipped ? AppStrings.includeStop : AppStrings.skipStop,
-                color: skipped ? AppColors.primary : AppColors.optionalOff,
-                onTap: onToggleInclude!,
+                icon: Iconsax.call_add,
+                label: point.hasPhone
+                    ? AppStrings.stopPhoneEdit
+                    : AppStrings.stopPhoneAdd,
+                color: AppColors.accent,
+                onTap: onEditPhone,
               ),
-            _ActionRow(
-              icon: Iconsax.trash,
-              label: AppStrings.remove,
-              color: AppColors.danger,
-              destructive: true,
-              onTap: onRemove,
-            ),
-            const SizedBox(height: 6),
-          ],
+              _ActionRow(
+                icon: Iconsax.gps,
+                label: AppStrings.moveOnMap,
+                color: AppColors.info,
+                onTap: onMove,
+              ),
+              // Arrival time — the trailing value doubles as the current
+              // state, so the row reads as "Arrival time · 14:00 – 15:30"
+              // or "Arrival time · Any time".
+              if (onSetTime != null)
+                _ActionRow(
+                  icon: Iconsax.clock,
+                  label: AppStrings.arrivalTime,
+                  color: point.hasTimeWindow
+                      ? AppColors.primary
+                      : AppColors.textMuted,
+                  trailing: point.hasTimeWindow
+                      ? AppStrings.arrivalWindowRange(
+                          formatMinuteOfDay(
+                            context,
+                            point.timeWindow!.startMinuteOfDay,
+                          ),
+                          formatMinuteOfDay(
+                            context,
+                            point.timeWindow!.endMinuteOfDay,
+                          ),
+                        )
+                      : AppStrings.anyTime,
+                  onTap: onSetTime!,
+                ),
+              // Single include/skip toggle (hidden for the depot, which is
+              // always part of the route).
+              if (onToggleInclude != null)
+                _ActionRow(
+                  icon: skipped ? Iconsax.tick_circle : Iconsax.eye_slash,
+                  label: skipped ? AppStrings.includeStop : AppStrings.skipStop,
+                  color: skipped ? AppColors.primary : AppColors.optionalOff,
+                  onTap: onToggleInclude!,
+                ),
+              _ActionRow(
+                icon: Iconsax.trash,
+                label: AppStrings.remove,
+                color: AppColors.danger,
+                destructive: true,
+                onTap: onRemove,
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
         ),
       ),
     );

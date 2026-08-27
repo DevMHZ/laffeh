@@ -359,11 +359,7 @@ class _OfflineAreaPickerPageState extends State<OfflineAreaPickerPage> {
         '${OfflineMapConfig.areaPackPrefix}${const Uuid().v4()}';
 
     setState(() => _quotedMb = estimateMb);
-    await _pack.download(
-      packId: packId,
-      boxes: boxes,
-      packBounds: selection,
-    );
+    await _pack.download(packId: packId, boxes: boxes, packBounds: selection);
     if (!mounted) return;
     await _reloadSaved();
   }

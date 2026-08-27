@@ -93,6 +93,47 @@ class MapMarkerRenderer {
     }
   });
 
+  /// The one and only destination — a pin, not a number.
+  ///
+  /// Counting starts at two. A lone "1" on the map asks the driver to hold a
+  /// sequence in their head that has no second term, so this drops the digit
+  /// and says what the marker actually is: the place they are going.
+  /// [visit] colours it exactly like a numbered stop, so drive mode reads the
+  /// same either way.
+  static Future<Uint8List> destination(StopVisitState? visit) => _toPng(
+    34,
+    34,
+    (c, sz) {
+      final glyph = String.fromCharCode(Icons.place_rounded.codePoint);
+      switch (visit) {
+        case null:
+          _dot(c, sz, fill: AppColors.accent, r: 10);
+          _glyph(c, sz, glyph, fontSize: 15, color: AppColors.white);
+        case StopVisitState.upcoming:
+          _dot(c, sz, fill: AppColors.white, border: AppColors.primary, r: 10);
+          _glyph(c, sz, glyph, fontSize: 15, color: AppColors.primary);
+        case StopVisitState.visiting:
+          _dot(
+            c,
+            sz,
+            fill: AppColors.pinOrange,
+            r: 13,
+            glow: AppColors.pinOrange,
+          );
+          _glyph(c, sz, glyph, fontSize: 16, color: AppColors.white);
+        case StopVisitState.visited:
+          _dot(c, sz, fill: AppColors.primary, r: 10);
+          _glyph(
+            c,
+            sz,
+            String.fromCharCode(Icons.check_rounded.codePoint),
+            fontSize: 13,
+            color: AppColors.white,
+          );
+      }
+    },
+  );
+
   /// Deactivated optional stop — a muted, hollow dot so it reads as
   /// "parked / not in the route" without disappearing from the map.
   static Future<Uint8List> optionalOff() => _toPng(30, 30, (c, sz) {

@@ -52,7 +52,10 @@ class _CenterPinWidgetState extends State<CenterPinWidget>
         child: AnimatedBuilder(
           animation: _pulse,
           builder: (_, __) => CustomPaint(
-            painter: _CrosshairPainter(color: widget.color, pulse: _pulse.value),
+            painter: _CrosshairPainter(
+              color: widget.color,
+              pulse: _pulse.value,
+            ),
           ),
         ),
       ),

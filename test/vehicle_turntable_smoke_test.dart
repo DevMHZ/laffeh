@@ -13,9 +13,7 @@ void main() {
     for (final kind in VehicleKind.values) {
       await tester.pumpWidget(
         MaterialApp(
-          home: Center(
-            child: VehicleTurntable(kind: kind, size: 160),
-          ),
+          home: Center(child: VehicleTurntable(kind: kind, size: 160)),
         ),
       );
       // Let the sheet decode, then advance through several frames.

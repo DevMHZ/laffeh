@@ -26,6 +26,7 @@ class TopBar extends StatelessWidget {
           a.navigationActive != b.navigationActive ||
           a.optimizedRoute != b.optimizedRoute ||
           a.movingPointId != b.movingPointId ||
+          a.destinationCount != b.destinationCount ||
           a.points.isEmpty != b.points.isEmpty,
       builder: (context, state) {
         if (state.simulationActive ||
@@ -90,7 +91,14 @@ class TopBar extends StatelessWidget {
                           opacity: anim,
                           child: ScaleTransition(scale: anim, child: child),
                         ),
-                        child: (state.hasPoints || state.hasOptimizedRoute)
+                        // Stops → Route → Drive describes planning a trip.
+                        // Driving to one place isn't planning, so the stepper
+                        // stays away until a second destination makes it true
+                        // — and then it arrives as a signal that the app has
+                        // changed gear.
+                        child:
+                            (state.hasPoints || state.hasOptimizedRoute) &&
+                                !state.isSingleDestination
                             ? StepIndicator(
                                 step: state.hasOptimizedRoute ? 1 : 0,
                               )
@@ -152,9 +160,7 @@ class StepIndicator extends StatelessWidget {
                 height: 2,
                 margin: const EdgeInsets.symmetric(horizontal: 5),
                 decoration: BoxDecoration(
-                  color: i <= step
-                      ? AppColors.primary
-                      : AppColors.borderStrong,
+                  color: i <= step ? AppColors.primary : AppColors.borderStrong,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

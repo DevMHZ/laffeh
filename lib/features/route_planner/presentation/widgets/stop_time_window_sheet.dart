@@ -32,7 +32,8 @@ Future<TimeWindowChoice?> showStopTimeWindowSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _StopTimeWindowSheet(pointLabel: pointLabel, initial: initial),
+    builder: (_) =>
+        _StopTimeWindowSheet(pointLabel: pointLabel, initial: initial),
   );
 }
 
@@ -157,7 +158,10 @@ class _StopTimeWindowSheetState extends State<_StopTimeWindowSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(AppStrings.arrivalTime, style: AppTextStyles.titleMd),
+                      Text(
+                        AppStrings.arrivalTime,
+                        style: AppTextStyles.titleMd,
+                      ),
                       Text(
                         widget.pointLabel,
                         style: AppTextStyles.bodySm.copyWith(
@@ -212,20 +216,15 @@ class _StopTimeWindowSheetState extends State<_StopTimeWindowSheet> {
               ),
             ],
             const SizedBox(height: 12),
-            Text(
-              AppStrings.arrivalWindowHint,
-              style: AppTextStyles.mutedSm,
-            ),
+            Text(AppStrings.arrivalWindowHint, style: AppTextStyles.mutedSm),
             const SizedBox(height: 18),
             Row(
               children: [
                 if (widget.initial != null) ...[
                   Expanded(
                     child: TextButton.icon(
-                      onPressed: () => Navigator.pop(
-                        context,
-                        const TimeWindowChoice(null),
-                      ),
+                      onPressed: () =>
+                          Navigator.pop(context, const TimeWindowChoice(null)),
                       icon: Icon(
                         Iconsax.close_circle,
                         size: 18,

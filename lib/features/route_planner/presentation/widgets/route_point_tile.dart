@@ -124,7 +124,9 @@ class RoutePointTile extends StatelessWidget {
                         label: dimmed
                             ? AppStrings.deactivatedBadge
                             : AppStrings.optionalBadge,
-                        color: dimmed ? AppColors.optionalOff : AppColors.optional,
+                        color: dimmed
+                            ? AppColors.optionalOff
+                            : AppColors.optional,
                       ),
                     ],
                   ],

@@ -103,6 +103,18 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Android 11+ package visibility: without these, url_launcher can't
+             see a browser or a dialler, so "WhatsApp" and "Call" on a stop
+             (and the wa.me support link) fail with nothing installed to
+             handle them. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
+        </intent>
         <!-- So getLaunchIntentForPackage can find WhatsApp to open it -->
         <package android:name="com.whatsapp"/>
         <package android:name="com.whatsapp.w4b"/>

@@ -26,13 +26,16 @@ import '../../../../core/utils/debug_log.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/utils/marker_factory.dart';
 import '../../../../core/utils/polyline_utils.dart';
+import '../../data/datasources/map_label_reader.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../../domain/entities/place_suggestion.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'map_compass.dart';
 import 'map_geometry.dart';
 import 'map_marker_renderer.dart';
+import 'map_place_sheet.dart';
 import 'point_actions_sheet.dart';
 import 'route_map_overlays.dart';
 
@@ -465,6 +468,8 @@ class RouteMapViewState extends State<RouteMapView>
     // Allow symbols to overlap each other and map text so all markers show.
     await _controller?.setSymbolIconAllowOverlap(true);
     await _controller?.setSymbolIconIgnorePlacement(true);
+
+    await _cacheLabelLayers();
 
     if (!mounted) return;
     _scheduleApply(context.read<RoutePlannerCubit>().state);
@@ -1009,6 +1014,10 @@ class RouteMapViewState extends State<RouteMapView>
         state.navigationStopIndex >=
             state.optimizedRoute!.orderedPoints.length - 1;
 
+    // A depot and one place to be: the marker is a pin, not the first entry
+    // in a sequence the driver never asked for.
+    final soleDestination = state.isSingleDestination;
+
     var stopIndex = 0;
     for (var i = 0; i < state.points.length; i++) {
       final p = state.points[i];
@@ -1056,10 +1065,15 @@ class RouteMapViewState extends State<RouteMapView>
         final idx = ++stopIndex;
         final v = visit;
         final opt = p.optional;
-        imgId = await _ensureImage(
-          'img-s$idx-${v?.name ?? 'n'}-${opt ? 'o' : 'm'}',
-          () => MapMarkerRenderer.stop(idx, v, optional: opt),
-        );
+        imgId = soleDestination && !opt
+            ? await _ensureImage(
+                'img-dest-${v?.name ?? 'n'}',
+                () => MapMarkerRenderer.destination(v),
+              )
+            : await _ensureImage(
+                'img-s$idx-${v?.name ?? 'n'}-${opt ? 'o' : 'm'}',
+                () => MapMarkerRenderer.stop(idx, v, optional: opt),
+              );
       }
 
       specs.add(
@@ -1193,6 +1207,137 @@ class RouteMapViewState extends State<RouteMapView>
       final point = state.points.firstWhere((p) => p.id == pointId);
       showPointActions(context, point);
     } catch (_) {}
+  }
+
+  /// The style's own label layers, grouped once per style load. Empty
+  /// until the style is up, and on any style that has no label layers —
+  /// in which case tapping the map simply does nothing, as it did before.
+  MapLabelLayers _labelLayers = MapLabelLayers.empty;
+
+  Future<void> _cacheLabelLayers() async {
+    final c = _controller;
+    if (c == null) return;
+    try {
+      final ids = (await c.getLayerIds()).whereType<String>().toList();
+      _labelLayers = MapLabelReader.groupLayers(ids);
+      DebugLog.map(
+        'label layers — poi=${_labelLayers.poi.length} '
+        'place=${_labelLayers.place.length} other=${_labelLayers.other.length}',
+      );
+    } catch (e) {
+      // A style that will not enumerate its layers costs us tap-to-add and
+      // nothing else; everything on this map keeps working.
+      DebugLog.map('getLayerIds failed: $e');
+      _labelLayers = MapLabelLayers.empty;
+    }
+  }
+
+  /// Tapping a name printed on the map opens it, the way every map app has
+  /// trained every driver to expect.
+  ///
+  /// The answer comes out of the vector tile already on screen — the map
+  /// drew that label, so it knows the name, the category and the exact
+  /// coordinate — which makes this the only place lookup in the app that
+  /// costs no request and works with no signal.
+  ///
+  /// [screenPoint] arrives in the same units the query expects on each
+  /// platform (physical px on Android, logical on iOS), because both come
+  /// from the native projection. Do not "fix" it with a devicePixelRatio —
+  /// scaling here is the bug, not the cure. See `_aimScale` for the places
+  /// that genuinely need it.
+  Future<void> _onMapClick(
+    math.Point<double> screenPoint,
+    LatLng coordinates,
+  ) async {
+    if (!mounted) return;
+    final c = _controller;
+    if (c == null || _labelLayers.isEmpty) return;
+
+    final state = context.read<RoutePlannerCubit>().state;
+    // Every mode that has already claimed the tap keeps it: mid-drive the
+    // map is for looking at, and while a pin is being aimed or moved the
+    // next tap belongs to that flow.
+    if (state.navigationActive ||
+        state.simulationActive ||
+        state.manualPlacement ||
+        state.movingPointId != null) {
+      return;
+    }
+
+    final tap = ll.LatLng(coordinates.latitude, coordinates.longitude);
+
+    // A tap on one of our own stop markers belongs to the marker's sheet,
+    // which `onSymbolTapped` is already opening. Both callbacks fire for
+    // the same touch, so without this the driver gets two sheets.
+    //
+    // Measured on screen, not on the ground. Projecting each marker costs
+    // a call per stop and is worth it: a metre-based radius means something
+    // different at every zoom level, and at street zoom a generous one eats
+    // every label within a block of a stop.
+    final hitPad = MapConfig.markerTapRadiusPx * _aimScale;
+    for (final p in state.points) {
+      final marker = await c.toScreenLocation(_ml(p.latLng));
+      if ((marker.x - screenPoint.x).abs() < hitPad &&
+          (marker.y - screenPoint.y).abs() < hitPad) {
+        return;
+      }
+    }
+    if (!mounted) return;
+
+    final place = await _queryLabelAt(screenPoint, tap);
+    if (place == null || !mounted) return;
+
+    HapticFeedback.selectionClick();
+    await showMapPlaceSheet(context, context.read<RoutePlannerCubit>(), place);
+  }
+
+  /// Asks the three label tiers in turn and returns the first named hit.
+  ///
+  /// In order, because a finger covers a lot of map: a tap can land on a
+  /// pharmacy, the street it is on and the city all at once, and the
+  /// pharmacy is what was being pointed at.
+  Future<PlaceSuggestion?> _queryLabelAt(
+    math.Point<double> screenPoint,
+    ll.LatLng tap,
+  ) async {
+    final c = _controller;
+    if (c == null) return null;
+
+    final tiers = <(List<String>, PlaceKind)>[
+      (_labelLayers.poi, PlaceKind.poi),
+      (_labelLayers.place, PlaceKind.city),
+      (_labelLayers.other, PlaceKind.poi),
+    ];
+
+    // A box, not a point. The label is text a few pixels tall and the
+    // touch is a fingertip; a point query only ever hits it by luck. The
+    // *point* needs no DPR (see `_onMapClick`), but the box's size does —
+    // it is a length in logical px being handed to an API that measures in
+    // physical px on Android.
+    final pad = MapConfig.labelTapRadiusPx * _aimScale;
+    final box = Rect.fromLTRB(
+      screenPoint.x - pad,
+      screenPoint.y - pad,
+      screenPoint.x + pad,
+      screenPoint.y + pad,
+    );
+
+    for (final (layers, kind) in tiers) {
+      if (layers.isEmpty) continue;
+      try {
+        final features = await c.queryRenderedFeaturesInRect(box, layers, null);
+        final place = MapLabelReader.readBest(
+          features,
+          fallback: tap,
+          tierKind: kind,
+        );
+        if (place != null) return place;
+      } catch (e) {
+        DebugLog.map('queryRenderedFeatures failed: $e');
+        return null;
+      }
+    }
+    return null;
   }
 
   void _onMapLongClick(math.Point<double> screenPoint, LatLng coordinates) {
@@ -1455,9 +1600,7 @@ class RouteMapViewState extends State<RouteMapView>
         iconImage: _navFrameId(h, 0, halo: false),
         iconSize: _dpr / VehicleMarkerConfig.iconOversample,
         iconAnchor: 'center',
-        iconRotate: _wrap180(
-          iconRot - h * VehicleMarkerConfig.headingStepDeg,
-        ),
+        iconRotate: _wrap180(iconRot - h * VehicleMarkerConfig.headingStepDeg),
       ),
     );
   }
@@ -1841,8 +1984,11 @@ class RouteMapViewState extends State<RouteMapView>
     if (!identical(route, _navRoute)) {
       final newTotalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
       if (_navRoute != null && _navRouteTotalKm > 0 && newTotalKm > 0) {
-        _navRenderProgress = (_navRenderProgress * _navRouteTotalKm / newTotalKm)
-            .clamp(0.0, 1.0);
+        _navRenderProgress =
+            (_navRenderProgress * _navRouteTotalKm / newTotalKm).clamp(
+              0.0,
+              1.0,
+            );
       } else {
         _navRenderProgress = state.navigationProgress;
       }
@@ -1903,8 +2049,7 @@ class RouteMapViewState extends State<RouteMapView>
 
     final diff = predicted - _navRenderProgress;
     if (diff > 0) {
-      final k =
-          1 - math.exp(-dt / NavigationConfig.markerSmoothingTauSeconds);
+      final k = 1 - math.exp(-dt / NavigationConfig.markerSmoothingTauSeconds);
       _navRenderProgress = math.min(_navRenderProgress + diff * k, predicted);
     }
 
@@ -1961,7 +2106,9 @@ class RouteMapViewState extends State<RouteMapView>
   double _zoomForSpeed(double? speedMps) {
     final kmh = (speedMps ?? 0) * 3.6;
     double lerp(double a, double b, double t) => a + (b - a) * t.clamp(0, 1);
-    if (kmh <= NavigationConfig.speedCrawlKmh) return NavigationConfig.zoomCrawl;
+    if (kmh <= NavigationConfig.speedCrawlKmh) {
+      return NavigationConfig.zoomCrawl;
+    }
     if (kmh <= NavigationConfig.speedCityKmh) {
       return lerp(
         NavigationConfig.zoomCrawl,
@@ -2031,9 +2178,7 @@ class RouteMapViewState extends State<RouteMapView>
     _navExploring.value = false;
     DebugLog.cam('explore: resuming follow (resumeCamera=$resumeCamera)');
     if (resumeCamera && mounted) {
-      unawaited(
-        _syncNavigationCamera(context.read<RoutePlannerCubit>().state),
-      );
+      unawaited(_syncNavigationCamera(context.read<RoutePlannerCubit>().state));
       _followSwapTimer?.cancel();
       _followSwapTimer = Timer(
         NavigationConfig.cameraAnimDuration + const Duration(milliseconds: 120),
@@ -2193,9 +2338,7 @@ class RouteMapViewState extends State<RouteMapView>
             geometry: _ml(anchor),
             // Null = leave unchanged; only a landed swap re-layouts.
             iconImage: swapped ? _navFrameId(h, 0, halo: true) : null,
-            iconRotate: _wrap180(
-              rot - h * VehicleMarkerConfig.headingStepDeg,
-            ),
+            iconRotate: _wrap180(rot - h * VehicleMarkerConfig.headingStepDeg),
           )
         : SymbolOptions(geometry: _ml(anchor), iconRotate: rot);
     c
@@ -2543,8 +2686,7 @@ class RouteMapViewState extends State<RouteMapView>
                                 key: const ValueKey('nav-recenter'),
                                 icon: Icons.navigation_rounded,
                                 label: AppStrings.reCenter,
-                                onTap: () =>
-                                    _stopExploring(resumeCamera: true),
+                                onTap: () => _stopExploring(resumeCamera: true),
                               )
                             : const SizedBox.shrink(),
                       );
@@ -2588,6 +2730,7 @@ class RouteMapViewState extends State<RouteMapView>
       onStyleLoadedCallback: _onStyleLoaded,
       onCameraMove: _onCameraMove,
       onCameraIdle: _onCameraIdle,
+      onMapClick: _onMapClick,
       onMapLongClick: _onMapLongClick,
       trackCameraPosition: true,
       compassEnabled: false,

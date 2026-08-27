@@ -30,6 +30,14 @@ target 'Runner' do
   use_frameworks!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  # The Share Extension only needs the search paths so `import
+  # receive_sharing_intent` resolves at compile time. The framework itself is
+  # embedded once, in the app bundle, and the extension loads it from there.
+  target 'Share Extension' do
+    inherit! :search_paths
+  end
+
   target 'RunnerTests' do
     inherit! :search_paths
   end

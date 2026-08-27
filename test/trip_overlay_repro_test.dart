@@ -28,8 +28,13 @@ class _FakeRouteCubit extends Cubit<RoutePlannerState>
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-RoutePoint _pt(String id, String label, double lat, double lon,
-    {bool depot = false}) {
+RoutePoint _pt(
+  String id,
+  String label,
+  double lat,
+  double lon, {
+  bool depot = false,
+}) {
   return RoutePoint(
     id: id,
     latitude: lat,

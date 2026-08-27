@@ -93,6 +93,8 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
           a.navigationStopIndex != b.navigationStopIndex ||
           a.navigationArrived != b.navigationArrived ||
           a.navigationStopDistanceMeters != b.navigationStopDistanceMeters ||
+          a.navigationStopRouteDistanceMeters !=
+              b.navigationStopRouteDistanceMeters ||
           a.navigationSpeedMps != b.navigationSpeedMps ||
           a.maneuverFractions != b.maneuverFractions ||
           a.userLocation != b.userLocation ||
@@ -109,20 +111,30 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         final targetIndex = state.navigationStopIndex.clamp(0, count - 1);
         final target = route.orderedPoints[targetIndex];
         final isReturn = _isReturn(route, targetIndex);
+        // A depot and one place to be: this is a plain drive somewhere, so
+        // the HUD says so. "Next stop · 1 of 1" and "Point served" are the
+        // vocabulary of a round the driver never asked for.
+        final soleDestination =
+            route.orderedPoints.length == 2 && !route.orderedPoints[1].isDepot;
 
         // The trip is never "finished" while navigation is active — the
         // driver must serve the final point to end it.
         const finished = false;
 
-        // Live distance to the current service point: the GPS-derived
-        // figure the service machine uses, falling back to a straight-line
-        // estimate before the first tick.
+        // Live distance to the current service point — how far there is
+        // left to *drive*, measured along the planned route, so U-turns,
+        // one-ways and detours are all in the number. The straight line is
+        // only a fallback: off-route (no trustworthy projection) and before
+        // the first fix, when nothing better exists.
         final loc = state.userLocation;
-        final distanceToTarget = state.navigationStopDistanceMeters != null
-            ? state.navigationStopDistanceMeters! / 1000
-            : (loc == null
-                  ? null
-                  : DistanceUtils.haversineKm(loc, target.latLng));
+        final routeMeters = state.navigationStopRouteDistanceMeters;
+        final distanceToTarget = routeMeters != null
+            ? routeMeters / 1000
+            : (state.navigationStopDistanceMeters != null
+                  ? state.navigationStopDistanceMeters! / 1000
+                  : (loc == null
+                        ? null
+                        : DistanceUtils.haversineKm(loc, target.latLng)));
         final remainingKm =
             (route.metrics.totalDistanceKm ?? 0) *
             (1 - state.navigationProgress);
@@ -135,8 +147,20 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
 
         final subtitle = isReturn
             ? AppStrings.endTrip
+            : soleDestination
+            ? AppStrings.destinationTitle
             : '${AppStrings.nextStop} · '
                   '${AppStrings.stopNofM(_stopNumber(route, targetIndex), _stopCount(route))}';
+
+        // The button that finishes the leg. Serving the last point already
+        // ends the trip (see the cubit's service machine) — this only makes
+        // the word match what it does.
+        final serveLabel = isReturn
+            ? AppStrings.endTrip
+            : soleDestination
+            ? AppStrings.arrivedHere
+            : AppStrings.pointServed;
+        final serveIcon = isReturn ? Iconsax.flag : Iconsax.tick_circle;
 
         // Landscape is available for the whole drive. A full-width banner
         // across a wide screen would bury the map, so the HUD docks on the
@@ -159,7 +183,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       address: target.address,
                       instruction: instruction,
                       distanceToTarget: distanceToTarget,
-                      remainingKm: remainingKm,
+                      speedMps: state.navigationSpeedMps,
                       arrived: state.navigationArrived,
                       onServe: cubit.servePoint,
                       onExitFocus: () => _setFocusMode(false),
@@ -197,12 +221,8 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                         const Spacer(),
                         _ServedButton(
                           visible: state.navigationArrived,
-                          label: isReturn
-                              ? AppStrings.endTrip
-                              : AppStrings.pointServed,
-                          icon: isReturn
-                              ? Iconsax.flag
-                              : Iconsax.tick_circle,
+                          label: serveLabel,
+                          icon: serveIcon,
                           onTap: cubit.servePoint,
                         ),
                         _BottomPanel(
@@ -251,7 +271,10 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       // Subtle live notice while a deviation triggers a
                       // background route recalculation.
                       _ReroutingNotice(visible: state.isRerouting),
-                      if (!_focusMode) ...[
+                      // The timeline is a picture of a sequence. With one
+                      // place to be there is no sequence to picture, so it
+                      // stays away and the map keeps the room.
+                      if (!_focusMode && !soleDestination) ...[
                         const SizedBox(height: 6),
                         // Timeline strip.
                         GlassPanel(
@@ -285,15 +308,13 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                     children: [
                       _ServedButton(
                         visible: state.navigationArrived,
-                        label: isReturn
-                            ? AppStrings.endTrip
-                            : AppStrings.pointServed,
-                        icon: isReturn ? Iconsax.flag : Iconsax.tick_circle,
+                        label: serveLabel,
+                        icon: serveIcon,
                         onTap: cubit.servePoint,
                       ),
                       _focusMode
                           ? _FocusExitBar(
-                              remaining: MetricFormat.distance(remainingKm),
+                              speedMps: state.navigationSpeedMps,
                               onExit: () => _setFocusMode(false),
                             )
                           : _BottomPanel(
@@ -728,8 +749,19 @@ class _ServedButton extends StatelessWidget {
   }
 }
 
-/// Bottom glass panel: trip stats (remaining distance / time / arrival
-/// clock / live speed), the focus toggle, and Maps / End-trip actions.
+/// Bottom glass panel — the drive HUD's status + controls dock.
+///
+/// Two clearly separated tiers so nothing has to compete for room:
+///   * A **stat strip** — remaining distance, remaining time (with the
+///     arrival clock as its caption) and live speed, each a number over a
+///     small label inside one shared tray, with the focus toggle beside it.
+///     Numbers scale down rather than truncate, so a long duration or a
+///     large text-scale setting never clips a digit.
+///   * An **action row** — Maps / Re-optimize / End trip, stacked
+///     icon-over-label so each button owns its full width. Arabic labels
+///     are far too long to survive an icon sitting next to them at a third
+///     of the screen, which is exactly why the old side-by-side row read as
+///     "خرائط Goo…".
 class _BottomPanel extends StatelessWidget {
   final double remainingKm;
   final double? remainingMinutes;
@@ -756,73 +788,65 @@ class _BottomPanel extends StatelessWidget {
             DateTime.now().add(Duration(minutes: remainingMinutes!.round())),
           )
         : null;
-    final kmh = speedMps != null ? (speedMps! * 3.6).round() : null;
 
     return GlassPanel(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      radius: 20,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      radius: 24,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header: remaining distance · time · arrival — plus live speed
-          // and the focus toggle.
+          // ── Tier 1: the numbers the driver glances at ──
           Row(
             children: [
-              Icon(Iconsax.routing, size: 15, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
               Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      MetricFormat.distance(remainingKm),
-                      style: AppTextStyles.titleSm,
-                    ),
-                    if (remainingMinutes != null) ...[
-                      Text('·', style: AppTextStyles.mutedSm),
-                      Text(
-                        MetricFormat.duration(remainingMinutes!),
-                        style: AppTextStyles.titleSm,
-                      ),
-                    ],
-                    if (eta != null) ...[
-                      Text('·', style: AppTextStyles.mutedSm),
-                      Text(
-                        '${AppStrings.arrivalLabel} $eta',
-                        style: AppTextStyles.mutedSm,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (kmh != null && kmh > 0) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
-                  ),
+                child: Container(
+                  height: _kStatTrayHeight,
                   decoration: BoxDecoration(
                     color: AppColors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(99),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Text(
-                    '$kmh ${AppStrings.speedUnitKmh}',
-                    style: AppTextStyles.mutedSm.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _Stat(
+                          value: MetricFormat.distance(remainingKm),
+                          label: AppStrings.remainingShort,
+                        ),
+                      ),
+                      const _StatDivider(),
+                      Expanded(
+                        child: _Stat(
+                          value: remainingMinutes != null
+                              ? MetricFormat.duration(remainingMinutes!)
+                              : '--',
+                          // The clock rides along as the caption: it
+                          // answers "when", the number above answers
+                          // "how long".
+                          label: eta != null
+                              ? '${AppStrings.arrivalLabel} $eta'
+                              : AppStrings.remainingTime,
+                        ),
+                      ),
+                      const _StatDivider(),
+                      Expanded(
+                        child: _Stat(
+                          value: '${_kmh(speedMps)}',
+                          label: AppStrings.speedUnitKmh,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-              ],
+              ),
+              const SizedBox(width: 8),
               _FocusToggleButton(onTap: onFocus),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
-          // Secondary actions. Serving happens with the big Point Served
-          // button (only shown at the stop), so the panel stays minimal.
+          // ── Tier 2: the controls ──
+          // Serving happens with the big Point Served button (only shown
+          // at the stop), so the panel stays minimal.
           Row(
             children: [
               Expanded(
@@ -834,7 +858,7 @@ class _BottomPanel extends StatelessWidget {
                   onTap: onOpenGoogleMaps,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               // Mid-trip re-plan: re-optimizes the unserved stops from the
               // current position and drops straight back into the drive.
               Expanded(
@@ -846,7 +870,7 @@ class _BottomPanel extends StatelessWidget {
                   onTap: onReoptimize,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: _BigAction(
                   icon: Iconsax.close_circle,
@@ -865,7 +889,7 @@ class _BottomPanel extends StatelessWidget {
           // driver leaves/rejoins the road, so the bar must rebuild with
           // the panel on every tick.
           if (kDebugMode) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             // ignore: prefer_const_constructors
             _DebugSimBar(),
           ],
@@ -875,13 +899,74 @@ class _BottomPanel extends StatelessWidget {
   }
 }
 
+/// Height of the stat tray — shared with the focus toggle so the two sit
+/// as a matched pair on one line.
+const double _kStatTrayHeight = 52;
+
+/// One cell of the stat tray: a number with its caption underneath.
+///
+/// Both lines shrink to fit instead of ellipsizing. In a HUD a clipped
+/// number is worse than a slightly smaller one, and Arabic captions
+/// ("الوصول 17:18") are long enough that a fixed size would clip on a
+/// narrow phone or at a large text-scale setting.
+class _Stat extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _Stat({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: AppTextStyles.titleLg.copyWith(height: 1.1),
+            ),
+          ),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: AppTextStyles.mutedSm.copyWith(height: 1.1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hairline between two stat cells.
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 26,
+      color: AppColors.border.withValues(alpha: 0.7),
+    );
+  }
+}
+
 /// Super-thin landscape rail for focus mode.
 ///
 /// A single narrow vertical strip on the leading edge — icons and numbers
 /// stacked, no text labels — so it occupies almost no width and stays clear
 /// of the driver's view. Shows: the upcoming maneuver (icon + distance),
-/// next-stop distance, remaining trip distance, a serve control while at
-/// the stop, and an icon-only exit back to portrait.
+/// next-stop distance, current speed, a serve control while at the stop,
+/// and an icon-only exit back to portrait.
 ///
 /// Tapping the next-stop badge expands the rail to reveal the stop name (and
 /// "Next stop · N of M" heading); tapping again collapses it. The expand state
@@ -893,7 +978,7 @@ class _LandscapeHudRail extends StatefulWidget {
   final String? address;
   final NavInstruction? instruction;
   final double? distanceToTarget;
-  final double remainingKm;
+  final double? speedMps;
   final bool arrived;
   final VoidCallback onServe;
   final VoidCallback onExitFocus;
@@ -905,7 +990,7 @@ class _LandscapeHudRail extends StatefulWidget {
     required this.address,
     required this.instruction,
     required this.distanceToTarget,
-    required this.remainingKm,
+    required this.speedMps,
     required this.arrived,
     required this.onServe,
     required this.onExitFocus,
@@ -1087,17 +1172,9 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
                   color: AppColors.white.withValues(alpha: 0.15),
                 ),
                 const SizedBox(height: 10),
-                // Remaining trip distance.
-                Icon(Iconsax.routing, size: 13, color: white70),
-                const SizedBox(height: 4),
-                Text(
-                  MetricFormat.distance(widget.remainingKm),
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.bodySm.copyWith(
-                    color: white70,
-                    height: 1.1,
-                  ),
-                ),
+                // Speedometer — the one number worth a glance in focus
+                // mode besides the turn ahead.
+                _RailSpeed(speedMps: widget.speedMps),
                 const SizedBox(height: 12),
                 // Exit focus → snaps back to portrait.
                 Align(
@@ -1195,9 +1272,7 @@ class _DebugSimBarState extends State<_DebugSimBar> {
             label: '${kmh.round()} كم/س',
             onTap: () {
               final i = _speeds.indexWhere((s) => s > kmh + 0.5);
-              cubit.debugSetDriveSimSpeed(
-                i >= 0 ? _speeds[i] : _speeds.first,
-              );
+              cubit.debugSetDriveSimSpeed(i >= 0 ? _speeds[i] : _speeds.first);
               setState(() {});
             },
           ),
@@ -1262,7 +1337,10 @@ class _DebugSimBarState extends State<_DebugSimBar> {
   }
 }
 
-/// Compact pill that switches the HUD into eyes-on-road focus mode.
+/// Switches the HUD into eyes-on-road focus mode.
+///
+/// Sized and cornered to match the stat tray it sits beside, so the two
+/// read as one line rather than a pill floating next to a box.
 class _FocusToggleButton extends StatelessWidget {
   final VoidCallback onTap;
   const _FocusToggleButton({required this.onTap});
@@ -1271,29 +1349,41 @@ class _FocusToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.primary.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(99),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(14),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
         },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.center_focus_strong_rounded,
-                size: 17,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                AppStrings.focusMode,
-                style: AppTextStyles.titleSm.copyWith(color: AppColors.primary),
-              ),
-            ],
+        child: SizedBox(
+          height: _kStatTrayHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.center_focus_strong_rounded,
+                  size: 19,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: 3),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    AppStrings.focusMode,
+                    maxLines: 1,
+                    style: AppTextStyles.mutedSm.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1301,12 +1391,12 @@ class _FocusToggleButton extends StatelessWidget {
   }
 }
 
-/// Slim bottom bar shown in focus mode: remaining distance plus a one-tap
+/// Slim bottom bar shown in focus mode: current speed plus a one-tap
 /// control to leave focus mode. Kept minimal so the map dominates the screen.
 class _FocusExitBar extends StatelessWidget {
-  final String remaining;
+  final double? speedMps;
   final VoidCallback onExit;
-  const _FocusExitBar({required this.remaining, required this.onExit});
+  const _FocusExitBar({required this.speedMps, required this.onExit});
 
   @override
   Widget build(BuildContext context) {
@@ -1325,11 +1415,22 @@ class _FocusExitBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Iconsax.routing, size: 17, color: AppColors.white),
+                const Icon(
+                  Iconsax.speedometer,
+                  size: 17,
+                  color: AppColors.white,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  remaining,
+                  '${_kmh(speedMps)}',
                   style: AppTextStyles.titleSm.copyWith(color: AppColors.white),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  AppStrings.speedUnitKmh,
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: AppColors.white.withValues(alpha: 0.70),
+                  ),
                 ),
                 Container(
                   width: 1,
@@ -1356,6 +1457,52 @@ class _FocusExitBar extends StatelessWidget {
   }
 }
 
+/// Whole km/h from a metres-per-second fix. A missing or negative reading
+/// reads as 0 rather than blanking the slot: in a fixed-height HUD an empty
+/// speedometer looks broken, a standing 0 looks parked.
+int _kmh(double? speedMps) {
+  if (speedMps == null || !speedMps.isFinite || speedMps <= 0) return 0;
+  return (speedMps * 3.6).round();
+}
+
+/// Focus-rail speedometer: the number large enough to read at a glance,
+/// its unit tucked underneath.
+class _RailSpeed extends StatelessWidget {
+  final double? speedMps;
+  const _RailSpeed({required this.speedMps});
+
+  @override
+  Widget build(BuildContext context) {
+    final white70 = AppColors.white.withValues(alpha: 0.70);
+    return Column(
+      children: [
+        Text(
+          '${_kmh(speedMps)}',
+          textAlign: TextAlign.center,
+          style: AppTextStyles.titleMd.copyWith(
+            color: AppColors.white,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+          ),
+        ),
+        Text(
+          AppStrings.speedUnitKmh,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.bodySm.copyWith(color: white70, height: 1.1),
+        ),
+      ],
+    );
+  }
+}
+
+/// One of the panel's three drive actions.
+///
+/// Icon over label, not beside it: at a third of the screen the label is
+/// the part that has to survive, and Arabic ("خرائط Google", "إعادة
+/// التحسين") is long enough that an icon on the same line steals the room
+/// it needs. Stacked, the text gets the button's whole width, and it
+/// shrinks to fit rather than ellipsizing so a large text-scale setting
+/// never leaves a driver reading half a word.
 class _BigAction extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1384,19 +1531,23 @@ class _BigAction extends StatelessWidget {
                 HapticFeedback.mediumImpact();
                 onTap!();
               },
-        child: SizedBox(
-          height: 46,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: foreground, size: 18),
-              const SizedBox(width: 8),
-              Flexible(
+              Icon(icon, color: foreground, size: 21),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
                 child: Text(
                   label,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.titleMd.copyWith(color: foreground),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.titleSm.copyWith(
+                    color: foreground,
+                    height: 1.15,
+                  ),
                 ),
               ),
             ],

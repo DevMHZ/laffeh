@@ -50,6 +50,8 @@ supabase db push
    blank `full_name` / `company_name` up front (`FULL_NAME_REQUIRED`,
    `COMPANY_REQUIRED`), plus a `not valid` check so no row can be marked
    `onboarding_completed` without both
+10. `20260826120000_saved_routes.sql` — `saved_routes`, the account-side copy of
+    the route history, so a driver signing in on another phone finds their trips
 
 `supabase/ALL_MIGRATIONS.sql` is all of the above concatenated in order — paste
 that one file if you'd rather not run them individually. Everything is
@@ -75,6 +77,7 @@ the Flutter app.
 | `use_cases`          | seeded catalogue of usage reasons (ar/en/fr)                         |
 | `user_use_cases`     | which use-cases a user picked (many-to-many, source of truth)        |
 | `device_locations`   | last known fix — **one row per `device_id`**, upserted each launch   |
+| `saved_routes`       | route history mirrored from the phone — one row per saved trip        |
 | `profiles_overview`  | view: one row per user with the reasons spelled out in ar/en         |
 
 A `profiles` row is created by a trigger the moment `auth.users` gets a row, so
@@ -86,6 +89,36 @@ until step 4 completes; from then on they are mandatory, enforced by both
 `profiles.phone` mirrors `auth.users.phone` and `profiles.use_case_codes`
 mirrors `user_use_cases`; both are read-convenience copies kept in sync by the
 trigger and the RPC, in the same transaction as the relational write.
+
+## Saved routes
+
+The route history is **local-first**: the app reads it from the phone's own
+storage, instantly and offline, and that is all a driver on the no-account trial
+ever has. When a session exists the same records are mirrored into
+`saved_routes`, so signing in on a second handset brings the trips along.
+
+Each row stores the app's route JSON verbatim in `payload`, with `name`,
+`saved_at`, `routing_mode`, `stops_count` and `distance_km` denormalised beside
+it for querying. The app itself reads only `payload` — one opaque document means
+the local file and the cloud row cannot drift apart, and a trip saved by an
+older build still decodes.
+
+Reconciliation runs on sign-in and on app resume:
+
+* deletions made while offline are replayed first, so a pull can't resurrect a
+  trip the driver threw away;
+* the two lists are merged by id, newest `savedAt` winning;
+* anything the account is missing goes up — which is how trips saved during the
+  trial week are adopted by the account the driver then creates.
+
+A *different* account signing in on the same phone drops the local history
+first: one driver's trips must not appear on another's screen. Signing out
+leaves the history in place — same phone, same person, and it is still safely in
+the account.
+
+`saved_routes` cascades from `auth.users`, so `delete_my_account()` clears a
+driver's history without naming the table; the app clears the on-device copy at
+the same moment.
 
 ## Policy acceptance
 

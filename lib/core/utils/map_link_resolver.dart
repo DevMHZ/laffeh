@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'link_parser.dart';
@@ -14,17 +15,26 @@ class MapLinkResolver {
     if (parsed != null) return parsed;
 
     final uri = Uri.tryParse(line.trim());
-    if (uri == null || !_looksLikeShortMapLink(uri)) return null;
+    if (uri == null || !looksLikeShortMapLink(uri)) return null;
 
     final expanded = await _expandShortMapLink(uri);
     if (expanded == null) return null;
     return LinkParser.tryParseMapUrl(expanded.toString());
   }
 
-  static bool _looksLikeShortMapLink(Uri uri) {
+  /// Hosts whose links carry no coordinates until the redirect is followed.
+  @visibleForTesting
+  static bool looksLikeShortMapLink(Uri uri) {
     final host = uri.host.toLowerCase();
     return host == 'maps.app.goo.gl' ||
         host == 'goo.gl' ||
+        // Apple Maps' own short link — `maps.apple` with no `.com` is not a
+        // typo, it is the domain iOS 18+ puts on the share sheet. It carries
+        // no coordinates until the redirect is followed.
+        host == 'maps.apple' ||
+        (host == 'maps.apple.com' &&
+            uri.pathSegments.isNotEmpty &&
+            uri.pathSegments.first == 'p') ||
         host == 'maps.google.com' && uri.pathSegments.contains('maps');
   }
 

@@ -38,15 +38,44 @@ class MapConfig {
   static const Duration followCamDuration = Duration(milliseconds: 140);
 
   // ── Bounds-fit padding ───────────────────────────────────
-  static const EdgeInsets optimizedFitPadding =
-      EdgeInsets.fromLTRB(34, 76, 34, 230);
-  static const EdgeInsets overviewFitPadding =
-      EdgeInsets.fromLTRB(40, 96, 40, 240);
+  static const EdgeInsets optimizedFitPadding = EdgeInsets.fromLTRB(
+    34,
+    76,
+    34,
+    230,
+  );
+  static const EdgeInsets overviewFitPadding = EdgeInsets.fromLTRB(
+    40,
+    96,
+    40,
+    240,
+  );
 
   // ── On-map controls ──────────────────────────────────────
   /// "Return to my location" appears once the user pans this many
   /// logical px away from their current position.
   static const double recenterDriftPx = 90;
+
+  /// Half-size of the box a tap searches for a map label, in logical px.
+  ///
+  /// A single-pixel query is the wrong shape for a finger: it only hits a
+  /// label when the touch lands exactly on a glyph, which on a real phone
+  /// is almost never — verified on the simulator, where tapping visibly on
+  /// "طريق بيروت" returned nothing at all. Roughly half a touch target,
+  /// which finds the label under the thumb without swallowing its
+  /// neighbours.
+  static const double labelTapRadiusPx = 22;
+
+  /// How close a tap must be to one of our own stop markers, in logical px,
+  /// to count as hitting it rather than the map underneath.
+  ///
+  /// In pixels rather than metres because that is the question being asked:
+  /// "did the finger land on the pin?" is about the screen, not the ground.
+  /// The metre-based radius used for long-press-to-remove is ~150 m, which
+  /// at street zoom covers a third of the display and silently swallows
+  /// every label near a stop — observed doing exactly that to a park 112 m
+  /// from the depot.
+  static const double markerTapRadiusPx = 26;
 
   // ── Live location (planning mode) ────────────────────────
   /// How far the driver must move before the blue dot follows.

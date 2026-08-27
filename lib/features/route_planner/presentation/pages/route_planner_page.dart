@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/registration_guard.dart';
 import '../../../../core/services/location_ping_service.dart';
@@ -69,15 +70,12 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     if (_lastBackPress == null ||
         now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
       _lastBackPress = now;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(AppStrings.pressBackAgainToExit),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      AppToast.show(
+        context,
+        AppStrings.pressBackAgainToExit,
+        tone: ToastTone.info,
+        duration: const Duration(seconds: 2),
+      );
       return;
     }
     SystemNavigator.pop();
@@ -134,6 +132,9 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
       final cubit = context.read<RoutePlannerCubit>();
       cubit.setAppForeground(true);
       cubit.refreshConnectivity();
+      // Catches a permission granted (or revoked) out in the system settings
+      // while we were away, so the location chip corrects itself.
+      cubit.refreshLocationAccess();
     }
   }
 
@@ -144,8 +145,10 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     final count = await cubit.addPointsFromText(text);
     EasyLoading.dismiss();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(RoutePlannerActions.addedMessage(count))),
+      AppToast.show(
+        context,
+        RoutePlannerActions.addedMessage(count),
+        tone: count > 0 ? ToastTone.success : ToastTone.info,
       );
     }
   }
@@ -174,6 +177,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
               const SizedBox.expand(),
               Positioned.fill(child: RouteMapView(key: _mapKey)),
               const TopBar(),
+              const LocationAccessChip(),
               CenterPin(mapKey: _mapKey),
               const BottomSheetHost(),
               const AddOptionsHost(),

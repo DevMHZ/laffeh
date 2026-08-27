@@ -279,7 +279,7 @@ class _OnbWhatsappDemoState extends State<OnbWhatsappDemo>
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: _locationBubble(),
+                  child: const _WaLocationBubble(),
                 ),
               ),
               const SizedBox(height: 8),
@@ -322,55 +322,6 @@ class _OnbWhatsappDemoState extends State<OnbWhatsappDemo>
     );
   }
 
-  Widget _locationBubble() {
-    return Container(
-      width: 150,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2C34),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(7),
-            child: SizedBox(
-              height: 70,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned.fill(child: CustomPaint(painter: _MapBackdrop())),
-                  _MockPin(color: AppColors.pinRed, size: 26),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 5, 4, 2),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.location_on,
-                  size: 13,
-                  color: Color(0xFF8FA3AD),
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  'Location',
-                  style: AppTextStyles.mutedSm.copyWith(
-                    color: const Color(0xFF8FA3AD),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _openWithSheet() {
     return Container(
       decoration: const BoxDecoration(
@@ -389,61 +340,22 @@ class _OnbWhatsappDemoState extends State<OnbWhatsappDemo>
           const SizedBox(height: 14),
           Row(
             children: [
-              _appTile(
+              const _ShareAppTile(
                 highlighted: false,
                 label: 'Maps',
-                child: const Icon(
+                child: Icon(
                   Icons.map_rounded,
                   color: Color(0xFF34A853),
                   size: 26,
                 ),
               ),
               const SizedBox(width: 18),
-              _appTile(
+              const _ShareAppTile(
                 highlighted: true,
                 label: 'laffeh',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(9),
-                  child: Image.asset(
-                    'assets/laffeh_logo.png',
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                child: _LaffehTileIcon(),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _appTile({
-    required bool highlighted,
-    required String label,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: highlighted ? AppColors.primary : Colors.transparent,
-          width: 2,
-        ),
-        color: highlighted
-            ? AppColors.primary.withValues(alpha: 0.16)
-            : Colors.transparent,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(width: 42, height: 42, child: Center(child: child)),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: AppTextStyles.mutedSm.copyWith(color: Colors.white),
           ),
         ],
       ),
@@ -510,6 +422,315 @@ class _OnbWhatsappDemoState extends State<OnbWhatsappDemo>
           ],
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Google Maps import demo
+// ─────────────────────────────────────────────────────────────────────
+
+/// The other place a driver already keeps their stops: Google Maps.
+///
+/// Four beats — the place open in Google Maps, the tap on Share, Laffah in
+/// the share sheet, and the stop landing on the route. Same story the
+/// WhatsApp demo tells, because it is the same trick: the driver never types
+/// an address, they hand one over from wherever they already have it.
+///
+/// Named on purpose. "Maps" could be any of three apps on a driver's phone;
+/// the wordmark and the label say which one this is.
+class OnbGoogleMapsDemo extends StatefulWidget {
+  const OnbGoogleMapsDemo({super.key});
+
+  @override
+  State<OnbGoogleMapsDemo> createState() => _OnbGoogleMapsDemoState();
+}
+
+class _OnbGoogleMapsDemoState extends State<OnbGoogleMapsDemo>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 6600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        final mapsOpacity = (1 - ((t - 0.62) / 0.09)).clamp(0.0, 1.0);
+        final laffehOpacity = ((t - 0.64) / 0.09).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: _loopFade(t),
+          child: Stack(
+            children: [
+              if (mapsOpacity > 0)
+                Opacity(opacity: mapsOpacity, child: _mapsLayer(t)),
+              if (laffehOpacity > 0)
+                Opacity(
+                  opacity: laffehOpacity,
+                  child: _LandingMapLayer(
+                    drop: ((t - 0.66) / 0.16).clamp(0.0, 1.0),
+                    toast: ((t - 0.78) / 0.10).clamp(0.0, 1.0),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _mapsLayer(double t) {
+    // Share sheet rises between 0.40 and 0.56; the tap that raises it lands
+    // just before, on the Share action of the place card.
+    final sheetT = ((t - 0.40) / 0.16).clamp(0.0, 1.0);
+    final sheetOffset = (1 - Curves.easeOutCubic.transform(sheetT)) * 230;
+    final tapT = ((t - 0.20) / 0.18).clamp(0.0, 1.0);
+
+    return Stack(
+      children: [
+        Positioned.fill(child: CustomPaint(painter: _MapBackdrop())),
+        // The place the driver is looking at.
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 74,
+          child: Center(child: _MockPin(color: AppColors.pinRed, size: 32)),
+        ),
+        // Google Maps' own search bar, wordmark and all.
+        Positioned(
+          left: 10,
+          right: 10,
+          top: 30,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const GoogleGlyph(size: 15),
+                const SizedBox(width: 7),
+                Text(
+                  'Google Maps',
+                  style: AppTextStyles.mutedSm.copyWith(
+                    color: const Color(0xFF5F6368),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // The place card, with Share as the action being pointed at.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 96,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3C4043),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 58,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBDC1C6),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const _GmapsAction(
+                      icon: Icons.directions,
+                      label: 'Directions',
+                      filled: true,
+                    ),
+                    const SizedBox(width: 10),
+                    const _GmapsAction(
+                      icon: Icons.bookmark_border_rounded,
+                      label: 'Save',
+                    ),
+                    const SizedBox(width: 10),
+                    Stack(
+                      alignment: Alignment.topCenter,
+                      children: [
+                        const _GmapsAction(
+                          icon: Icons.share_outlined,
+                          label: 'Share',
+                          highlighted: true,
+                        ),
+                        Positioned(
+                          top: 2,
+                          child: _TapPulse(
+                            t: tapT,
+                            size: 40,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        // …which raises the share sheet, with Laffah waiting in it.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Transform.translate(
+            offset: Offset(0, sheetOffset),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(18),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x22000000),
+                    blurRadius: 16,
+                    offset: Offset(0, -4),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Share link',
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _ShareAppTile(
+                        highlighted: false,
+                        label: 'Copy',
+                        labelColor: AppColors.textSecondary,
+                        child: Icon(
+                          Icons.link_rounded,
+                          color: AppColors.textSecondary,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      _ShareAppTile(
+                        highlighted: true,
+                        label: 'laffeh',
+                        labelColor: AppColors.textPrimary,
+                        child: const _LaffehTileIcon(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One of Google Maps' round place-card actions.
+class _GmapsAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final bool highlighted;
+
+  const _GmapsAction({
+    required this.icon,
+    required this.label,
+    this.filled = false,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const blue = Color(0xFF1A73E8);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: filled ? blue : Colors.transparent,
+            border: Border.all(
+              color: highlighted ? AppColors.primary : const Color(0xFFDADCE0),
+              width: highlighted ? 2 : 1,
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 17,
+            color: filled
+                ? AppColors.white
+                : highlighted
+                ? AppColors.primary
+                : const Color(0xFF5F6368),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: AppTextStyles.mutedSm.copyWith(
+            fontSize: 9,
+            color: highlighted ? AppColors.primary : const Color(0xFF5F6368),
+          ),
+        ),
+      ],
     );
   }
 }

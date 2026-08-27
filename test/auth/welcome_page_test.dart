@@ -7,9 +7,8 @@ void main() {
   setUp(() => AppStrings.setLocale(const Locale('en')));
   tearDown(() => AppStrings.setLocale(const Locale('en')));
 
-  Widget host({required bool required}) => MaterialApp(
-    home: WelcomePage(registrationRequired: required),
-  );
+  Widget host({required bool required}) =>
+      MaterialApp(home: WelcomePage(registrationRequired: required));
 
   testWidgets('offers the skip while the trial is still running', (
     tester,
@@ -35,9 +34,7 @@ void main() {
   testWidgets('the wall blocks the back gesture, the welcome does not', (
     tester,
   ) async {
-    final blocked = find.byWidgetPredicate(
-      (w) => w is PopScope && !w.canPop,
-    );
+    final blocked = find.byWidgetPredicate((w) => w is PopScope && !w.canPop);
 
     await tester.pumpWidget(host(required: true));
     expect(blocked, findsOneWidget);

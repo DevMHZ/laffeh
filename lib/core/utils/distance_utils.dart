@@ -76,6 +76,31 @@ class DistanceUtils {
     );
   }
 
+  /// A lat/lon box [radiusKm] around [center], clamped to legal ranges.
+  ///
+  /// Used to confine a geocoder to the driver's working area. Longitude
+  /// degrees shrink towards the poles, so the box is computed per-latitude
+  /// rather than with one degrees-per-km constant — at Damascus's latitude
+  /// a naive box is ~17% too narrow east-to-west.
+  static CoordinateBounds boxAround(LatLng center, double radiusKm) {
+    const kmPerDegreeLat = 110.574;
+    final latDelta = radiusKm / kmPerDegreeLat;
+    final cosLat = math.cos(_deg2rad(center.latitude)).abs();
+    // Guard the poles, where the longitude span goes to infinity.
+    final lonDelta = radiusKm / (111.320 * math.max(cosLat, 0.02));
+
+    return CoordinateBounds(
+      southWest: LatLng(
+        math.max(center.latitude - latDelta, -90),
+        math.max(center.longitude - lonDelta, -180),
+      ),
+      northEast: LatLng(
+        math.min(center.latitude + latDelta, 90),
+        math.min(center.longitude + lonDelta, 180),
+      ),
+    );
+  }
+
   static double _deg2rad(double deg) => deg * (math.pi / 180.0);
 }
 

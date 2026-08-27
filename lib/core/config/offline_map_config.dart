@@ -141,6 +141,13 @@ class OfflineMapConfig {
   /// instead of downloading hundreds of regions.
   static const int maxCorridorChunks = 40;
 
+  /// Pack id the working plan's corridor is always stored under.
+  ///
+  /// One stable id, so re-optimizing replaces the stored map instead of
+  /// stacking copies of it — and so a screen that has no route in hand
+  /// (Settings) can still say what is saved for the trip and delete it.
+  static const String tripPackId = 'planner.current';
+
   // ── Region metadata keys ─────────────────────────────────
   /// Regions are tagged so a pack's boxes can be found and deleted as a
   /// unit, instead of accumulating forever.

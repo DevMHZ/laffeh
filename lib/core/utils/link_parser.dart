@@ -93,15 +93,16 @@ class LinkParser {
   }
 
   static LatLng? _parseAppleMaps(Uri uri) {
-    //  https://maps.apple.com/?ll=33.5131,36.2767
-    final ll = uri.queryParameters['ll'];
-    if (ll != null && ll.trim().isNotEmpty) {
-      return parseLatLngPair(ll);
-    }
-    //  https://maps.apple.com/?q=33.5131,36.2767
-    final q = uri.queryParameters['q'];
-    if (q != null && q.trim().isNotEmpty) {
-      return parseLatLngPair(q);
+    //  ll:          https://maps.apple.com/?ll=33.5131,36.2767  (classic)
+    //  coordinate:  https://maps.apple.com/place?coordinate=33.5131,36.2767&name=…
+    //               — what Apple Maps shares on iOS 18+, once the
+    //               `maps.apple/p/…` short link has been expanded.
+    //  q / sll / daddr: older sharing and directions links.
+    for (final key in const ['ll', 'coordinate', 'q', 'sll', 'daddr']) {
+      final value = uri.queryParameters[key];
+      if (value == null || value.trim().isEmpty) continue;
+      final parsed = parseLatLngPair(value);
+      if (parsed != null) return parsed;
     }
     return null;
   }

@@ -6,6 +6,7 @@ import 'package:iconsax/iconsax.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_chevron.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../cubit/route_planner_cubit.dart';
@@ -18,25 +19,38 @@ import 'stop_time_window_sheet.dart';
 /// questions the driver actually has: which stop, by how much, and what can
 /// I do about it. Every option here is one tap and re-solves the route, so
 /// the user never has to work out a feasible time by hand.
+///
+/// Nothing here is ever reached for a stop the user set no availability on:
+/// with no window there is no promise to break (see
+/// [RoutePoint.timeWindowMissed]).
 Future<void> showMissedTimeWindowSheet(BuildContext context) {
   final cubit = context.read<RoutePlannerCubit>();
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => BlocProvider.value(
-      value: cubit,
-      child: const _MissedTimeWindowSheet(),
-    ),
+    builder: (_) =>
+        BlocProvider.value(value: cubit, child: const _MissedTimeWindowSheet()),
   );
+}
+
+/// The worst offender in [points] — the stop whose overshoot decides
+/// whether this is a nudge or a re-plan.
+RoutePoint _worstOffender(List<RoutePoint> points) {
+  var worst = points.first;
+  for (final p in points) {
+    if ((p.latenessMinutes ?? 0) > (worst.latenessMinutes ?? 0)) worst = p;
+  }
+  return worst;
 }
 
 /// Shown after an optimization that couldn't honour every arrival time.
 ///
-/// Names each late stop *with how late it is*, then hands off to
-/// [showMissedTimeWindowSheet] for the fixes. A colour alone tells the user
-/// something is wrong without telling them how bad it is or what to do, so
-/// the banner leads with the number and ends in a call to action.
+/// Deliberately two lines: the headline count, then the single worst stop
+/// with the size of its overshoot. It used to list three stops and repeat
+/// the sheet's content, which cost a third of the bottom sheet's height to
+/// say what the sheet says better. A banner only has to be alarming enough
+/// to open — the chevron and [showMissedTimeWindowSheet] carry the rest.
 class MissedWindowBanner extends StatelessWidget {
   final List<RoutePoint> points;
   final VoidCallback onTap;
@@ -49,98 +63,121 @@ class MissedWindowBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (points.isEmpty) return const SizedBox.shrink();
+    final worst = _worstOffender(points);
+
     return Material(
-      color: AppColors.danger.withValues(alpha: 0.09),
-      borderRadius: BorderRadius.circular(12),
+      color: AppColors.danger.withValues(alpha: 0.07),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
           HapticFeedback.selectionClick();
           onTap();
         },
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.danger.withValues(alpha: 0.26)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.danger.withValues(alpha: 0.22)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Icon(Iconsax.warning_2, color: AppColors.danger, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  Iconsax.warning_2,
+                  color: AppColors.danger,
+                  size: 17,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
                       AppStrings.timeWindowMissedCount(points.length),
                       style: AppTextStyles.bodySm.copyWith(
                         color: AppColors.danger,
                         fontWeight: FontWeight.w700,
+                        height: 1.25,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              // Per stop: the name and the size of the overshoot, so the
-              // banner alone answers "which one, and by how much".
-              for (final p in points.take(3))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          p.label,
-                          style: AppTextStyles.bodySm.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (p.latenessMinutes != null)
-                        Text(
-                          AppStrings.lateByMinutes(p.latenessMinutes!),
-                          style: AppTextStyles.bodySm.copyWith(
-                            color: AppColors.danger,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(height: 5),
+                    // Which stop and by how much — the two facts that decide
+                    // whether the driver opens this now or after loading up.
+                    // Only the worst one: how many there are is already in
+                    // the line above, and a "+2 more" tail here would eat the
+                    // width the stop's own name needs.
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            worst.label,
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                    ],
-                  ),
-                ),
-              if (points.length > 3)
-                Text(
-                  AppStrings.pointsCount(points.length - 3),
-                  style: AppTextStyles.mutedSm,
-                ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Iconsax.magic_star,
-                    size: 14,
-                    color: AppColors.danger,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    AppStrings.seeDetails,
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.danger,
-                      fontWeight: FontWeight.w700,
-                      decoration: TextDecoration.underline,
-                      decorationColor: AppColors.danger,
+                        if (worst.latenessMinutes != null) ...[
+                          const SizedBox(width: 6),
+                          LatenessPill(minutes: worst.latenessMinutes!),
+                        ],
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 4),
+              AppChevron(size: 20, color: AppColors.danger),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "25 min late", as a solid chip.
+///
+/// The one number in the whole flow that scales the problem, so it gets the
+/// only fully-saturated fill on the card — everything around it is a tint.
+class LatenessPill extends StatelessWidget {
+  final int minutes;
+  final bool compact;
+
+  const LatenessPill({super.key, required this.minutes, this.compact = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 7 : 9,
+        vertical: compact ? 2 : 4,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.danger,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        compact
+            ? AppStrings.lateByShort(minutes)
+            : AppStrings.lateByMinutes(minutes),
+        style: AppTextStyles.bodySm.copyWith(
+          color: AppColors.white,
+          fontSize: compact ? 10 : 11,
+          fontWeight: FontWeight.w700,
+          height: 1.3,
         ),
       ),
     );
@@ -189,16 +226,19 @@ class _MissedTimeWindowSheet extends StatelessWidget {
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 38,
+                  height: 5,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(99),
+                    color: AppColors.borderStrong.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
+
+              // ── Headline: what happened, and that nothing was lost ──
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -214,14 +254,27 @@ class _MissedTimeWindowSheet extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      AppStrings.timeWindowMissedCount(late.length),
-                      style: AppTextStyles.titleMd,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          AppStrings.timeWindowMissedCount(late.length),
+                          style: AppTextStyles.titleMd,
+                        ),
+                        const SizedBox(height: 3),
+                        // Reassurance first: the route still contains every
+                        // stop, so this is a scheduling choice, not a loss.
+                        Text(
+                          AppStrings.timeWindowMissedBody,
+                          style: AppTextStyles.mutedSm,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
               // ── Per-stop breakdown: wanted vs. actual, and the gap ──
               for (final p in late) ...[
@@ -229,8 +282,8 @@ class _MissedTimeWindowSheet extends StatelessWidget {
                 const SizedBox(height: 8),
               ],
 
-              const SizedBox(height: 8),
-              Text(AppStrings.howToFixIt, style: AppTextStyles.titleMd),
+              const SizedBox(height: 10),
+              _SectionLabel(AppStrings.howToFixIt),
               const SizedBox(height: 10),
 
               // Ordered by how little they cost the user: keep everything and
@@ -278,7 +331,9 @@ class _MissedTimeWindowSheet extends StatelessWidget {
                 color: AppColors.optionalOff,
                 title: AppStrings.fixDropStop,
                 subtitle: AppStrings.fixDropStopWhy,
-                trailing: late.length == 1 ? null : Icons.arrow_forward_rounded,
+                // More than one culprit means a second step (which stop?);
+                // the chevron says so before the tap.
+                showChevron: late.length > 1,
                 onTap: () {
                   Navigator.pop(context);
                   // With one culprit there's nothing to choose between —
@@ -290,13 +345,22 @@ class _MissedTimeWindowSheet extends StatelessWidget {
                   }
                 },
               ),
-              const SizedBox(height: 14),
-              Center(
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
                 child: TextButton(
                   onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                   child: Text(
                     AppStrings.keepAsIs,
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -358,8 +422,30 @@ class _MissedTimeWindowSheet extends StatelessWidget {
   }
 }
 
+/// A quiet, all-caps-weight heading between the diagnosis and the fixes.
+class _SectionLabel extends StatelessWidget {
+  final String text;
+
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(text, style: AppTextStyles.titleSm),
+        const SizedBox(width: 10),
+        Expanded(child: Divider(height: 1, color: AppColors.divider)),
+      ],
+    );
+  }
+}
+
 /// One stop's story: what you asked for, what you'd actually get, and the
 /// gap between them.
+///
+/// The two clocks sit side by side rather than stacked, because the whole
+/// point is the comparison — "14:00 – 15:30" next to "15:55" makes the
+/// overshoot readable without doing arithmetic.
 class _LateStopCard extends StatelessWidget {
   final RoutePoint point;
   final int departureMinute;
@@ -375,9 +461,9 @@ class _LateStopCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.danger.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.danger.withValues(alpha: 0.22)),
+        color: AppColors.danger.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,50 +479,55 @@ class _LateStopCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (point.latenessMinutes != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    AppStrings.lateByMinutes(point.latenessMinutes!),
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+              if (point.latenessMinutes != null) ...[
+                const SizedBox(width: 8),
+                LatenessPill(minutes: point.latenessMinutes!, compact: false),
+              ],
             ],
           ),
-          const SizedBox(height: 8),
-          // The window the user entered, in full — the deadline alone hides
-          // half of what they asked for.
-          if (window != null)
-            _ComparisonLine(
-              icon: Iconsax.tick_circle,
-              label: AppStrings.youWantedToArrive,
-              value: AppStrings.arrivalWindowRange(
-                formatMinuteOfDay(context, window.startMinuteOfDay),
-                formatMinuteOfDay(context, window.endMinuteOfDay),
+          if (window != null || eta != null) ...[
+            const SizedBox(height: 10),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // The window the user entered, in full — the deadline alone
+                  // hides half of what they asked for.
+                  if (window != null)
+                    Expanded(
+                      child: _ClockColumn(
+                        icon: Iconsax.tick_circle,
+                        label: AppStrings.youWantedToArrive,
+                        value: AppStrings.arrivalWindowRange(
+                          formatMinuteOfDay(context, window.startMinuteOfDay),
+                          formatMinuteOfDay(context, window.endMinuteOfDay),
+                        ),
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  if (window != null && eta != null)
+                    VerticalDivider(
+                      width: 17,
+                      thickness: 1,
+                      color: AppColors.danger.withValues(alpha: 0.18),
+                    ),
+                  if (eta != null)
+                    Expanded(
+                      child: _ClockColumn(
+                        icon: Iconsax.car,
+                        label: AppStrings.youWouldArrive,
+                        value: formatMinuteOfDay(
+                          context,
+                          StopTimeWindow.clockFromRelative(
+                            departureMinute,
+                            eta,
+                          ),
+                        ),
+                        color: AppColors.danger,
+                      ),
+                    ),
+                ],
               ),
-              color: AppColors.textPrimary,
-            ),
-          if (eta != null) ...[
-            const SizedBox(height: 3),
-            _ComparisonLine(
-              icon: Iconsax.car,
-              label: AppStrings.youWouldArrive,
-              value: formatMinuteOfDay(
-                context,
-                StopTimeWindow.clockFromRelative(departureMinute, eta),
-              ),
-              color: AppColors.danger,
             ),
           ],
         ],
@@ -445,13 +536,14 @@ class _LateStopCard extends StatelessWidget {
   }
 }
 
-class _ComparisonLine extends StatelessWidget {
+/// One half of the comparison: a caption over the clock it describes.
+class _ClockColumn extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
   final Color color;
 
-  const _ComparisonLine({
+  const _ClockColumn({
     required this.icon,
     required this.label,
     required this.value,
@@ -460,19 +552,33 @@ class _ComparisonLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            label,
-            style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
-          ),
+        Row(
+          children: [
+            Icon(icon, size: 12, color: AppColors.textMuted),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTextStyles.mutedSm.copyWith(fontSize: 10.5),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
-        Text(
-          value,
-          style: AppTextStyles.titleSm.copyWith(color: color),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(
+            value,
+            style: AppTextStyles.titleSm.copyWith(color: color),
+            maxLines: 1,
+          ),
         ),
       ],
     );
@@ -486,7 +592,7 @@ class _FixOption extends StatelessWidget {
   final Color color;
   final String title;
   final String subtitle;
-  final IconData? trailing;
+  final bool showChevron;
   final VoidCallback? onTap;
 
   const _FixOption({
@@ -495,7 +601,7 @@ class _FixOption extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.trailing,
+    this.showChevron = false,
   });
 
   @override
@@ -542,9 +648,9 @@ class _FixOption extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (trailing != null) ...[
+                if (showChevron) ...[
                   const SizedBox(width: 6),
-                  Icon(trailing, size: 16, color: AppColors.textMuted),
+                  const AppChevron(size: 18),
                 ],
               ],
             ),

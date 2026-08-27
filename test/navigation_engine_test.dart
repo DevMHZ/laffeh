@@ -42,6 +42,49 @@ void main() {
     });
   });
 
+  group('PolylineUtils.stopFractions', () {
+    // A divided road: north up the 46.600 carriageway, U-turn at the top,
+    // then back south down the 46.601 one. The stop sits between them,
+    // marginally closer to the carriageway the driver passes *first*.
+    final uTurn = <LatLng>[
+      for (var i = 0; i <= 20; i++) LatLng(24.700 + i * 0.001, 46.6000),
+      for (var i = 20; i >= 10; i--) LatLng(24.700 + i * 0.001, 46.6010),
+    ];
+    const depot = LatLng(24.700, 46.6000);
+    const stop = LatLng(24.710, 46.6004);
+
+    test('pins a stop to the pass the route arrives on, not the drive-by', () {
+      final fracs = PolylineUtils.stopFractions(uTurn, [depot, stop]);
+      expect(fracs, hasLength(2));
+      expect(fracs[0], closeTo(0.0, 0.01));
+      // The drive-by is a third of the way in; the arrival is at the end.
+      // Anything near 0.33 means the HUD would have told the driver they
+      // were already there while a U-turn still lay ahead.
+      expect(fracs[1], closeTo(1.0, 0.02));
+    });
+
+    test('stops on the same street keep their own fractions', () {
+      final straight = [
+        for (var i = 0; i <= 20; i++) LatLng(24.700 + i * 0.001, 46.60),
+      ];
+      final fracs = PolylineUtils.stopFractions(straight, const [
+        LatLng(24.700, 46.60),
+        LatLng(24.705, 46.60),
+        LatLng(24.710, 46.60),
+        LatLng(24.720, 46.60),
+      ]);
+      expect(fracs[0], closeTo(0.00, 0.01));
+      expect(fracs[1], closeTo(0.25, 0.01));
+      expect(fracs[2], closeTo(0.50, 0.01));
+      expect(fracs[3], closeTo(1.00, 0.01));
+    });
+
+    test('handles degenerate inputs', () {
+      expect(PolylineUtils.stopFractions(uTurn, const []), isEmpty);
+      expect(PolylineUtils.stopFractions(const [depot], const [stop]), [0.0]);
+    });
+  });
+
   group('ManeuverDto codec', () {
     test('round-trips a maneuver through JSON', () {
       const m = RouteManeuver(
@@ -151,6 +194,23 @@ void main() {
       expect(i.text, contains('Stop 1'));
       // Half the ~4.44 km route remains.
       expect(i.distanceMeters, closeTo(2220, 120));
+    });
+
+    test('counts the drive left, not the straight line to the stop', () {
+      final state = RoutePlannerState(
+        optimizedRoute: routeWith(const []),
+        navigationActive: true,
+        navigationProgress: 0.5,
+        navigationStopIndex: 1,
+        stopFractions: const [0.0, 1.0],
+        // 80 m as the crow flies, 900 m once the U-turn ahead is counted.
+        navigationStopDistanceMeters: 80,
+        navigationStopRouteDistanceMeters: 900,
+      );
+      expect(
+        NavigationInstructions.compute(state)!.distanceMeters,
+        closeTo(900, 0.1),
+      );
     });
 
     test('returns null when navigation is inactive', () {

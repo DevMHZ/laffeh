@@ -144,12 +144,7 @@ class _TurntableFramePainter extends CustomPainter {
     final blend = position - position.floorToDouble();
     _drawFrame(canvas, size, frame, 1);
     if (blend > 0.01) {
-      _drawFrame(
-        canvas,
-        size,
-        (frame + 1) % VehicleTurntable.frames,
-        blend,
-      );
+      _drawFrame(canvas, size, (frame + 1) % VehicleTurntable.frames, blend);
     }
   }
 

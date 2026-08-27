@@ -77,9 +77,7 @@ class _VehicleNavFrameState extends State<VehicleNavFrame> {
     }
     return Transform.rotate(
       angle:
-          VehicleNavSheet.residualDeg(widget.rotationDegrees) *
-          math.pi /
-          180.0,
+          VehicleNavSheet.residualDeg(widget.rotationDegrees) * math.pi / 180.0,
       child: CustomPaint(
         size: Size.square(widget.size),
         painter: _NavFramePainter(

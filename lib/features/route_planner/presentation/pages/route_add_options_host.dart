@@ -3,13 +3,19 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
-import '../widgets/route_add_options_panel.dart';
+import '../widgets/route_address_search_sheet.dart';
+import '../widgets/where_to_bar.dart';
 import 'route_planner_actions.dart';
 
-/// Screen-level entry point shown while the route is still empty: a single
-/// "Add a stop" call-to-action docked at the bottom of the map. Tapping it
-/// opens the per-point add-method chooser. It deliberately is NOT a draggable
-/// bottom sheet — the sheet only takes over once the first point lands.
+/// Screen-level entry point shown while the route is still empty: the
+/// [WhereToBar] docked at the bottom of the map — a navigator's search box,
+/// with the other three ways to name a place beneath it.
+///
+/// Nobody opens a map wanting to build a plan; they want to get somewhere.
+/// So the empty screen asks where to, and the planner vocabulary stays out of
+/// sight until a second destination makes it worth having. It deliberately is
+/// NOT a draggable bottom sheet — a sheet only takes over once the driver has
+/// more than one place to go.
 ///
 /// Hidden whenever a point exists, a route is optimized, the user is placing a
 /// pin manually, or a full-screen flow (preview / drive / move-a-point) is
@@ -26,9 +32,11 @@ class AddOptionsHost extends StatelessWidget {
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
           a.manualPlacement != b.manualPlacement ||
+          a.multiStopIntent != b.multiStopIntent ||
           a.movingPointId != b.movingPointId,
       builder: (context, state) {
-        final hide = state.hasPoints ||
+        final hide =
+            state.hasPoints ||
             state.hasOptimizedRoute ||
             state.simulationActive ||
             state.navigationActive ||
@@ -49,17 +57,21 @@ class AddOptionsHost extends StatelessWidget {
               child: child,
             ),
           ),
-          child: hide ? const SizedBox.shrink() : const _OptionsCard(),
+          child: hide
+              ? const SizedBox.shrink()
+              : _OptionsCard(multiStop: state.multiStopIntent),
         );
       },
     );
   }
 }
 
-/// Positions the [RouteAddOptionsPanel] CTA at the bottom of the map and wires
-/// it to the add-method chooser.
+/// Docks the [WhereToBar] at the bottom of the map and wires each way in.
 class _OptionsCard extends StatelessWidget {
-  const _OptionsCard();
+  /// Whether the driver has already said this trip has several stops.
+  final bool multiStop;
+
+  const _OptionsCard({required this.multiStop});
 
   @override
   Widget build(BuildContext context) {
@@ -72,9 +84,18 @@ class _OptionsCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: RouteAddOptionsPanel(
-              onTap: () =>
-                  RoutePlannerActions.showAddMethodChooser(context, cubit),
+            child: WhereToBar(
+              onSearch: () => showAddressSearchSheet(context, cubit),
+              onPickOnMap: cubit.beginManualPlacement,
+              // Both of these open a demo of how the import works, with the
+              // way out to the other app on it — the driver who has never
+              // done it before is the one tapping.
+              onGoogleMaps: () =>
+                  RoutePlannerActions.showGoogleMapsInfo(context, cubit),
+              onWhatsapp: () => RoutePlannerActions.showWhatsappInfo(context),
+              multiStop: multiStop,
+              onPlanMultiStop: cubit.beginMultiStopTrip,
+              onExitMultiStop: cubit.endMultiStopTrip,
             ),
           ),
         ),

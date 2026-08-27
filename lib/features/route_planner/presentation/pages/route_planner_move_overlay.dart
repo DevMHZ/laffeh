@@ -64,11 +64,7 @@ class MovePointHost extends StatelessWidget {
                     radius: 18,
                     child: Row(
                       children: [
-                        Icon(
-                          Iconsax.gps,
-                          color: AppColors.info,
-                          size: 20,
-                        ),
+                        Icon(Iconsax.gps, color: AppColors.info, size: 20),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(

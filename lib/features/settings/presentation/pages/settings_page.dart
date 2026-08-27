@@ -17,9 +17,9 @@ import '../../../../core/widgets/afdal_logo.dart';
 import '../../../../core/widgets/app_chevron.dart';
 import '../../../../core/widgets/app_section_card.dart';
 import '../../../../core/widgets/legal_links_sheet.dart';
+import '../../../../core/widgets/offline_area_section.dart';
 import '../../../../core/widgets/vehicle_turntable.dart';
 import '../widgets/account_section.dart';
-import '../widgets/offline_map_section.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -225,7 +225,11 @@ class _SettingsGroups extends StatelessWidget {
         ),
         _SettingsGroup(
           label: AppStrings.settingsGroupMap,
-          children: [OfflineMapSection()],
+          // Only the saved area lives here now. The trip corridor moved to
+          // the offline button on the map, next to the driving it is for —
+          // in Settings it was a permanent row that spent most of its life
+          // saying there was no trip to save.
+          children: [OfflineAreaSection()],
         ),
         _SettingsGroup(
           label: AppStrings.settingsGroupPreferences,

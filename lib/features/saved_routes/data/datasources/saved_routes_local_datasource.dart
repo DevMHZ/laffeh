@@ -15,6 +15,16 @@ import '../models/saved_route_model.dart';
 class SavedRoutesLocalDataSource {
   static const String _key = 'laffeh.saved_routes.v1';
 
+  /// Account the local history currently belongs to (null = nobody signed in
+  /// yet on this install). Sync compares it against the session to tell
+  /// "the same driver came back" from "a different driver signed in here".
+  static const String _ownerKey = 'laffeh.saved_routes.owner.v1';
+
+  /// Ids deleted on this device while the account copy could not be reached.
+  /// Without them the next pull would hand the driver back a trip they had
+  /// already thrown away.
+  static const String _deletedKey = 'laffeh.saved_routes.deleted.v1';
+
   final SharedPreferences _prefs;
   const SavedRoutesLocalDataSource(this._prefs);
 
@@ -57,6 +67,40 @@ class SavedRoutesLocalDataSource {
   }
 
   Future<void> clear() => _prefs.remove(_key);
+
+  // ── Sync bookkeeping ──────────────────────────────────
+
+  String? readOwner() {
+    final id = _prefs.getString(_ownerKey);
+    return (id == null || id.isEmpty) ? null : id;
+  }
+
+  Future<void> writeOwner(String? userId) async {
+    if (userId == null || userId.isEmpty) {
+      await _prefs.remove(_ownerKey);
+      return;
+    }
+    await _prefs.setString(_ownerKey, userId);
+  }
+
+  List<String> readDeletedIds() =>
+      _prefs.getStringList(_deletedKey) ?? const <String>[];
+
+  Future<void> writeDeletedIds(List<String> ids) async {
+    if (ids.isEmpty) {
+      await _prefs.remove(_deletedKey);
+      return;
+    }
+    await _prefs.setStringList(_deletedKey, ids.toSet().toList());
+  }
+
+  Future<void> rememberDeleted(String id) async {
+    if (id.isEmpty) return;
+    final ids = readDeletedIds().toList();
+    if (ids.contains(id)) return;
+    ids.add(id);
+    await writeDeletedIds(ids);
+  }
 }
 
 class SharedPrefsWriteException implements Exception {

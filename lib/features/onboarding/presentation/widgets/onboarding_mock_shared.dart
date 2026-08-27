@@ -140,6 +140,251 @@ class _RouteLinePainter extends CustomPainter {
       old.progress != progress || old.color != color;
 }
 
+/// The location card as WhatsApp draws it — mini-map, pin, "Location".
+/// Shared by both import demos: the message the driver receives is the same
+/// on either platform; only what happens after the tap differs.
+class _WaLocationBubble extends StatelessWidget {
+  const _WaLocationBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2C34),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            // Full width, or the Stack shrinks to the pin inside it and the
+            // mini-map collapses into a 26px strip — the column is
+            // start-aligned, so nothing else stretches it.
+            child: SizedBox(
+              height: 70,
+              width: double.infinity,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned.fill(child: CustomPaint(painter: _MapBackdrop())),
+                  _MockPin(color: AppColors.pinRed, size: 26),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 5, 4, 2),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.location_on,
+                  size: 13,
+                  color: Color(0xFF8FA3AD),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  'Location',
+                  style: AppTextStyles.mutedSm.copyWith(
+                    color: const Color(0xFF8FA3AD),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One app in a share sheet. [highlighted] is the one the driver is being
+/// told to pick.
+class _ShareAppTile extends StatelessWidget {
+  final bool highlighted;
+  final String label;
+  final Widget child;
+  final Color labelColor;
+
+  const _ShareAppTile({
+    required this.highlighted,
+    required this.label,
+    required this.child,
+    this.labelColor = Colors.white,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: highlighted ? AppColors.primary : Colors.transparent,
+          width: 2,
+        ),
+        color: highlighted
+            ? AppColors.primary.withValues(alpha: 0.16)
+            : Colors.transparent,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: 42, height: 42, child: Center(child: child)),
+          const SizedBox(height: 5),
+          Text(label, style: AppTextStyles.mutedSm.copyWith(color: labelColor)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Laffeh app icon, rounded — the thing to look for in a share sheet.
+class _LaffehTileIcon extends StatelessWidget {
+  const _LaffehTileIcon();
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(9),
+    child: Image.asset(
+      'assets/laffeh_logo.png',
+      width: 40,
+      height: 40,
+      fit: BoxFit.cover,
+    ),
+  );
+}
+
+/// A finger-tap ripple: two rings expanding out of a point, then gone.
+/// [t] is 0..1 over the tap; outside that range nothing is drawn.
+class _TapPulse extends StatelessWidget {
+  final double t;
+  final double size;
+  final Color color;
+
+  const _TapPulse({required this.t, this.size = 34, this.color = Colors.white});
+
+  @override
+  Widget build(BuildContext context) {
+    if (t <= 0 || t >= 1) return const SizedBox.shrink();
+    // Two rings half a phase apart, so one is always mid-flight. A single
+    // ring spends most of its life nearly transparent, and on a looping
+    // demo that reads as a smudge rather than a tap.
+    final rings = [t % 1.0, (t + 0.5) % 1.0];
+    return IgnorePointer(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            for (final phase in rings)
+              Builder(
+                builder: (_) {
+                  final grow = Curves.easeOutCubic.transform(phase);
+                  final d = size * (0.30 + grow * 0.70);
+                  return Container(
+                    width: d,
+                    height: d,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: color.withValues(alpha: (1 - grow) * 0.95),
+                        width: 2.5,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            Container(
+              width: size * 0.3,
+              height: size * 0.3,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The end of every import story: the Laffeh map, with the shared place
+/// dropping onto it and a "+1" to say it is now on the route.
+///
+/// [drop] and [toast] are 0..1 progressions the caller derives from its own
+/// timeline, so each demo can arrive at this moment at its own pace.
+class _LandingMapLayer extends StatelessWidget {
+  final double drop;
+  final double toast;
+
+  const _LandingMapLayer({required this.drop, required this.toast});
+
+  @override
+  Widget build(BuildContext context) {
+    final e = Curves.elasticOut.transform(drop);
+    final dy = -34 * (1 - e);
+    return LayoutBuilder(
+      builder: (context, c) => Stack(
+        children: [
+          Positioned.fill(child: CustomPaint(painter: _MapBackdrop())),
+          Positioned(
+            left: c.maxWidth / 2 - 17,
+            top: c.maxHeight * 0.5 - 34 + dy,
+            child: Opacity(
+              opacity: (drop * 3).clamp(0.0, 1.0),
+              child: _MockPin(color: AppColors.primary, size: 34),
+            ),
+          ),
+          if (toast > 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 18,
+              child: Center(
+                child: Opacity(
+                  opacity: toast,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          size: 15,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '+1',
+                          style: AppTextStyles.titleSm.copyWith(
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 double _loopFade(double t) {
   if (t < 0.05) return t / 0.05;
   if (t > 0.93) return ((1 - t) / 0.07).clamp(0.0, 1.0);

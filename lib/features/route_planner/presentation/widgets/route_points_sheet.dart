@@ -7,24 +7,26 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
+import '../pages/route_planner_actions.dart';
+import 'add_place_bar.dart';
 import 'missed_time_window_sheet.dart';
+import 'route_address_search_sheet.dart';
 import 'offline_area_offer.dart';
-import 'optimize_route_button.dart';
 import 'point_actions_sheet.dart';
 import 'stop_time_window_sheet.dart';
 
 part 'route_points_sheet_widgets.dart';
 
 class RoutePointsSheet extends StatelessWidget {
-  /// Opens the per-point add-method chooser (type an address / pick on the
-  /// map / from WhatsApp). The single entry point for adding another stop,
-  /// docked at the top of the sheet so the map stays as clear as possible.
-  final VoidCallback? onAddPoint;
+  /// Whether the sheet offers the ways to add another place. False only
+  /// where the sheet is being shown for its own sake — a preview.
+  final bool canAddPoints;
 
-  const RoutePointsSheet({super.key, this.onAddPoint});
+  const RoutePointsSheet({super.key, this.canAddPoints = true});
 
   @override
   Widget build(BuildContext context) {
@@ -45,11 +47,10 @@ class RoutePointsSheet extends StatelessWidget {
             state.errorMessage == AppStrings.errLocationServiceDisabled ||
             state.errorMessage == AppStrings.errLocationPermissionDenied;
 
-        // The auto departure (current location) isn't a user-managed point, so
-        // the destinations list shows everything except it.
-        final destinations = state.points
-            .where((p) => !(p.isDepot && p.id.startsWith('depot_current')))
-            .toList();
+        // The grid is the destinations, and only those: the departure —
+        // automatic or chosen — has its own row above it, so listing it here
+        // as well would number the trip's start "1" and the first stop "2".
+        final destinations = state.points.where((p) => !p.isDepot).toList();
 
         // Stops the last optimization couldn't reach inside their window.
         final missedWindows = state.missedTimeWindowPoints;
@@ -60,16 +61,29 @@ class RoutePointsSheet extends StatelessWidget {
         // hands that vertical space back to the map. Only the drag handle
         // stays.
         return AppSheetContainer(
-          contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+          contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+          // The pinned action bar below this content carries the device
+          // inset — see [RoutePlanActionBar].
+          applyBottomInset: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // ── Add another stop ─────────────────────────────────────
-              //    A single CTA that opens the same add-method chooser used
-              //    everywhere (type an address / pick on the map / WhatsApp),
-              //    so every point is added the same way.
-              if (onAddPoint != null) ...[
-                _AddStopCta(onTap: onAddPoint),
+              //    The same four ways the empty map offers, in the same
+              //    order and the same shapes. This used to be a single "add
+              //    a stop" button that opened a chooser: one extra tap, every
+              //    stop, for a driver who already knew which way they wanted.
+              if (canAddPoints) ...[
+                AddPlaceBar(
+                  title: AppStrings.addPointCta,
+                  floating: false,
+                  onSearch: () => showAddressSearchSheet(context, cubit),
+                  onPickOnMap: cubit.beginManualPlacement,
+                  onGoogleMaps: () =>
+                      RoutePlannerActions.showGoogleMapsInfo(context, cubit),
+                  onWhatsapp: () =>
+                      RoutePlannerActions.showWhatsappInfo(context),
+                ),
                 const SizedBox(height: 14),
               ],
 
@@ -105,6 +119,20 @@ class RoutePointsSheet extends StatelessWidget {
                 const SizedBox(height: 10),
               ],
 
+              // Where the round starts. Above the destinations because that
+              // is what it is — the trip's first place — and because a driver
+              // planning a round from a desk has to be able to see, before
+              // they optimize, that Laffeh is still assuming they set off
+              // from wherever they are standing.
+              _StartFromRow(
+                from: state.departureIsCurrentLocation
+                    ? null
+                    : state.departurePoint,
+                onTap: () =>
+                    RoutePlannerActions.showDeparturePicker(context, cubit),
+              ),
+              const SizedBox(height: 10),
+
               // Compact grid — points laid out a couple per row to keep the
               // sheet small. Tapping a cell opens its full address + actions
               // (rename / move / optional / delete) through the shared
@@ -112,7 +140,6 @@ class RoutePointsSheet extends StatelessWidget {
               // (#6), so cells aren't reorderable. (The empty state lives in
               // the screen-level AddOptionsHost, so the sheet always has at
               // least one point here.)
-              const SizedBox(height: 6),
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -164,19 +191,14 @@ class RoutePointsSheet extends StatelessWidget {
                   message: state.errorMessage!,
                 ),
               ],
-              const SizedBox(height: 14),
-              _ReadinessBanner(pointsCount: state.routableCount),
-              const SizedBox(height: 10),
-              OptimizeRouteButton(
-                onPressed: cubit.optimize,
-                enabled: state.canOptimize,
-                loading: state.isOptimizing,
-              ),
+              // Optimizing lives in the sheet's pinned action bar, not here:
+              // at the end of a scrolling list inside a collapsed sheet it
+              // was the one thing drivers could not find.
 
               // Destructive escape hatch — only once there's something to
-              // clear, kept visually below the primary "optimise" CTA.
+              // clear, and kept in the scroll where a mis-tap is unlikely.
               if (state.hasPoints) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 14),
                 _ClearAllButton(onPressed: () => confirmClearAll(context)),
               ],
             ],
@@ -185,5 +207,4 @@ class RoutePointsSheet extends StatelessWidget {
       },
     );
   }
-
 }

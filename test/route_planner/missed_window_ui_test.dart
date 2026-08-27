@@ -38,7 +38,9 @@ Widget _host(Widget child, {String locale = 'ar'}) {
 void main() {
   tearDown(() => AppStrings.setLocale(const Locale('en')));
 
-  testWidgets('banner names each late stop with how late it is', (tester) async {
+  testWidgets('banner leads with the worst stop and how late it is', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _host(
         MissedWindowBanner(
@@ -48,19 +50,39 @@ void main() {
       ),
     );
 
-    // The stop names, so the user knows which ones.
-    expect(find.text('صيدلية'), findsOneWidget);
+    // The headline count, so the size of the problem is known before the tap.
+    expect(find.text(AppStrings.timeWindowMissedCount(2)), findsOneWidget);
+    // The worst offender by name — not the first one in the list.
     expect(find.text('مستودع'), findsOneWidget);
-    // The size of each overshoot — the point of this change.
-    expect(find.text(AppStrings.lateByMinutes(25)), findsOneWidget);
-    expect(find.text(AppStrings.lateByMinutes(90)), findsOneWidget);
-    // And a way forward, not just a red box.
-    expect(find.text(AppStrings.seeDetails), findsOneWidget);
+    // In a chip, the compact delta: the long phrase would crowd the name out.
+    expect(find.text(AppStrings.lateByShort(90)), findsOneWidget);
+    // The rest are counted in the headline, not listed: the sheet is where
+    // they belong.
+    expect(find.text('صيدلية'), findsNothing);
 
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('banner is tappable', (tester) async {
+  testWidgets('the compact chip stays short enough to sit beside a name', (
+    tester,
+  ) async {
+    AppStrings.setLocale(const Locale('en'));
+    // A chip is a delta, not a sentence — the surrounding red already says
+    // "late", and the long form is what pushed the stop name off the row.
+    expect(AppStrings.lateByShort(25), '+25 min');
+    expect(AppStrings.lateByShort(60), '+1h');
+    expect(AppStrings.lateByShort(95), '+1h 35m');
+    expect(AppStrings.lateByShort(95).length, lessThan(10));
+
+    // Arabic leads with a word: a "+" is bidi-neutral and would be pushed
+    // to the wrong side of the digit, reading as "1+".
+    AppStrings.setLocale(const Locale('ar'));
+    expect(AppStrings.lateByShort(25), 'تأخير 25 د');
+    expect(AppStrings.lateByShort(95), 'تأخير 1 س 35 د');
+    expect(AppStrings.lateByShort(95), isNot(startsWith('+')));
+  });
+
+  testWidgets('the whole banner is the tap target', (tester) async {
     var tapped = false;
     await tester.pumpWidget(
       _host(
@@ -71,9 +93,21 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text(AppStrings.seeDetails));
+    // Tapping the headline — not a small "see details" link — opens it.
+    await tester.tap(find.text(AppStrings.timeWindowMissedCount(1)));
     await tester.pump();
     expect(tapped, isTrue);
+  });
+
+  testWidgets('Arabic counts two stops as a dual, not a plural', (
+    tester,
+  ) async {
+    AppStrings.setLocale(const Locale('ar'));
+    expect(AppStrings.timeWindowMissedCount(2), contains('نقطتان'));
+    expect(AppStrings.timeWindowMissedCount(2), isNot(contains('2 نقاط')));
+    // 3–10 take the plural noun, 11+ the singular.
+    expect(AppStrings.timeWindowMissedCount(4), contains('4 نقاط'));
+    expect(AppStrings.timeWindowMissedCount(12), contains('12 نقطة'));
   });
 
   testWidgets('lateness reads as hours once past an hour', (tester) async {

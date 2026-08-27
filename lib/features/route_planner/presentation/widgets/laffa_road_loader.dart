@@ -119,13 +119,21 @@ class _LaffaRoadLoaderState extends State<LaffaRoadLoader>
     const rL = 138.0;
     const tailX = 1016.0;
     const botY = 657.0;
-    final rc = const Offset(706, 526).translate(0, dy); // right roundabout centre
-    final lc = const Offset(297, 512).translate(0, dy); // left roundabout centre
+    final rc = const Offset(
+      706,
+      526,
+    ).translate(0, dy); // right roundabout centre
+    final lc = const Offset(
+      297,
+      512,
+    ).translate(0, dy); // left roundabout centre
 
     // A logo point: authored in bitmap coords, then shifted down by [dy].
     Offset q(double x, double y) => Offset(x, y + dy);
-    Offset onR(double a) => rc + Offset(rR * math.cos(a * d2r), rR * math.sin(a * d2r));
-    Offset onL(double a) => lc + Offset(rL * math.cos(a * d2r), rL * math.sin(a * d2r));
+    Offset onR(double a) =>
+        rc + Offset(rR * math.cos(a * d2r), rR * math.sin(a * d2r));
+    Offset onL(double a) =>
+        lc + Offset(rL * math.cos(a * d2r), rL * math.sin(a * d2r));
 
     final pts = <Offset>[];
     final segs = <MapEntry<String, int>>[];
@@ -140,11 +148,16 @@ class _LaffaRoadLoaderState extends State<LaffaRoadLoader>
     void cubic(Offset p0, Offset p1, Offset p2, Offset p3, int n) {
       for (var i = 1; i <= n; i++) {
         final t = i / n, mt = 1 - t;
-        final a = mt * mt * mt, b = 3 * mt * mt * t, c = 3 * mt * t * t, d = t * t * t;
-        pts.add(Offset(
-          a * p0.dx + b * p1.dx + c * p2.dx + d * p3.dx,
-          a * p0.dy + b * p1.dy + c * p2.dy + d * p3.dy,
-        ));
+        final a = mt * mt * mt,
+            b = 3 * mt * mt * t,
+            c = 3 * mt * t * t,
+            d = t * t * t;
+        pts.add(
+          Offset(
+            a * p0.dx + b * p1.dx + c * p2.dx + d * p3.dx,
+            a * p0.dy + b * p1.dy + c * p2.dy + d * p3.dy,
+          ),
+        );
       }
     }
 
@@ -192,7 +205,8 @@ class _LaffaRoadLoaderState extends State<LaffaRoadLoader>
     }
     final total = cum.last;
     final fr = <String, double>{
-      for (final s in segs) s.key: cum[math.min(s.value, cum.length - 1)] / total,
+      for (final s in segs)
+        s.key: cum[math.min(s.value, cum.length - 1)] / total,
     };
 
     // Nearest drive-fraction to a target point (mirrors the source's findFrac).
@@ -290,10 +304,8 @@ class _LaffaRoadLoaderState extends State<LaffaRoadLoader>
       child: RepaintBoundary(
         child: AnimatedBuilder(
           animation: _repaint,
-          builder: (_, __) => CustomPaint(
-            painter: _ScenePainter(this),
-            size: Size.infinite,
-          ),
+          builder: (_, __) =>
+              CustomPaint(painter: _ScenePainter(this), size: Size.infinite),
         ),
       ),
     );

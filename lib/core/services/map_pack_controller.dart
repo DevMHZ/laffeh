@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../config/offline_map_config.dart';
@@ -111,9 +112,31 @@ class MapPackController extends ChangeNotifier {
   bool get isBusy =>
       _status == MapPackStatus.downloading || _status == MapPackStatus.checking;
 
+  /// Whether there is geometry bound to download. False on a controller
+  /// nothing has pointed at yet — the state Settings finds when the app
+  /// opens with no plan.
+  bool get hasBoxes => _boxes.isNotEmpty;
+
   /// Rough MB the pending download would cost, for the pre-download hint.
   double get estimatedMb =>
       TileMath.estimatedMb(_boxes, minZoom: _minZoom, maxZoom: _maxZoom);
+
+  /// Tells listeners, waiting for the frame to end if one is mid-build.
+  ///
+  /// [bind] is called from a widget's `initState`/`didUpdateWidget` — that
+  /// is, during a build — and a synchronous notification there marks every
+  /// listener *outside* the subtree being built (the map's offline button)
+  /// as needing to build, which Flutter rejects outright. Deferring costs a
+  /// frame and nothing else.
+  void _notify() {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
+      return;
+    }
+    notifyListeners();
+  }
 
   /// Points this controller at [packId] / [boxes] and reports whether the
   /// pack is already stored. Call whenever what would be downloaded changes.
@@ -132,7 +155,7 @@ class MapPackController extends ChangeNotifier {
     _boxes = boxes;
     _status = MapPackStatus.checking;
     _progress = 0;
-    notifyListeners();
+    _notify();
 
     final bytes = await MapCacheService.cachedBytesForPack(packId);
     if (_packId != packId) return; // superseded while awaiting
@@ -140,7 +163,7 @@ class MapPackController extends ChangeNotifier {
     _bytes = bytes;
     _status = bytes > 0 ? MapPackStatus.ready : MapPackStatus.idle;
     _progress = bytes > 0 ? 1 : 0;
-    notifyListeners();
+    _notify();
   }
 
   /// Downloads [boxes] as pack [packId]. Safe to call twice — the second
@@ -160,7 +183,7 @@ class MapPackController extends ChangeNotifier {
     _bytes = 0;
     _cancelling = false;
     _token = MapPackCancelToken();
-    notifyListeners();
+    _notify();
 
     final result = await MapCacheService.prefetchBoxes(
       packId: packId,
@@ -175,7 +198,7 @@ class MapPackController extends ChangeNotifier {
         _progress = p.fraction;
         _bytes = p.bytes;
         _doneBoxes = p.completedChunks;
-        notifyListeners();
+        _notify();
       },
     );
 
@@ -193,7 +216,18 @@ class MapPackController extends ChangeNotifier {
         : MapPackStatus.failed;
     _cancelling = false;
     _token = null;
-    notifyListeners();
+    _notify();
+  }
+
+  /// Downloads whatever pack [bind] last pointed at.
+  ///
+  /// For callers that can act on a pack without holding its geometry: the
+  /// Settings row offers the trip corridor the planner bound, and has no
+  /// route of its own to chunk. A no-op where nothing is bound.
+  Future<void> downloadBound() async {
+    final packId = _packId;
+    if (packId == null || _boxes.isEmpty) return;
+    await download(packId: packId, boxes: List.of(_boxes));
   }
 
   /// Stops the current download.
@@ -204,7 +238,7 @@ class MapPackController extends ChangeNotifier {
   void cancel() {
     if (_token == null || _cancelling) return;
     _cancelling = true;
-    notifyListeners();
+    _notify();
     _token?.cancel();
   }
 
@@ -221,7 +255,7 @@ class MapPackController extends ChangeNotifier {
     _progress = 0;
     _doneBoxes = 0;
     _status = MapPackStatus.idle;
-    notifyListeners();
+    _notify();
   }
 
   /// Puts the controller into a given visual state without touching the
@@ -243,12 +277,9 @@ class MapPackController extends ChangeNotifier {
     _cancelling = cancelling;
     _boxes = List.filled(
       boxCount,
-      const CoordinateBounds(
-        southWest: LatLng(0, 0),
-        northEast: LatLng(0, 0),
-      ),
+      const CoordinateBounds(southWest: LatLng(0, 0), northEast: LatLng(0, 0)),
     );
-    notifyListeners();
+    _notify();
   }
 
   /// Forgets the bound pack without touching what is on disk — used when
@@ -261,6 +292,6 @@ class MapPackController extends ChangeNotifier {
     _doneBoxes = 0;
     _bytes = 0;
     _boxes = const [];
-    notifyListeners();
+    _notify();
   }
 }

@@ -180,70 +180,70 @@ class _CellBadge extends StatelessWidget {
   }
 }
 
-/// The single "Add a stop" call-to-action docked at the top of the planning
-/// sheet. Tapping it opens the per-point add-method chooser (type an address /
-/// pick on the map / from WhatsApp), so every stop is added the same way.
-class _AddStopCta extends StatelessWidget {
-  final VoidCallback? onTap;
+/// Where the trip starts, and the one tap that changes it.
+///
+/// The planner's twin of the navigator card's "From ·" line, and deliberately
+/// the same sentence in both: a driver who learns the assumption on a
+/// one-stop trip should find it in the same words when they build a round.
+class _StartFromRow extends StatelessWidget {
+  /// The departure the driver named. Null — the usual case — means the trip
+  /// still starts wherever they happen to be.
+  final RoutePoint? from;
+  final VoidCallback onTap;
 
-  const _AddStopCta({this.onTap});
+  const _StartFromRow({required this.from, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.30),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+    final chosen = from;
+    final named = chosen?.address?.trim();
+    final label = chosen == null
+        ? AppStrings.currentLocationLabel
+        : (named != null && named.isNotEmpty)
+        ? named
+        : AppStrings.departure;
+
+    return Material(
+      color: AppColors.surfaceAlt.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap == null
-              ? null
-              : () {
-                  HapticFeedback.lightImpact();
-                  onTap!();
-                },
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Iconsax.location_add,
-                  color: AppColors.white,
-                  size: 20,
+          child: Row(
+            children: [
+              Icon(
+                chosen == null ? Icons.my_location_rounded : Iconsax.flag,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 10),
+              Text('${AppStrings.fromLabel} · ', style: AppTextStyles.mutedSm),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleSm,
                 ),
-                const SizedBox(width: 9),
-                Flexible(
-                  child: Text(
-                    AppStrings.addPointCta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.button.copyWith(
-                      color: AppColors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Iconsax.edit_2, size: 16, color: AppColors.primary),
+            ],
           ),
         ),
       ),
     );
   }
 }
-
 
 /// When the trip starts — the anchor every stop's arrival window is
 /// measured from, since the solver only thinks in minutes-after-departure.
@@ -365,7 +365,9 @@ class _OfflineBanner extends StatelessWidget {
               children: [
                 Text(
                   AppStrings.offlineTitle,
-                  style: AppTextStyles.titleSm.copyWith(color: AppColors.asphalt),
+                  style: AppTextStyles.titleSm.copyWith(
+                    color: AppColors.asphalt,
+                  ),
                 ),
                 Text(
                   AppStrings.offlineBody,
@@ -399,34 +401,6 @@ class _DraftRestoredHint extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-class _ReadinessBanner extends StatelessWidget {
-  final int pointsCount;
-
-  const _ReadinessBanner({required this.pointsCount});
-
-  @override
-  Widget build(BuildContext context) {
-    final ready = pointsCount >= 2;
-    final color = ready
-        ? AppColors.success
-        : pointsCount == 0
-        ? AppColors.primary
-        : AppColors.warning;
-    final message = ready
-        ? AppStrings.readyToOptimize
-        : pointsCount == 0
-        ? AppStrings.setDepartureFirst
-        : AppStrings.addOneStopToOptimize;
-    final icon = ready
-        ? Iconsax.tick_circle
-        : pointsCount == 0
-        ? Iconsax.flag
-        : Iconsax.location_add;
-
-    return _MessageBanner(icon: icon, color: color, message: message);
   }
 }
 
@@ -579,69 +553,23 @@ class _ClearAllButton extends StatelessWidget {
 }
 
 /// Confirms before wiping all points (and the saved draft), then clears.
-Future<void> confirmClearAll(BuildContext context) {
+///
+/// Goes through [AppDialog] like every other decision in the app: a hand-made
+/// AlertDialog here meant the one moment a driver can lose their whole trip
+/// was also the one moment the app stopped looking like itself.
+Future<void> confirmClearAll(BuildContext context) async {
   final cubit = context.read<RoutePlannerCubit>();
-  return showDialog<void>(
+  final confirmed = await AppDialog.confirm(
     context: context,
-    builder: (ctx) => AlertDialog(
-      contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.danger.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Iconsax.trash, color: AppColors.danger, size: 26),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            AppStrings.clearAll,
-            style: AppTextStyles.h3,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            AppStrings.clearRouteConfirm,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(AppStrings.cancel),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    HapticFeedback.mediumImpact();
-                    cubit.clearAll();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.danger,
-                    foregroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(AppStrings.remove),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
+    title: AppStrings.clearAll,
+    message: AppStrings.clearRouteConfirm,
+    icon: Iconsax.trash,
+    tone: AppDialogTone.danger,
+    confirmLabel: AppStrings.remove,
+    confirmIcon: Iconsax.trash,
+    destructive: true,
   );
+  if (confirmed != true) return;
+  HapticFeedback.mediumImpact();
+  cubit.clearAll();
 }

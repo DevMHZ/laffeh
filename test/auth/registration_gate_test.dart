@@ -74,9 +74,7 @@ void main() {
   });
 
   test('daysLeft rounds up so the final hours still read as a day', () async {
-    final gate = await gateWith(
-      skippedAgo(grace - const Duration(hours: 3)),
-    );
+    final gate = await gateWith(skippedAgo(grace - const Duration(hours: 3)));
     expect(gate.daysLeft, 1);
   });
 

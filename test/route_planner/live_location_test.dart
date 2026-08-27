@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:laffeh/core/network/network_info.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osm_geocoding_datasource.dart';
+import 'package:laffeh/features/route_planner/data/repositories/place_search_repository.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osrm_routing_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/planner_draft_local_datasource.dart';
 import 'package:laffeh/features/route_planner/data/models/planner_draft_model.dart';
@@ -18,6 +19,8 @@ class _MockOptimize extends Mock implements OptimizeRouteUseCase {}
 class _MockSavedRoutes extends Mock implements SavedRoutesRepository {}
 
 class _MockGeocoding extends Mock implements OsmGeocodingDataSource {}
+
+class _MockPlaces extends Mock implements PlaceSearchRepository {}
 
 class _MockDraft extends Mock implements PlannerDraftLocalDataSource {}
 
@@ -90,8 +93,9 @@ class _FakeGeolocator extends GeolocatorPlatform
       LocationPermission.whileInUse;
 
   @override
-  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) async =>
-      _fix(33.8938, 35.5018);
+  Future<Position> getCurrentPosition({
+    LocationSettings? locationSettings,
+  }) async => _fix(33.8938, 35.5018);
 
   Future<void> dispose() => _controller.close();
 }
@@ -116,6 +120,7 @@ void main() {
       _MockOptimize(),
       _MockSavedRoutes(),
       _MockGeocoding(),
+      _MockPlaces(),
       draft,
       network,
       _MockRouting(),

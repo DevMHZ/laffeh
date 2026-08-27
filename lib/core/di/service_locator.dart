@@ -13,6 +13,7 @@ import '../../features/route_planner/domain/usecases/get_directions_usecase.dart
 import '../../features/route_planner/domain/usecases/optimize_route_usecase.dart';
 import '../../features/route_planner/presentation/cubit/route_planner_cubit.dart';
 import '../../features/saved_routes/data/datasources/saved_routes_local_datasource.dart';
+import '../../features/saved_routes/data/datasources/saved_routes_remote_datasource.dart';
 import '../../features/saved_routes/data/repositories/saved_routes_repository_impl.dart';
 import '../../features/saved_routes/domain/repositories/saved_routes_repository.dart';
 import '../../features/saved_routes/presentation/cubit/saved_routes_cubit.dart';
@@ -36,7 +37,12 @@ import '../network/dio_client.dart';
 import '../network/network_info.dart';
 import '../services/consent_store.dart';
 import '../services/location_ping_service.dart';
+import '../../features/route_planner/data/datasources/overpass_poi_datasource.dart';
+import '../../features/route_planner/data/datasources/photon_geocoding_datasource.dart';
+import '../../features/route_planner/data/datasources/recent_places_local_datasource.dart';
+import '../../features/route_planner/data/repositories/place_search_repository.dart';
 import '../services/registration_gate.dart';
+import '../services/saved_routes_sync_service.dart';
 
 /// Public service locator entry-point.
 final GetIt sl = GetIt.instance;
@@ -73,6 +79,21 @@ Future<void> setupServiceLocator() async {
       () => OsmGeocodingDataSource(DioClient.nominatimDio),
     );
   }
+  if (!sl.isRegistered<PhotonGeocodingDataSource>()) {
+    sl.registerLazySingleton<PhotonGeocodingDataSource>(
+      () => PhotonGeocodingDataSource(DioClient.photonDio),
+    );
+  }
+  if (!sl.isRegistered<OverpassPoiDataSource>()) {
+    sl.registerLazySingleton<OverpassPoiDataSource>(
+      () => OverpassPoiDataSource(DioClient.overpassDio),
+    );
+  }
+  if (!sl.isRegistered<RecentPlacesLocalDataSource>()) {
+    sl.registerLazySingleton<RecentPlacesLocalDataSource>(
+      () => RecentPlacesLocalDataSource(sl<SharedPreferences>()),
+    );
+  }
   if (!sl.isRegistered<PlannerDraftLocalDataSource>()) {
     sl.registerLazySingleton<PlannerDraftLocalDataSource>(
       () => PlannerDraftLocalDataSource(sl<SharedPreferences>()),
@@ -80,6 +101,16 @@ Future<void> setupServiceLocator() async {
   }
 
   // ── Repositories ───────────────────────────────────────
+  if (!sl.isRegistered<PlaceSearchRepository>()) {
+    sl.registerLazySingleton<PlaceSearchRepository>(
+      () => PlaceSearchRepository(
+        photon: sl<PhotonGeocodingDataSource>(),
+        nominatim: sl<OsmGeocodingDataSource>(),
+        overpass: sl<OverpassPoiDataSource>(),
+        recents: sl<RecentPlacesLocalDataSource>(),
+      ),
+    );
+  }
   if (!sl.isRegistered<RouteRepository>()) {
     sl.registerLazySingleton<RouteRepository>(
       () => RouteRepositoryImpl(
@@ -102,15 +133,10 @@ Future<void> setupServiceLocator() async {
     );
   }
 
-  // ── Saved routes (local history) ───────────────────────
+  // ── Saved routes (local history, mirrored to the account) ──
   if (!sl.isRegistered<SavedRoutesLocalDataSource>()) {
     sl.registerLazySingleton<SavedRoutesLocalDataSource>(
       () => SavedRoutesLocalDataSource(sl<SharedPreferences>()),
-    );
-  }
-  if (!sl.isRegistered<SavedRoutesRepository>()) {
-    sl.registerLazySingleton<SavedRoutesRepository>(
-      () => SavedRoutesRepositoryImpl(sl<SavedRoutesLocalDataSource>()),
     );
   }
 
@@ -122,6 +148,7 @@ Future<void> setupServiceLocator() async {
         sl<OptimizeRouteUseCase>(),
         sl<SavedRoutesRepository>(),
         sl<OsmGeocodingDataSource>(),
+        sl<PlaceSearchRepository>(),
         sl<PlannerDraftLocalDataSource>(),
         sl<NetworkInfo>(),
         sl<OsrmRoutingDataSource>(),
@@ -130,7 +157,10 @@ Future<void> setupServiceLocator() async {
   }
   if (!sl.isRegistered<SavedRoutesCubit>()) {
     sl.registerFactory<SavedRoutesCubit>(
-      () => SavedRoutesCubit(sl<SavedRoutesRepository>()),
+      () => SavedRoutesCubit(
+        sl<SavedRoutesRepository>(),
+        sl<SavedRoutesSyncService>(),
+      ),
     );
   }
 
@@ -171,6 +201,11 @@ Future<void> setupServiceLocator() async {
         () => ProfileRepositoryImpl(sl<ProfileRemoteDataSource>()),
       );
     }
+    if (!sl.isRegistered<SavedRoutesRemoteDataSource>()) {
+      sl.registerLazySingleton<SavedRoutesRemoteDataSource>(
+        () => SavedRoutesRemoteDataSource(sl<SupabaseClient>()),
+      );
+    }
   } else {
     if (!sl.isRegistered<LocationPingRepository>()) {
       sl.registerLazySingleton<LocationPingRepository>(
@@ -185,6 +220,30 @@ Future<void> setupServiceLocator() async {
         () => _DisabledProfileRepository(),
       );
     }
+  }
+
+  // The history is local-first either way; the account mirror is only wired
+  // in when there is a backend to mirror to. `currentUserId` is read through
+  // the auth repo on every call rather than captured, so the repo always sees
+  // the session as it is *now* — including right after a sign-out.
+  if (!sl.isRegistered<SavedRoutesRepository>()) {
+    sl.registerLazySingleton<SavedRoutesRepository>(
+      () => SavedRoutesRepositoryImpl(
+        sl<SavedRoutesLocalDataSource>(),
+        remote: SupabaseConfig.isReady
+            ? sl<SavedRoutesRemoteDataSource>()
+            : null,
+        currentUserId: () => sl<AuthRepository>().currentUser?.id,
+      ),
+    );
+  }
+  if (!sl.isRegistered<SavedRoutesSyncService>()) {
+    sl.registerLazySingleton<SavedRoutesSyncService>(
+      () => SavedRoutesSyncService(
+        sl<SavedRoutesRepository>(),
+        sl<AuthRepository>(),
+      ),
+    );
   }
 
   // AuthCubit is app-global (singleton): the whole app reacts to sign-in /

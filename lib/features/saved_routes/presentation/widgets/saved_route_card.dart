@@ -253,11 +253,7 @@ class _OverflowMenu extends StatelessWidget {
           value: _MenuAction.rename,
           child: Row(
             children: [
-              Icon(
-                Iconsax.edit,
-                size: 18,
-                color: AppColors.textSecondary,
-              ),
+              Icon(Iconsax.edit, size: 18, color: AppColors.textSecondary),
               const SizedBox(width: 10),
               Text(AppStrings.rename),
             ],

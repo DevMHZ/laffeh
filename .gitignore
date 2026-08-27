@@ -65,3 +65,10 @@ app.*.map.json
 
 # Xcode SwiftPM resolution (generated)
 **/xcshareddata/swiftpm/
+
+# App Store marketing screenshots — generated from the HTML templates that
+# live beside them, and 26 MB of PNG. Regenerate rather than carry them in
+# the history.
+/.appstore_html/
+/app_store_screenshots/
+/app_store_screenshots.zip

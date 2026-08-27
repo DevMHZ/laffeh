@@ -3,6 +3,19 @@ import 'package:latlong2/latlong.dart';
 
 import '../../domain/entities/route_point.dart';
 
+/// One row of an import, before it has been turned into a [RoutePoint].
+///
+/// [locator] is whatever tells us *where* the stop is — a `lat,lng` pair, a
+/// map link, or a plain address for geocoding. The rest is what a CSV can
+/// carry that a bare line of shared text cannot.
+class ImportedStop {
+  final String locator;
+  final String? label;
+  final String? phone;
+
+  const ImportedStop({required this.locator, this.label, this.phone});
+}
+
 class RouteCsvUtils {
   RouteCsvUtils._();
 
@@ -15,6 +28,7 @@ class RouteCsvUtils {
     'latitude',
     'longitude',
     'address',
+    'phone',
     'weight',
     // Arrival window as 24-hour wall clock, so the export stays readable
     // (and re-importable) without knowing when the trip departs.
@@ -47,6 +61,9 @@ class RouteCsvUtils {
           p.longitude,
           // Empty fields are written as an empty cell, never "null".
           p.address ?? '',
+          // Quoted by the encoder when needed, so a leading + survives and
+          // spreadsheets don't eat the number as a formula or an integer.
+          p.phone ?? '',
           p.weight,
           p.timeWindow == null ? '' : _clock(p.timeWindow!.startMinuteOfDay),
           p.timeWindow == null ? '' : _clock(p.timeWindow!.endMinuteOfDay),
@@ -59,15 +76,18 @@ class RouteCsvUtils {
     return const CsvEncoder(addBom: true).convert(rows);
   }
 
-  /// Converts a CSV into importable lines accepted by
-  /// `RoutePlannerCubit.addPointsFromText`.
+  /// Converts a CSV into [ImportedStop]s.
   ///
   /// Supported formats:
   /// - Header CSV with `latitude`/`longitude` (or `lat`/`lng`/`lon`).
   /// - Header CSV with `address` when coordinates are absent.
   /// - Headerless rows where the first two columns are coordinates.
   /// - Headerless rows where the first column is an address.
-  static List<String> decodeImportLines(String source) {
+  ///
+  /// A header row also carries `label`/`name` and `phone` through, so a stop
+  /// keeps the name and contact the office typed instead of coming back as
+  /// "نقطة 4" with nobody to ring.
+  static List<ImportedStop> decodeImportRows(String source) {
     // Strip a leading UTF-8 BOM (present on files we exported, and on
     // many spreadsheets) so the first header cell parses cleanly.
     final clean = source.startsWith('\u{FEFF}') ? source.substring(1) : source;
@@ -78,14 +98,22 @@ class RouteCsvUtils {
     final hasHeader = header.isNotEmpty;
     final dataRows = hasHeader ? rows.skip(1) : rows;
 
-    final lines = <String>[];
+    final stops = <ImportedStop>[];
     for (final row in dataRows) {
-      final line = hasHeader
-          ? _lineFromHeaderRow(row, header)
-          : _lineFromRow(row);
-      if (line != null && line.trim().isNotEmpty) lines.add(line.trim());
+      final locator = hasHeader
+          ? _locatorFromHeaderRow(row, header)
+          : _locatorFromRow(row);
+      if (locator == null || locator.trim().isEmpty) continue;
+
+      stops.add(
+        ImportedStop(
+          locator: locator.trim(),
+          label: hasHeader ? _text(row, _labelIndex(header)) : null,
+          phone: hasHeader ? _text(row, _phoneIndex(header)) : null,
+        ),
+      );
     }
-    return lines;
+    return stops;
   }
 
   static List<RoutePoint> stripReturnDuplicate(List<RoutePoint> points) {
@@ -115,15 +143,47 @@ class RouteCsvUtils {
       'address',
       'label',
       'name',
+      'phone',
+      'mobile',
+      'tel',
       'sequence',
       'kind',
       'weight',
+      // Arabic headers, because the office builds these sheets by hand.
+      'الاسم',
+      'العنوان',
+      'الهاتف',
+      'رقم',
+      'رقم الهاتف',
+      'الجوال',
+      'الموبايل',
     };
     if (!map.keys.any(known.contains)) return const {};
     return map;
   }
 
-  static String? _lineFromHeaderRow(
+  /// The name column under any of the names a sheet might use for it.
+  static int? _labelIndex(Map<String, int> header) =>
+      header['label'] ?? header['name'] ?? header['الاسم'];
+
+  /// The phone column under any of the names a sheet might use for it.
+  static int? _phoneIndex(Map<String, int> header) =>
+      header['phone'] ??
+      header['mobile'] ??
+      header['tel'] ??
+      header['الهاتف'] ??
+      header['رقم الهاتف'] ??
+      header['رقم'] ??
+      header['الجوال'] ??
+      header['الموبايل'];
+
+  /// A cell's trimmed text, or null when it is missing or blank.
+  static String? _text(List<dynamic> row, int? index) {
+    final raw = _value(row, index)?.trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  static String? _locatorFromHeaderRow(
     List<dynamic> row,
     Map<String, int> header,
   ) {
@@ -135,14 +195,14 @@ class RouteCsvUtils {
     final parsed = _parsePair(lat, lng);
     if (parsed != null) return '${parsed.latitude},${parsed.longitude}';
 
-    final address = _value(
-      row,
-      header['address'] ?? header['label'] ?? header['name'],
-    );
-    return address?.trim().isNotEmpty == true ? address!.trim() : null;
+    // No coordinates — fall back to something geocodable. The address
+    // column first; a label is a last resort, and only because a sheet that
+    // has nothing else often puts the shop name there.
+    return _text(row, header['address'] ?? header['العنوان']) ??
+        _text(row, _labelIndex(header));
   }
 
-  static String? _lineFromRow(List<dynamic> row) {
+  static String? _locatorFromRow(List<dynamic> row) {
     if (row.isEmpty) return null;
     if (row.length >= 2) {
       final parsed = _parsePair(row[0].toString(), row[1].toString());

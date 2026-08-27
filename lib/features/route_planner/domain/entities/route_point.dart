@@ -27,6 +27,13 @@ class RoutePoint extends Equatable {
   /// Optional human address. Set after reverse-geocoding.
   final String? address;
 
+  /// Contact number for whoever is waiting at this stop.
+  ///
+  /// Stored exactly as the driver typed it (or as the CSV carried it), not
+  /// normalised to E.164 — a local `0944 123 456` has to read back the way
+  /// it was entered. `PhoneUtils` canonicalises only at dial / WhatsApp time.
+  final String? phone;
+
   /// Default payload weight for VRP, defaulted from `RoutingConfig`.
   final int weight;
 
@@ -61,6 +68,10 @@ class RoutePoint extends Equatable {
   /// the solver dropped it as infeasible, or the road-time estimate puts
   /// arrival past the window. The stop stays in the route regardless — the
   /// UI just flags it so the user can adjust the time or the trip.
+  ///
+  /// Meaningless without a [timeWindow], and never set without one: a stop
+  /// the user gave no arrival time to has no deadline to miss, so it must
+  /// never be flagged (see `_applyArrivalTimes`).
   final bool timeWindowMissed;
 
   /// How many minutes past the window's end the driver would arrive.
@@ -80,6 +91,7 @@ class RoutePoint extends Equatable {
     required this.weight,
     required this.kind,
     this.address,
+    this.phone,
     this.sequence,
     this.optional = false,
     this.active = true,
@@ -103,12 +115,16 @@ class RoutePoint extends Equatable {
   /// True when the user pinned a clock time to this stop.
   bool get hasTimeWindow => timeWindow != null;
 
+  /// True when there is a number to call or message.
+  bool get hasPhone => phone != null && phone!.trim().isNotEmpty;
+
   RoutePoint copyWith({
     String? id,
     double? latitude,
     double? longitude,
     String? label,
     String? address,
+    String? phone,
     int? weight,
     RoutePointKind? kind,
     int? sequence,
@@ -120,6 +136,7 @@ class RoutePoint extends Equatable {
     int? latenessMinutes,
     bool clearSequence = false,
     bool clearAddress = false,
+    bool clearPhone = false,
     bool clearTimeWindow = false,
     bool clearEta = false,
     bool clearLateness = false,
@@ -130,6 +147,7 @@ class RoutePoint extends Equatable {
       longitude: longitude ?? this.longitude,
       label: label ?? this.label,
       address: clearAddress ? null : (address ?? this.address),
+      phone: clearPhone ? null : (phone ?? this.phone),
       weight: weight ?? this.weight,
       kind: kind ?? this.kind,
       sequence: clearSequence ? null : (sequence ?? this.sequence),
@@ -156,6 +174,7 @@ class RoutePoint extends Equatable {
     longitude,
     label,
     address,
+    phone,
     weight,
     kind,
     sequence,

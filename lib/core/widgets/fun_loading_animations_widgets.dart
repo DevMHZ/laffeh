@@ -16,8 +16,7 @@ class _LoopingState extends State<_Looping>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: widget.period)
-      ..repeat();
+    _ctrl = AnimationController(vsync: this, duration: widget.period)..repeat();
   }
 
   @override
@@ -106,7 +105,11 @@ class _PinShufflePainter extends CustomPainter {
   final List<int> slots;
   final (int, int) swap;
 
-  _PinShufflePainter({required this.t, required this.slots, required this.swap});
+  _PinShufflePainter({
+    required this.t,
+    required this.slots,
+    required this.swap,
+  });
 
   static final _colors = [
     AppColors.pinBlue,
@@ -137,7 +140,9 @@ class _PinShufflePainter extends CustomPainter {
       var y = cy;
 
       if (pin == a || pin == b) {
-        final other = pin == a ? slotX(slots.indexOf(b)) : slotX(slots.indexOf(a));
+        final other = pin == a
+            ? slotX(slots.indexOf(b))
+            : slotX(slots.indexOf(a));
         x = x + (other - x) * t;
         // One pin arcs over, the other dips under.
         final lift = math.sin(t * math.pi);
@@ -152,7 +157,9 @@ class _PinShufflePainter extends CustomPainter {
 
     // Thinking sparkles above.
     final sparkle = Paint()
-      ..color = AppColors.pinOrange.withValues(alpha: 0.6 * math.sin(t * math.pi))
+      ..color = AppColors.pinOrange.withValues(
+        alpha: 0.6 * math.sin(t * math.pi),
+      )
       ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.round;
     final sx = size.width / 2;
@@ -169,7 +176,9 @@ class _PinShufflePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PinShufflePainter old) =>
-      old.t != t || old.swap != swap || old.slots.toString() != slots.toString();
+      old.t != t ||
+      old.swap != swap ||
+      old.slots.toString() != slots.toString();
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -183,9 +192,8 @@ class _LoopDrive extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Looping(
       period: const Duration(milliseconds: 2400),
-      builder: (_, phase) => CustomPaint(
-        painter: _LoopDrivePainter(phase: phase),
-      ),
+      builder: (_, phase) =>
+          CustomPaint(painter: _LoopDrivePainter(phase: phase)),
     );
   }
 }
@@ -305,9 +313,8 @@ class _DropAndConnect extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Looping(
       period: const Duration(milliseconds: 3600),
-      builder: (_, phase) => CustomPaint(
-        painter: _DropAndConnectPainter(phase: phase),
-      ),
+      builder: (_, phase) =>
+          CustomPaint(painter: _DropAndConnectPainter(phase: phase)),
     );
   }
 }
@@ -373,11 +380,7 @@ class _DropAndConnectPainter extends CustomPainter {
     if (stamp > 0) {
       final pop = Curves.easeOutBack.transform(stamp);
       final c = Offset(size.width * 0.52, size.height * 0.50);
-      canvas.drawCircle(
-        c,
-        13.0 * pop,
-        Paint()..color = AppColors.primary,
-      );
+      canvas.drawCircle(c, 13.0 * pop, Paint()..color = AppColors.primary);
       canvas.drawCircle(
         c,
         13.0 * pop,

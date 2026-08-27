@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:laffeh/core/constants/app_constants.dart';
 import 'package:laffeh/core/network/network_info.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osm_geocoding_datasource.dart';
+import 'package:laffeh/features/route_planner/data/repositories/place_search_repository.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osrm_routing_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/planner_draft_local_datasource.dart';
 import 'package:laffeh/features/route_planner/data/models/planner_draft_model.dart';
@@ -24,6 +25,8 @@ class _MockOptimize extends Mock implements OptimizeRouteUseCase {}
 class _MockSavedRoutes extends Mock implements SavedRoutesRepository {}
 
 class _MockGeocoding extends Mock implements OsmGeocodingDataSource {}
+
+class _MockPlaces extends Mock implements PlaceSearchRepository {}
 
 class _MockDraft extends Mock implements PlannerDraftLocalDataSource {}
 
@@ -76,6 +79,7 @@ void main() {
       _MockOptimize(),
       _MockSavedRoutes(),
       _MockGeocoding(),
+      _MockPlaces(),
       draft,
       _MockNetwork(),
       _MockRouting(),
@@ -92,7 +96,10 @@ void main() {
           fullPolyline: [LatLng(33.89, 35.50), LatLng(33.90, 35.55)],
           goPolyline: [LatLng(33.89, 35.50), LatLng(33.90, 35.55)],
           returnPolyline: [],
-          metrics: RouteMetrics(totalDistanceKm: 12, estimatedDurationMinutes: 30),
+          metrics: RouteMetrics(
+            totalDistanceKm: 12,
+            estimatedDurationMinutes: 30,
+          ),
           hasRoadGeometry: true,
         ),
       ),
@@ -128,24 +135,26 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('a late stop shows the requested time next to the projected one',
-      (tester) async {
-    await pumpSheet(tester);
+  testWidgets(
+    'a late stop shows the requested time next to the projected one',
+    (tester) async {
+      await pumpSheet(tester);
 
-    // The projected arrival — this part already worked.
-    expect(find.text('1:07 PM'), findsWidgets);
-    // The time the user actually asked for. This is what used to vanish:
-    // the deadline was replaced by the lateness text precisely when the
-    // stop ran late, leaving a red clock with nothing to compare against.
-    expect(find.text('12:30 PM'), findsWidgets);
-    // Both are labelled so neither can be mistaken for the other.
-    expect(find.text(AppStrings.expectedArrival), findsWidgets);
-    expect(find.text(AppStrings.requiredArrival), findsWidgets);
-    // And the size of the gap.
-    expect(find.text(AppStrings.lateByMinutes(37)), findsWidgets);
+      // The projected arrival — this part already worked.
+      expect(find.text('1:07 PM'), findsWidgets);
+      // The time the user actually asked for. This is what used to vanish:
+      // the deadline was replaced by the lateness text precisely when the
+      // stop ran late, leaving a red clock with nothing to compare against.
+      expect(find.text('12:30 PM'), findsWidgets);
+      // Both are labelled so neither can be mistaken for the other.
+      expect(find.text(AppStrings.expectedArrival), findsWidgets);
+      expect(find.text(AppStrings.requiredArrival), findsWidgets);
+      // And the size of the gap.
+      expect(find.text(AppStrings.lateByMinutes(37)), findsWidgets);
 
-    expect(tester.takeException(), isNull);
-  });
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('an on-time stop still shows its deadline', (tester) async {
     const onTime = RoutePoint(

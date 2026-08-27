@@ -5,15 +5,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/network/network_info.dart';
 import '../../../../core/services/map_pack_controller.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
-import '../../../../core/utils/route_corridor.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/map_pack_progress_view.dart';
+import '../../../../core/widgets/trip_map_pack_tile.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
@@ -142,11 +140,6 @@ class RouteSummarySheet extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // ── Offline map — sits directly above save/export because it
-              //    is the last thing worth doing while still on wifi. ────
-              _OfflineMapTile(route: route),
-              const SizedBox(height: 12),
-
               // ── Save / export — kept low, just above the destructive
               //    action so the primary trip actions lead the sheet. ───
               Row(
@@ -179,12 +172,21 @@ class RouteSummarySheet extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+
+              // ── Offline map — last, and as a plain row rather than a
+              //    card. It is worth doing before losing signal, but it is
+              //    housekeeping: putting it mid-sheet cut the stop list off
+              //    from the actions that follow it. The offline button on
+              //    the map carries the same row, for anyone who wants it
+              //    after the fact. ────────────────────────────────────────
+              Divider(height: 1, color: AppColors.border),
               const SizedBox(height: 12),
+              TripMapPackTile(polyline: route.fullPolyline),
+              const SizedBox(height: 16),
 
               // ── Destructive escape hatch ────────────────────────────
-              _StartFreshButton(
-                onPressed: () => _handleStartNew(context),
-              ),
+              _StartFreshButton(onPressed: () => _handleStartNew(context)),
             ],
           ),
         );
@@ -282,9 +284,7 @@ class RouteSummarySheet extends StatelessWidget {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            saved == null
-                ? AppStrings.errSaveRoute
-                : AppStrings.routeSavedMsg,
+            saved == null ? AppStrings.errSaveRoute : AppStrings.routeSavedMsg,
           ),
         ),
       );

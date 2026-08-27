@@ -85,10 +85,13 @@ class NavigationInstructions {
     final target = route.orderedPoints[idx];
     final isFinal = idx == count - 1;
 
+    // Distance still to drive, in the same order of preference as the
+    // rest of the HUD: the route-following figure first, then arc length
+    // off the raw fractions, and only then the straight line.
     double meters;
-    final gps = state.navigationStopDistanceMeters;
-    if (gps != null) {
-      meters = gps;
+    final routeMeters = state.navigationStopRouteDistanceMeters;
+    if (routeMeters != null) {
+      meters = routeMeters;
     } else if (route.fullPolyline.length >= 2 &&
         idx < state.stopFractions.length) {
       final totalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
@@ -98,7 +101,7 @@ class NavigationInstructions {
                   1000)
               .clamp(0.0, double.infinity);
     } else {
-      meters = 0;
+      meters = state.navigationStopDistanceMeters ?? 0;
     }
 
     return NavInstruction(
@@ -144,8 +147,9 @@ class NavigationInstructions {
     ManeuverKind.keepRight => AppStrings.manKeepRight,
     ManeuverKind.onRamp => AppStrings.manOnRamp,
     ManeuverKind.offRamp => AppStrings.manOffRamp,
-    ManeuverKind.roundabout => m.roundaboutExit != null
-        ? AppStrings.manRoundaboutExit(m.roundaboutExit!)
-        : AppStrings.manRoundabout,
+    ManeuverKind.roundabout =>
+      m.roundaboutExit != null
+          ? AppStrings.manRoundaboutExit(m.roundaboutExit!)
+          : AppStrings.manRoundabout,
   };
 }

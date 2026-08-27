@@ -41,5 +41,4 @@ class VehicleNavSheet {
     final i = heading * phases + phase;
     return Rect.fromLTWH((i % cols) * fw, (i ~/ cols) * fh, fw, fh);
   }
-
 }

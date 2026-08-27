@@ -13,6 +13,7 @@ import 'package:laffeh/features/route_planner/domain/entities/route_metrics.dart
 import 'package:laffeh/features/route_planner/domain/entities/route_point.dart';
 import 'package:laffeh/features/route_planner/presentation/cubit/route_planner_cubit.dart';
 import 'package:laffeh/features/route_planner/presentation/cubit/route_planner_state.dart';
+import 'package:laffeh/features/route_planner/presentation/pages/route_planner_bottom_sheet.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/route_navigation_overlay.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/route_points_sheet.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/route_simulation_overlay.dart';
@@ -23,12 +24,23 @@ class _FakeRouteCubit extends Cubit<RoutePlannerState>
     implements RoutePlannerCubit {
   _FakeRouteCubit(super.initialState);
 
+  // The HUD's debug simulator bar reads this on every build, and a
+  // noSuchMethod null would crash the render as a non-nullable bool.
+  @override
+  bool get debugDriveSimActive => false;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
-RoutePoint _pt(String id, String label, double lat, double lon,
-    {bool depot = false, String? address}) {
+RoutePoint _pt(
+  String id,
+  String label,
+  double lat,
+  double lon, {
+  bool depot = false,
+  String? address,
+}) {
   return RoutePoint(
     id: id,
     latitude: lat,
@@ -41,20 +53,31 @@ RoutePoint _pt(String id, String label, double lat, double lon,
 }
 
 OptimizedRoute _fixtureRoute() {
-  final depot = _pt('d', 'Departure', 33.51, 36.27,
-      depot: true, address: 'Warehouse, Old Town Rd');
+  final depot = _pt(
+    'd',
+    'Departure',
+    33.51,
+    36.27,
+    depot: true,
+    address: 'Warehouse, Old Town Rd',
+  );
   final stops = [
     _pt('1', 'Stop 1', 33.52, 36.28, address: 'Al-Malki St 14'),
     _pt('2', 'Stop 2', 33.53, 36.29, address: 'Baghdad Ave 7'),
     _pt('3', 'Stop 3', 33.54, 36.30, address: 'Mazzeh Highway 22'),
     _pt('4', 'Stop 4', 33.55, 36.31, address: 'Abu Roumaneh 3'),
   ];
-  final line = [
-    const LatLng(33.51, 36.27),
-    const LatLng(33.55, 36.31),
-  ];
+  final line = [const LatLng(33.51, 36.27), const LatLng(33.55, 36.31)];
   return OptimizedRoute(
-    orderedPoints: [depot, ...stops, depot],
+    // The return leg carries its own id in real routes
+    // (`_reorderPoints` appends `<depot>_return`), and the sheet keys its
+    // rows by id — a fixture that repeats the depot verbatim trips the
+    // duplicate-key assert instead of rendering.
+    orderedPoints: [
+      depot,
+      ...stops,
+      depot.copyWith(id: 'd_return'),
+    ],
     fullPolyline: line,
     goPolyline: line,
     returnPolyline: line,
@@ -75,8 +98,7 @@ Future<void> _loadFonts() async {
   await loader.load();
 }
 
-Widget _harness(RoutePlannerState state, Widget child,
-    {bool inStack = false}) {
+Widget _harness(RoutePlannerState state, Widget child, {bool inStack = false}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: AppTheme.data,
@@ -86,9 +108,7 @@ Widget _harness(RoutePlannerState state, Widget child,
         // Fake "map" backdrop.
         body: Stack(
           children: [
-            Positioned.fill(
-              child: ColoredBox(color: const Color(0xFFDFE7DA)),
-            ),
+            Positioned.fill(child: ColoredBox(color: const Color(0xFFDFE7DA))),
             if (inStack)
               child
             else
@@ -98,8 +118,9 @@ Widget _harness(RoutePlannerState state, Widget child,
                   color: AppColors.surface,
                   clipBehavior: Clip.antiAlias,
                   shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
                   ),
                   child: SingleChildScrollView(child: child),
                 ),
@@ -203,6 +224,61 @@ void main() {
     );
   });
 
+  // The planning sheet as a driver first meets it: collapsed, undragged.
+  // This is the frame the "where is the optimize button?" reports were
+  // about — the CTA has to be in it, at every screen size.
+  testWidgets('planning sheet — the collapsed peek', (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final route = _fixtureRoute();
+    final state = RoutePlannerState(
+      status: RoutePlannerStatus.pointsUpdated,
+      points: route.orderedPoints.sublist(0, 3),
+    );
+
+    await tester.pumpWidget(
+      _harness(
+        state,
+        BackdropGroup(child: const BottomSheetHost()),
+        inStack: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/points_sheet_collapsed.png'),
+    );
+  });
+
+  // Same peek on the smallest phone we support, one point in: the bar still
+  // fits, and says what is missing instead of leaving a dead button.
+  testWidgets('planning sheet — collapsed peek, small phone', (tester) async {
+    tester.view.physicalSize = const Size(375 * 3, 667 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final route = _fixtureRoute();
+    final state = RoutePlannerState(
+      status: RoutePlannerStatus.pointsUpdated,
+      points: route.orderedPoints.sublist(0, 1),
+    );
+
+    await tester.pumpWidget(
+      _harness(
+        state,
+        BackdropGroup(child: const BottomSheetHost()),
+        inStack: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/points_sheet_collapsed_small.png'),
+    );
+  });
+
   testWidgets('points sheet with stops', (tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -213,14 +289,7 @@ void main() {
       points: route.orderedPoints.sublist(0, 4),
     );
 
-    await tester.pumpWidget(
-      _harness(
-        state,
-        RoutePointsSheet(
-          onAddPoint: () {},
-        ),
-      ),
-    );
+    await tester.pumpWidget(_harness(state, const RoutePointsSheet()));
     await tester.pump(const Duration(milliseconds: 400));
     await expectLater(
       find.byType(Scaffold),

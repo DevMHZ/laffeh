@@ -173,6 +173,10 @@ class AppDialog extends StatelessWidget {
     IconData? confirmIcon = Iconsax.save_2,
     IconData? icon,
     AppDialogTone tone = AppDialogTone.primary,
+
+    /// Lets a caller ask for the right keypad — a phone field should not open
+    /// a full QWERTY. Null keeps the default text keyboard.
+    TextInputType? keyboardType,
   }) {
     final controller = TextEditingController(text: initialValue);
     return show<String>(
@@ -184,6 +188,7 @@ class AppDialog extends StatelessWidget {
       content: TextField(
         controller: controller,
         autofocus: true,
+        keyboardType: keyboardType,
         textInputAction: TextInputAction.done,
         style: AppTextStyles.bodyLg,
         onSubmitted: (v) => Navigator.of(context).pop(v.trim()),

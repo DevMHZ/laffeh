@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/services/location_gate.dart';
 import '../../../../core/config/map_config.dart';
 import '../../../../core/config/navigation_config.dart';
 import '../../../../core/config/planner_config.dart';
@@ -28,8 +29,11 @@ import '../../../saved_routes/domain/repositories/saved_routes_repository.dart';
 import '../../data/datasources/osm_geocoding_datasource.dart';
 import '../../data/datasources/osrm_routing_datasource.dart';
 import '../../data/datasources/planner_draft_local_datasource.dart';
+import '../../data/repositories/place_search_repository.dart';
 import '../../data/models/planner_draft_model.dart';
+import '../utils/route_csv_utils.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../../domain/entities/place_suggestion.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../../domain/usecases/optimize_route_usecase.dart';
@@ -40,6 +44,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   final OptimizeRouteUseCase _optimize;
   final SavedRoutesRepository _savedRoutes;
   final OsmGeocodingDataSource _geocoding;
+  final PlaceSearchRepository _places;
   final PlannerDraftLocalDataSource _draft;
   final NetworkInfo _network;
   final OsrmRoutingDataSource _routing;
@@ -97,6 +102,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     this._optimize,
     this._savedRoutes,
     this._geocoding,
+    this._places,
     this._draft,
     this._network,
     this._routing,
@@ -123,8 +129,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       ),
     );
 
-    // 2) Probe connectivity in the background (non-blocking).
+    // 2) Probe connectivity and location access in the background
+    //    (non-blocking — neither gates the map appearing).
     unawaited(_refreshConnectivity());
+    unawaited(refreshLocationAccess());
 
     try {
       final loc = await LocationUtils.getCurrentLatLng();
@@ -208,7 +216,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     } on LocationException catch (e) {
       developer.log('recenterOnUser: location unavailable: ${e.message}');
       // When we already panned to a cached fix, a failed refine stays silent.
-      if (surfaceError) emit(state.copyWith(errorMessage: _mapLocationError(e)));
+      if (surfaceError) {
+        emit(state.copyWith(errorMessage: _mapLocationError(e)));
+      }
       return false;
     } catch (e) {
       developer.log('recenterOnUser() failed', error: e);
@@ -484,23 +494,99 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     } catch (e) {
       developer.log('resolveLocationAccess() failed', error: e);
     }
+    // Whether or not it worked — and it returns false having merely *opened*
+    // the settings — the chip needs to reflect where things now stand.
+    await refreshLocationAccess();
+  }
+
+  /// Re-reads location access for the map's "enable location" chip. Status
+  /// only: no prompt and no fix, so it is cheap enough to run on every
+  /// resume, which is how a permission granted out in the system settings
+  /// makes the chip disappear on its own.
+  Future<void> refreshLocationAccess() async {
+    try {
+      final access = await LocationGate.status();
+      if (isClosed || access == state.locationAccess) return;
+      emit(state.copyWith(locationAccess: access));
+    } catch (e) {
+      developer.log('refreshLocationAccess() failed', error: e);
+    }
   }
 
   // ── Point management ──────────────────────────────────────
 
-  /// Forward-geocode [query] into a pick-one list of matches. Backs the
-  /// single-address search in the "add a point" chooser.
-  Future<List<GeoSearchResult>> searchAddresses(String query) =>
-      _geocoding.searchAddresses(query);
+  /// Where a search should consider "here" to be.
+  ///
+  /// The GPS fix when there is one, and otherwise whatever the map is
+  /// looking at — a dispatcher who panned to another city is asking about
+  /// that city, and a planner with location off is still asking about
+  /// somewhere. Only a search with no anchor at all falls back to the
+  /// unbiased behaviour that put an Istanbul pharmacy at the top of a
+  /// Damascus driver's list.
+  LatLng? get searchAnchor => state.userLocation ?? state.cameraTarget;
+
+  /// Search for a place, biased to [searchAnchor].
+  ///
+  /// A stream, not a future: the fast provider answers in a few hundred
+  /// milliseconds and the list appears, then the slower sources fold in.
+  /// The alternative — waiting for every source before showing anything —
+  /// is how a search box comes to feel broken on a phone in a truck.
+  Stream<List<PlaceSuggestion>> searchPlaces(String query) => _places.search(
+    query,
+    near: searchAnchor,
+    routePoints: _routePointSuggestions(),
+  );
+
+  /// Places picked before, newest first — what the sheet shows before the
+  /// driver has typed anything.
+  List<PlaceSuggestion> recentPlaces() =>
+      _places.recentPlaces(near: searchAnchor);
+
+  /// Records a pick so it leads the list next time. Called on selection,
+  /// never on mere display.
+  Future<void> rememberPlace(PlaceSuggestion place) => _places.remember(place);
+
+  /// The stops already on this route, offered to the search as candidates.
+  /// "Back to the depot" is a real destination, and finding it should not
+  /// require asking a server about a place the app already knows.
+  List<PlaceSuggestion> _routePointSuggestions() {
+    return state.points
+        .where(
+          (p) =>
+              p.label.trim().isNotEmpty || (p.address ?? '').trim().isNotEmpty,
+        )
+        .map((p) {
+          final label = p.label.trim();
+          final address = p.address?.trim();
+          return PlaceSuggestion(
+            id: 'route:${p.id}',
+            name: label.isNotEmpty ? label : address!,
+            context: (address != null && address != label) ? address : null,
+            latLng: p.latLng,
+            kind: PlaceKind.poi,
+            source: PlaceSource.routePoint,
+          );
+        })
+        .toList();
+  }
 
   /// Adds a point at [position]. When [address] is supplied (e.g. the label
   /// the user picked from address search) it is shown immediately and the
   /// background reverse-geocode is skipped — otherwise the address is resolved
   /// from the coordinate.
-  Future<void> addPoint(
+  /// Adds a point at [position]. Returns the point that landed, or null when
+  /// one of the guards below swallowed the add (a debounced double-tap, or a
+  /// pin dropped on top of an existing one) — callers use that to decide
+  /// whether to recentre the map and confirm to the driver.
+  ///
+  /// [label] and [phone] come from an import that already knows them (a CSV
+  /// row); left null, the label is generated and the stop has no contact.
+  Future<RoutePoint?> addPoint(
     LatLng position, {
     bool optional = false,
     String? address,
+    String? label,
+    String? phone,
   }) async {
     DebugLog.add(
       'addPoint() ENTER pos=${position.latitude.toStringAsFixed(6)},'
@@ -521,7 +607,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           'addPoint() ✋ REJECTED debounce — gap=${gapMs}ms '
           '(< ${PlannerConfig.addPointDebounce.inMilliseconds}ms) near previous tap',
         );
-        return;
+        return null;
       }
       DebugLog.add(
         'addPoint() debounce window (gap=${gapMs}ms) but far from last tap '
@@ -539,7 +625,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           'addPoint() ✋ REJECTED separation — ${meters.toStringAsFixed(1)}m '
           '(< ${PlannerConfig.minSeparationMeters}m) from "${p.label}"',
         );
-        return;
+        return null;
       }
     }
 
@@ -555,10 +641,22 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final asOptional = optional && !firstAsDepot;
     final id = 'p_${now.microsecondsSinceEpoch}';
 
-    final label = firstAsDepot
+    // An imported name wins over the generated one — a CSV that says
+    // "مخبز الشام" should not come back as "نقطة 3".
+    final importedLabel = label?.trim();
+    // Counting starts at two: while this is the only place the driver is
+    // going, it is "the destination", not "stop 1". It picks up a number if
+    // and when a second one arrives (see [_renumberIfNoLongerSole]).
+    final soleDestination =
+        !firstAsDepot && !asOptional && _mandatoryStopCount() == 0;
+    final resolvedLabel = (importedLabel != null && importedLabel.isNotEmpty)
+        ? importedLabel
+        : firstAsDepot
         ? AppStrings.departure
         : asOptional
         ? AppStrings.optionalStopLabel(_optionalCount() + 1)
+        : soleDestination
+        ? AppStrings.destinationTitle
         : AppStrings.stopLabel(_mandatoryStopCount() + 1);
 
     final providedAddress = address?.trim();
@@ -566,31 +664,41 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       id: id,
       latitude: position.latitude,
       longitude: position.longitude,
-      label: label,
+      label: resolvedLabel,
       address: (providedAddress != null && providedAddress.isNotEmpty)
           ? providedAddress
           : null,
+      phone: (phone?.trim().isNotEmpty ?? false) ? phone!.trim() : null,
       weight: RoutingConfig.defaultStopWeight,
       kind: firstAsDepot ? RoutePointKind.depot : RoutePointKind.stop,
       optional: asOptional,
     );
 
     DebugLog.add(
-      'addPoint() ✅ ACCEPTED "$label" '
-      '(${firstAsDepot ? 'depot' : asOptional ? 'optional' : 'stop'}) id=$id '
+      'addPoint() ✅ ACCEPTED "$resolvedLabel" '
+      '(${firstAsDepot
+          ? 'depot'
+          : asOptional
+          ? 'optional'
+          : 'stop'}) id=$id '
       '→ total=${state.points.length + 1}',
     );
 
-    final newPoints = <RoutePoint>[
+    final newPoints = _renumberIfNoLongerSole(<RoutePoint>[
       if (isFirst && hasLoc) _currentLocationDepot(),
       ...state.points,
       tentative,
-    ];
+    ]);
 
     emit(
       state.copyWith(
         status: RoutePlannerStatus.pointsUpdated,
         points: newPoints,
+        // Put the map on the stop that just landed. With the optimized route
+        // cleared above, RouteMapView's camera sync follows `cameraTarget`,
+        // so the driver sees where the point actually went instead of having
+        // to hunt for it — this is the whole "centre on the new point" rule.
+        cameraTarget: position,
         clearOptimizedRoute: true,
         clearError: true,
         simulationActive: false,
@@ -608,6 +716,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     // A point added via address search already carries its label — only
     // coordinates (manual pin / WhatsApp) need a reverse lookup.
     if (tentative.address == null) {
+      // The route replaces `points` wholesale, so it has to come *after* the
+      // reverse lookup lands — racing it would drop the address the driver is
+      // about to read on the card.
       _resolveAddress(tentative)
           .then((withAddr) {
             if (withAddr == null) return;
@@ -616,8 +727,185 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
             final updated = [...state.points]..[idx] = withAddr;
             emit(state.copyWith(points: updated));
           })
-          .catchError((_) {});
+          .catchError((_) {})
+          .whenComplete(_routeLoneDestination);
+    } else {
+      _routeLoneDestination();
     }
+
+    return tentative;
+  }
+
+  /// A single destination is a navigation request, not a plan: there is
+  /// nothing to order and nothing to decide, so route it immediately and let
+  /// the card show a real time and distance without the driver pressing
+  /// anything. The repository skips the solver for one stop and asks the
+  /// router directly, so this costs one cheap call.
+  ///
+  /// The cost of being wrong is that same one call, wasted, when the driver
+  /// goes on to add a second destination — worth it for a first screen that
+  /// behaves like the navigator they expected.
+  void _routeLoneDestination() {
+    if (isClosed) return;
+    if (!state.isSingleDestination) return;
+    if (state.hasOptimizedRoute || state.quietRouting) return;
+    unawaited(optimize(quiet: true));
+  }
+
+  /// The navigator shape's one action: make sure a route exists, then drive.
+  ///
+  /// Usually the route is already there (it was fetched the moment the
+  /// destination landed) and this is a straight hand-off to drive mode. When
+  /// the quiet attempt failed — no signal at the time — this is the loud
+  /// retry, and a second failure surfaces properly, because now the driver
+  /// did ask.
+  Future<void> driveToDestination() async {
+    if (!state.hasOptimizedRoute) {
+      await optimize();
+      if (isClosed || !state.hasOptimizedRoute) return;
+    }
+    await startNavigation();
+  }
+
+  /// Drops the lone destination and returns to the empty "where to?" screen.
+  /// The implicit departure goes with it — it only exists to anchor a
+  /// destination, and leaving it behind would strand the empty state with a
+  /// pin on the map.
+  void clearDestination() {
+    if (!state.hasPoints) return;
+    clearAll();
+  }
+
+  // ── Departure ─────────────────────────────────────────────
+  //
+  // The trip starts where the driver is, until they say otherwise. That
+  // default is right almost every time and worth nobody's tap — but "almost"
+  // is not "always": a dispatcher planning tomorrow's round, a driver whose
+  // shift starts at the depot rather than at home, someone sitting in a café
+  // working out a route from the warehouse. So the assumption is visible on
+  // the card, and it is one tap to replace.
+
+  /// Starts the trip from [position] instead of the driver's live location.
+  ///
+  /// The chosen departure carries [kCustomDepotId], so optimizing no longer
+  /// drags it to the latest GPS fix the way it does the automatic one.
+  Future<void> setDeparture(LatLng position, {String? address}) async {
+    final chosen = RoutePoint(
+      id: kCustomDepotId,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      label: AppStrings.departure,
+      address: (address?.trim().isNotEmpty ?? false) ? address!.trim() : null,
+      weight: RoutingConfig.defaultStopWeight,
+      kind: RoutePointKind.depot,
+    );
+    _applyDeparture(chosen, recentreOn: position);
+
+    // Same order as adding a stop: the reverse lookup first, then the route,
+    // because routing replaces `points` and would drop the address.
+    if (chosen.address == null) {
+      try {
+        final withAddr = await _resolveAddress(chosen);
+        if (!isClosed && withAddr != null) {
+          final list = [
+            for (final p in state.points)
+              if (p.id == withAddr.id) withAddr else p,
+          ];
+          emit(state.copyWith(points: list));
+        }
+      } catch (_) {
+        // An address is a nicety; the coordinates are what routes.
+      }
+    }
+    _routeLoneDestination();
+  }
+
+  /// Hands the departure back to the driver's live location — the default.
+  ///
+  /// Uses the last known fix rather than asking the GPS for a fresh one:
+  /// [optimize] re-pins the automatic departure to the latest fix on every
+  /// run anyway, so waiting here would buy nothing but a delay.
+  void useCurrentLocationAsDeparture() {
+    final loc = state.userLocation;
+    if (loc == null) {
+      emit(state.copyWith(errorMessage: AppStrings.errLocationUnavailable));
+      return;
+    }
+    if (state.departureIsCurrentLocation) return;
+    _applyDeparture(_currentLocationDepot(), recentreOn: loc);
+    _routeLoneDestination();
+  }
+
+  /// Swaps the depot in [points] for [departure] and invalidates the route
+  /// the old one produced.
+  void _applyDeparture(RoutePoint departure, {required LatLng recentreOn}) {
+    final rest = state.points.where((p) => !p.isDepot);
+    _cancelSimTimer();
+    _cancelNavigationStream();
+    emit(
+      state.copyWith(
+        status: RoutePlannerStatus.pointsUpdated,
+        points: [departure, ...rest],
+        cameraTarget: recentreOn,
+        clearOptimizedRoute: true,
+        clearError: true,
+        simulationActive: false,
+        simulationPlaying: false,
+        simulationProgress: 0.0,
+        navigationActive: false,
+        navigationProgress: 0.0,
+        clearNavigationHeading: true,
+        clearNavigationSpeed: true,
+        manualPlacement: false,
+        placementTarget: PlacementTarget.stop,
+      ),
+    );
+    _schedulePersist();
+  }
+
+  // ── Trip shape ────────────────────────────────────────────
+
+  /// Declares up front that this is a multi-stop trip, so the planner is on
+  /// screen from the first point rather than after the second.
+  ///
+  /// The single-destination shape exists so a newcomer is not handed a
+  /// planner they did not ask for. A driver who came to build a round
+  /// already knows; making them add a stop, watch the navigator card, and
+  /// only then find "add another stop" is teaching someone what they came in
+  /// knowing.
+  void beginMultiStopTrip() {
+    if (state.multiStopIntent) return;
+    emit(state.copyWith(multiStopIntent: true));
+  }
+
+  /// Takes the declaration back — the driver said "several stops", then
+  /// changed their mind before adding a second one.
+  ///
+  /// Only reaches the shape while the trip is still short enough for it to
+  /// matter: with two destinations already on the map the planner is on
+  /// screen because the trip *is* multi-stop, not because of this flag.
+  /// True while the next place to arrive from *outside* the app — a pasted
+  /// Google Maps link, a location shared from WhatsApp — should become the
+  /// trip's departure instead of another stop.
+  ///
+  /// One-shot, and deliberately in memory only: it is armed when the driver
+  /// picks one of those ways from the "start from" sheet, and spent by the
+  /// very next import. If the app was killed while they were away in the
+  /// other app, the flag goes with it and the place lands as a stop — which
+  /// they can still hand to the departure in one tap. Guessing after a
+  /// restart would be worse than that.
+  bool _importAsDeparture = false;
+
+  /// Arms [_importAsDeparture]. Called when the departure picker sends the
+  /// driver out to another app.
+  void expectDepartureImport() => _importAsDeparture = true;
+
+  /// Disarms it — the driver backed out of that flow.
+  void cancelDepartureImport() => _importAsDeparture = false;
+
+  void endMultiStopTrip() {
+    if (!state.multiStopIntent) return;
+    emit(state.copyWith(multiStopIntent: false));
   }
 
   /// Move an existing point to a new lat/lon (called from
@@ -710,6 +998,19 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     return p.copyWith(address: address);
   }
 
+  /// Sets (or, with a blank [phone], clears) the stop's contact number.
+  void setPointPhone(String id, String? phone) {
+    final trimmed = phone?.trim();
+    final clear = trimmed == null || trimmed.isEmpty;
+    final list = state.points.map((p) {
+      if (p.id != id) return p;
+      return clear ? p.copyWith(clearPhone: true) : p.copyWith(phone: trimmed);
+    }).toList();
+    emit(
+      state.copyWith(points: list, status: RoutePlannerStatus.pointsUpdated),
+    );
+  }
+
   void renamePoint(String id, String newLabel) {
     final list = state.points.map((p) {
       if (p.id != id) return p;
@@ -785,12 +1086,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final idx = state.points.indexWhere((p) => p.id == id);
     if (idx < 0 || state.points[idx].isDepot) return;
 
-    final list = [...state.points]..[idx] = state.points[idx].copyWith(
-      timeWindow: window,
-      // A freshly chosen window hasn't been checked against a route yet.
-      timeWindowMissed: false,
-      clearEta: true,
-    );
+    final list = [...state.points]
+      ..[idx] = state.points[idx].copyWith(
+        timeWindow: window,
+        // A freshly chosen window hasn't been checked against a route yet.
+        timeWindowMissed: false,
+        clearEta: true,
+      );
     _emitPointsEdit(list);
   }
 
@@ -800,10 +1102,11 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final idx = state.points.indexWhere((p) => p.id == id);
     if (idx < 0 || state.points[idx].timeWindow == null) return;
 
-    final list = [...state.points]..[idx] = state.points[idx].copyWith(
-      clearTimeWindow: true,
-      clearEta: true,
-    );
+    final list = [...state.points]
+      ..[idx] = state.points[idx].copyWith(
+        clearTimeWindow: true,
+        clearEta: true,
+      );
     _emitPointsEdit(list);
   }
 
@@ -868,9 +1171,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final shift = requiredEarlierDepartureMinutes;
     final departure = state.departureAt;
     if (shift == null || departure == null) return false;
-    return departure
-        .subtract(Duration(minutes: shift))
-        .isAfter(DateTime.now());
+    return departure.subtract(Duration(minutes: shift)).isAfter(DateTime.now());
   }
 
   /// Slack added when repairing a missed window, so a route that only just
@@ -940,6 +1241,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         displaySegment: RouteSegment.full,
         draftRestored: false,
         manualPlacement: false,
+        // The intent belonged to the trip that just ended, not to the app.
+        multiStopIntent: false,
+        placementTarget: PlacementTarget.stop,
         simulationActive: false,
         simulationPlaying: false,
         simulationProgress: 0.0,
@@ -953,9 +1257,11 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   /// Empty-state "drop a pin manually" flow: reveals the centre crosshair so
   /// the user can aim the map before confirming the first point.
-  void beginManualPlacement() {
-    if (!state.manualPlacement) {
-      emit(state.copyWith(manualPlacement: true));
+  /// [target] says what the crosshair is aiming at — the next stop by
+  /// default, or the trip's starting point.
+  void beginManualPlacement({PlacementTarget target = PlacementTarget.stop}) {
+    if (!state.manualPlacement || state.placementTarget != target) {
+      emit(state.copyWith(manualPlacement: true, placementTarget: target));
     }
   }
 
@@ -963,7 +1269,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// hiding the crosshair again while the route is still empty.
   void cancelManualPlacement() {
     if (state.manualPlacement) {
-      emit(state.copyWith(manualPlacement: false));
+      emit(
+        state.copyWith(
+          manualPlacement: false,
+          placementTarget: PlacementTarget.stop,
+        ),
+      );
     }
   }
 
@@ -971,31 +1282,58 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   /// Parse multi-line text (one address per line), forward-geocode each,
   /// and add matching points to the map. Returns the count of points added.
-  Future<int> addPointsFromText(String text) async {
+  /// Adds every line of shared / pasted [text] as a stop. Each line is a map
+  /// link, a `lat,lng` pair, or an address — nothing else is known about it.
+  Future<int> addPointsFromText(String text) {
     final lines = text
         .split(RegExp(r'[\n\r]+'))
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
+        .map((l) => ImportedStop(locator: l))
         .toList();
-    if (lines.isEmpty) return 0;
+    return addImportedStops(lines);
+  }
+
+  /// Adds stops that arrived from a structured import (a CSV), so the name and
+  /// phone the office typed survive instead of being regenerated.
+  ///
+  /// Resolving is deliberately serial: each [addPoint] measures separation
+  /// against the points already placed, and geocoding a whole sheet at once
+  /// would hammer the geocoder besides.
+  Future<int> addImportedStops(List<ImportedStop> stops) async {
+    if (stops.isEmpty) return 0;
 
     int added = 0;
-    for (final line in lines) {
+    for (final stop in stops) {
       try {
         // 1- Try to parse as a map URL (Google Maps, Apple Maps, …)
-        final parsed = await MapLinkResolver.parseMapLine(line);
+        final parsed = await MapLinkResolver.parseMapLine(stop.locator);
         LatLng? latLng;
         if (parsed != null) {
           latLng = parsed;
         } else {
           // 2- Try raw lat,lng pair (e.g. "33.5131, 36.2767")
-          latLng = LinkParser.parseLatLngPair(line);
+          latLng = LinkParser.parseLatLngPair(stop.locator);
         }
         // 3- Fall back to forward-geocoding
-        latLng ??= await _geocoding.searchAddress(line);
+        // Biased to where the round is: an imported "شارع بغداد" means the
+        // one in this city, not the best-known one on the continent.
+        latLng ??= await _places.resolveOne(stop.locator, near: searchAnchor);
         if (latLng == null) continue;
-        await addPoint(latLng);
-        added++;
+        // Armed from the "start from" sheet: the first place that lands is
+        // where the trip begins, and everything after it is a stop again.
+        if (_importAsDeparture) {
+          _importAsDeparture = false;
+          await setDeparture(latLng, address: stop.label);
+          added++;
+          continue;
+        }
+        final point = await addPoint(
+          latLng,
+          label: stop.label,
+          phone: stop.phone,
+        );
+        if (point != null) added++;
       } catch (_) {
         continue;
       }
@@ -1005,7 +1343,14 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   // ── Optimize ──────────────────────────────────────────────
 
-  Future<void> optimize() async {
+  /// Solves the trip and shows the result.
+  ///
+  /// [quiet] is the navigator shape's version of the same call: no
+  /// full-screen planning animation, and a failure that says nothing. It is
+  /// used for the automatic single-destination route, which the driver never
+  /// asked for out loud — if it doesn't land, the card simply keeps its "Go"
+  /// button and tries again, loudly, when they press it.
+  Future<void> optimize({bool quiet = false}) async {
     _cancelNavigationStream();
 
     // Departure tracks the user's live location: refresh the auto-depot to the
@@ -1014,7 +1359,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         ? state.points
         : [
             for (final p in state.points)
-              p.id == 'depot_current'
+              p.id == kCurrentLocationDepotId
                   ? p.copyWith(
                       latitude: state.userLocation!.latitude,
                       longitude: state.userLocation!.longitude,
@@ -1032,6 +1377,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       // Distinguish "not enough points at all" from "you switched your
       // only stops off" so the message is actionable.
       final hasInactiveStops = deactivated.isNotEmpty;
+      if (quiet) {
+        emit(state.copyWith(quietRouting: false));
+        return;
+      }
       emit(
         state.copyWith(
           status: RoutePlannerStatus.optimizedFailure,
@@ -1045,7 +1394,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
     emit(
       state.copyWith(
-        status: RoutePlannerStatus.optimizing,
+        // The quiet route leaves `status` alone on purpose — `isOptimizing`
+        // is what raises the planning overlay.
+        status: quiet ? null : RoutePlannerStatus.optimizing,
+        quietRouting: quiet,
         clearError: true,
         navigationActive: false,
         navigationProgress: 0.0,
@@ -1067,6 +1419,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         emit(
           state.copyWith(
             status: RoutePlannerStatus.optimizedSuccess,
+            quietRouting: false,
             optimizedRoute: route,
             stopFractions: _fractionsFor(route),
             maneuverFractions: _maneuverFractionsFor(route),
@@ -1089,6 +1442,16 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         );
       },
       failure: (f) {
+        if (quiet) {
+          // Silent by design: nothing on screen promised a route yet.
+          emit(
+            state.copyWith(
+              quietRouting: false,
+              isOffline: f is NetworkFailure ? true : state.isOffline,
+            ),
+          );
+          return;
+        }
         emit(
           state.copyWith(
             status: RoutePlannerStatus.optimizedFailure,
@@ -1156,8 +1519,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           clearNavigationStopDistance: true,
           // Fractions may be missing for routes restored from older
           // drafts/saved records — recompute so turn guidance works.
-          stopFractions: state.stopFractions.length ==
-                  route.orderedPoints.length
+          stopFractions:
+              state.stopFractions.length == route.orderedPoints.length
               ? state.stopFractions
               : _fractionsFor(route),
           maneuverFractions:
@@ -1300,7 +1663,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         userLocation: from,
         points: [
           RoutePoint(
-            id: 'depot_current',
+            id: kCurrentLocationDepotId,
             latitude: from.latitude,
             longitude: from.longitude,
             label: AppStrings.departure,
@@ -1671,6 +2034,11 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationStopIndex: stopIndex,
         navigationArrived: arrived,
         navigationStopDistanceMeters: distToStop,
+        navigationStopRouteDistanceMeters: _routeDistanceToStop(
+          route: route,
+          stopIndex: stopIndex,
+          progress: newProgress,
+        ),
       ),
     );
   }
@@ -1765,7 +2133,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     if (onRouteProg != null) {
       // Monotonic progress: GPS noise can briefly regress the fraction;
       // never go backwards — you can't un-drive a road.
-      progress = onRouteProg < _lastNavProgress ? _lastNavProgress : onRouteProg;
+      progress = onRouteProg < _lastNavProgress
+          ? _lastNavProgress
+          : onRouteProg;
       _lastNavProgress = progress;
     } else {
       DebugLog.nav(
@@ -1837,6 +2207,17 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       }
     }
 
+    // How far there still is to *drive* — arc length along the planned
+    // polyline from here to the stop, so a U-turn, a one-way loop or a
+    // motorway detour all count. Only meaningful with a trustworthy
+    // on-route projection; off-route we hand the HUD nothing and it falls
+    // back to the straight line until the reroute lands.
+    final routeDistToStop = _routeDistanceToStop(
+      route: route,
+      stopIndex: stopIndex,
+      progress: onRouteProg != null ? progress : null,
+    );
+
     // Deviation watch: enough sustained, clearly-off-route movement kicks
     // off a background recalculation toward the current service point.
     _watchForDeviation(
@@ -1850,7 +2231,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       '→ emit progress=${progress.toStringAsFixed(4)} '
       'smoothedHeading=${_smoothedHeading?.toStringAsFixed(1)} '
       'speed=${_smoothedSpeed?.toStringAsFixed(2)} stopIndex=$stopIndex '
-      'distToStop=${distToStop?.toStringAsFixed(1)}m arrived=$arrived',
+      'distToStop=${distToStop?.toStringAsFixed(1)}m '
+      'routeDistToStop=${routeDistToStop?.toStringAsFixed(1)}m '
+      'arrived=$arrived',
     );
 
     emit(
@@ -1861,6 +2244,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationStopIndex: stopIndex,
         navigationArrived: arrived,
         navigationStopDistanceMeters: distToStop,
+        navigationStopRouteDistanceMeters: routeDistToStop,
+        clearNavigationStopRouteDistance: routeDistToStop == null,
         // Null keeps the previous heading (copyWith semantics), so the
         // camera never snaps back to north on a dropped bearing.
         navigationHeading: _smoothedHeading,
@@ -1979,9 +2364,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         await _refreshConnectivity();
         if (isClosed) return;
         final offline = state.isOffline;
-        DebugLog.nav(
-          'REROUTE ✋ no geometry — backing off (offline=$offline)',
-        );
+        DebugLog.nav('REROUTE ✋ no geometry — backing off (offline=$offline)');
         _rerouteBackoffUntil = DateTime.now().add(
           offline
               ? NavigationConfig.rerouteOfflineCooldown
@@ -2321,6 +2704,32 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   // ── Internals ──────────────────────────────────────────────
 
+  /// Remaining **drive** distance (metres) from [progress] along the route
+  /// to the stop at [stopIndex] — the arc length of the polyline between
+  /// the two, so every U-turn, one-way detour and roundabout on the way is
+  /// counted. Straight-line distance flatters the driver badly here: a stop
+  /// across a divided road is 30 m away and a 600 m drive.
+  ///
+  /// Null when there is nothing trustworthy to measure from — an off-route
+  /// fix ([progress] null), a route with no geometry, or stop fractions
+  /// that don't match the route.
+  double? _routeDistanceToStop({
+    required OptimizedRoute route,
+    required int stopIndex,
+    required double? progress,
+  }) {
+    if (progress == null) return null;
+    if (stopIndex < 0 || stopIndex >= state.stopFractions.length) return null;
+    if (route.fullPolyline.length < 2) return null;
+    final totalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
+    if (totalKm <= 0) return null;
+    final remaining = (state.stopFractions[stopIndex] - progress) * totalKm;
+    // Past the stop's fraction but not served yet (drove by, or the
+    // projection snapped ahead): "0 m" would be a lie, so hand the HUD
+    // nothing and let it show the straight line instead.
+    return remaining <= 0 ? null : remaining * 1000;
+  }
+
   /// Projects [point] onto [path]: the arc-length progress (0..1) of the
   /// nearest on-route point plus how far off the route the fix sits.
   /// Progress drives the trail only while the fix is on-route (see
@@ -2406,7 +2815,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   RoutePoint _currentLocationDepot() {
     final loc = state.userLocation!;
     return RoutePoint(
-      id: 'depot_current',
+      id: kCurrentLocationDepotId,
       latitude: loc.latitude,
       longitude: loc.longitude,
       label: AppStrings.departure,
@@ -2432,8 +2841,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   }
 
   /// Canonical labels: depot first, then mandatory stops numbered
-  /// separately from optional ones ("Stop 1, 2…" vs "Optional 1, 2…").
+  /// separately from optional ones ("Stop 1, 2…" vs "Optional 1, 2…") —
+  /// except a lone destination, which is named rather than numbered.
   List<RoutePoint> _relabel(List<RoutePoint> points) {
+    final sole = points.where((p) => !p.isDepot && !p.optional).length == 1;
     var stopCounter = 1;
     var optionalCounter = 1;
     return points.map((p) {
@@ -2443,8 +2854,30 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           label: AppStrings.optionalStopLabel(optionalCounter++),
         );
       }
+      if (sole) return p.copyWith(label: AppStrings.destinationTitle);
       return p.copyWith(label: AppStrings.stopLabel(stopCounter++));
     }).toList();
+  }
+
+  /// Gives the former lone destination its number back once a second one
+  /// joins it — the mirror of the naming in [addPoint].
+  ///
+  /// Only the name this app generated is rewritten. A stop that arrived with
+  /// its own name (a CSV row, an address search result) keeps it: that name
+  /// is the driver's, and no amount of reshaping the trip makes it ours.
+  List<RoutePoint> _renumberIfNoLongerSole(List<RoutePoint> points) {
+    final stops = points.where((p) => !p.isDepot && !p.optional).toList();
+    if (stops.length < 2) return points;
+    var n = 0;
+    return [
+      for (final p in points)
+        if (p.isDepot || p.optional)
+          p
+        else if (++n == 1 && p.label == AppStrings.destinationTitle)
+          p.copyWith(label: AppStrings.stopLabel(1))
+        else
+          p,
+    ];
   }
 
   int _mandatoryStopCount() =>

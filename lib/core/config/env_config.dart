@@ -1,6 +1,5 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-
 class EnvConfig {
   EnvConfig._();
 
@@ -27,6 +26,18 @@ class EnvConfig {
     'NOMINATIM_BASE_URL',
     fallback: 'https://nominatim.openstreetmap.org',
   );
+
+  /// Photon — the autocomplete geocoder. The public komoot instance is free
+  /// and needs no key, but it is a courtesy service under fair use: point
+  /// this at your own instance (or a mirror) before the fleet grows.
+  static String get photonBaseUrl =>
+      _read('PHOTON_BASE_URL', fallback: 'https://photon.komoot.io');
+
+  /// Overpass — queries OSM by tag, which is how the search finds the fuel
+  /// stations nobody named "بنزين". Also a shared community service; the
+  /// app only calls it for category queries, on a long debounce.
+  static String get overpassBaseUrl =>
+      _read('OVERPASS_BASE_URL', fallback: 'https://overpass-api.de');
 
   // ── Supabase (Auth + Database) ─────────────────────────
   static String get supabaseUrl => _read('SUPABASE_URL');

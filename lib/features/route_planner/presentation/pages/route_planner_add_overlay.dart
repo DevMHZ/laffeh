@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import 'route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../widgets/glass_panel.dart';
@@ -27,11 +28,21 @@ class ManualPlacementHost extends StatelessWidget {
     return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
       buildWhen: (a, b) =>
           a.manualPlacement != b.manualPlacement ||
-          a.points.isEmpty != b.points.isEmpty,
+          a.placementTarget != b.placementTarget ||
+          a.points.isEmpty != b.points.isEmpty ||
+          (a.userLocation == null) != (b.userLocation == null),
       builder: (context, state) {
         if (!state.manualPlacement) return const SizedBox.shrink();
         final cubit = context.read<RoutePlannerCubit>();
-        final isFirst = state.points.isEmpty;
+        // Aiming at the departure either because the driver asked to name
+        // where the trip starts, or because the map is empty *and* there is no
+        // location fix — the one case where the first pin becomes the depot
+        // itself (see [RoutePlannerCubit.addPoint]). With a fix, the first pin
+        // is a destination and the departure is injected behind it, so saying
+        // "set departure here" would be describing the wrong pin.
+        final isDeparture =
+            state.placementTarget == PlacementTarget.departure ||
+            (state.points.isEmpty && state.userLocation == null);
 
         Future<void> confirm() async {
           final mapState = mapKey.currentState;
@@ -40,8 +51,15 @@ class ManualPlacementHost extends StatelessWidget {
             return;
           }
           final center = await mapState.resolveCenter();
-          cubit.addPoint(center);
+          final forDeparture =
+              state.placementTarget == PlacementTarget.departure;
           cubit.cancelManualPlacement();
+          if (forDeparture) {
+            await cubit.setDeparture(center);
+            return;
+          }
+          if (!context.mounted) return;
+          await RoutePlannerActions.addPointConfirmed(context, cubit, center);
         }
 
         return Stack(
@@ -59,7 +77,7 @@ class ManualPlacementHost extends StatelessWidget {
                     child: Row(
                       children: [
                         Icon(
-                          isFirst ? Iconsax.flag : Iconsax.location_add,
+                          isDeparture ? Iconsax.flag : Iconsax.location_add,
                           color: AppColors.primary,
                           size: 20,
                         ),
@@ -70,7 +88,7 @@ class ManualPlacementHost extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                isFirst
+                                isDeparture
                                     ? AppStrings.setDepartureHere
                                     : AppStrings.addStopHere,
                                 style: AppTextStyles.titleSm,
@@ -110,7 +128,7 @@ class ManualPlacementHost extends StatelessWidget {
                       color: AppColors.primary,
                       foreground: AppColors.white,
                       icon: Iconsax.tick_circle,
-                      label: isFirst
+                      label: isDeparture
                           ? AppStrings.setDepartureHere
                           : AppStrings.addStopHere,
                       onTap: confirm,

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Shared container the Share Extension writes into and the app
+	     reads from. Must match Share Extension/Info.plist. -->
+	<key>AppGroupId</key>
+	<string>$(CUSTOM_GROUP_ID)</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleURLTypes</key>
@@ -12,6 +16,17 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>laffeh</string>
+			</array>
+		</dict>
+		<!-- Private scheme the Share Extension uses to hand a shared link back to
+		     the app. Never typed by a user: receive_sharing_intent builds it as
+		     ShareMedia-<bundle id> on both sides. -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.afdal.laffah.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			</array>
 		</dict>
 	</array>
@@ -85,6 +100,10 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
+		<!-- Asked about before "Open Google Maps" hands the driver over to
+		     it; without this canOpenURL always answers no and we would fall
+		     back to the browser on a phone that has the app. -->
+		<string>comgooglemaps</string>
 	</array>
 </dict>
 </plist>

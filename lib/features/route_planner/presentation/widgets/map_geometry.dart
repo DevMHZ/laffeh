@@ -53,9 +53,21 @@ class MapGeometry {
 
   /// `#rrggbb` for an opaque colour.
   static String hex(Color c) {
-    final r = (c.r * 255).round().clamp(0, 255).toRadixString(16).padLeft(2, '0');
-    final g = (c.g * 255).round().clamp(0, 255).toRadixString(16).padLeft(2, '0');
-    final b = (c.b * 255).round().clamp(0, 255).toRadixString(16).padLeft(2, '0');
+    final r = (c.r * 255)
+        .round()
+        .clamp(0, 255)
+        .toRadixString(16)
+        .padLeft(2, '0');
+    final g = (c.g * 255)
+        .round()
+        .clamp(0, 255)
+        .toRadixString(16)
+        .padLeft(2, '0');
+    final b = (c.b * 255)
+        .round()
+        .clamp(0, 255)
+        .toRadixString(16)
+        .padLeft(2, '0');
     return '#$r$g$b';
   }
 
