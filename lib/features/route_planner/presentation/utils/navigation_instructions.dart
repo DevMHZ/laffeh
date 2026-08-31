@@ -22,12 +22,23 @@ class NavInstruction {
   /// no-maneuver fallback. The map uses it to highlight the turn segment.
   final double? maneuverFraction;
 
+  /// True when this "maneuver" is the arrival at the stop the HUD is
+  /// already naming underneath. The banner and the next-stop strip are
+  /// then talking about the same place, and the strip drops its own
+  /// distance rather than printing a second, differently-measured number
+  /// for it (the banner counts to the road-snapped end of the leg, the
+  /// strip along the route to the pin — a few dozen metres apart, and a
+  /// driver reading both at once only learns that the app disagrees with
+  /// itself).
+  final bool isArrival;
+
   const NavInstruction({
     required this.icon,
     required this.text,
     required this.distanceMeters,
     this.roadName,
     this.maneuverFraction,
+    this.isArrival = false,
   });
 }
 
@@ -70,6 +81,7 @@ class NavigationInstructions {
           double.infinity,
         ),
         maneuverFraction: f,
+        isArrival: m.kind == ManeuverKind.arrive,
       );
     }
     return _fallback(state, route);
@@ -108,6 +120,9 @@ class NavigationInstructions {
       icon: isFinal ? Icons.sports_score_rounded : Icons.straight_rounded,
       text: AppStrings.continueToward(target.label),
       distanceMeters: meters,
+      // The fallback is always measured to the target stop itself, so it
+      // is always the same number the strip would print.
+      isArrival: true,
     );
   }
 

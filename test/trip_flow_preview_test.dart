@@ -346,13 +346,14 @@ void main() {
         await tester.pump(const Duration(milliseconds: 400));
 
         // Focus mode is the HUD's own state, reached the way the driver
-        // reaches it. In landscape the toggle lives on the side column's
-        // panel, in portrait on the bottom one — the same button either
-        // way.
+        // reaches it: open the bottom dock, then press it. Same two taps
+        // in both orientations — in landscape the dock is the foot of the
+        // side column.
         await tester.tap(
-          find.byType(RouteNavigationOverlay).last,
+          find.byIcon(Icons.keyboard_arrow_up_rounded),
           warnIfMissed: false,
         );
+        await tester.pump(const Duration(milliseconds: 400));
         await tester.tap(
           find.byIcon(Icons.center_focus_strong_rounded),
           warnIfMissed: false,

@@ -14,6 +14,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../../domain/entities/route_point.dart';
 import '../pages/route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
@@ -22,23 +23,37 @@ import 'stop_timeline.dart';
 
 /// Full-screen drive-mode HUD.
 ///
-/// Built for a phone mounted in a vehicle:
-///   * Top instruction banner — the upcoming maneuver (icon + localized
-///     text + road name) with a continuously counting-down distance,
-///     Google-Maps style. Falls back to "continue toward stop" when the
-///     route carries no maneuver data.
-///   * Slim next-stop bar + horizontal stop timeline underneath, with
-///     one-tap WhatsApp / Call for whoever is waiting at that stop.
-///   * Bottom info panel: remaining distance, time and arrival clock,
-///     live speed, focus toggle, Maps / End-trip actions.
-///   * An **arrival bar** — one line that appears once the driver reaches
-///     the current stop: the button that marks it served, plus a circle
-///     each for WhatsApp and Call when the stop has a number. Serving is
+/// **The map is the instrument.** Everything here is chrome laid over the
+/// one thing the driver actually steers by, so the layout is budgeted:
+/// roughly a third of the screen at most, in two thin bands with the road
+/// running clear between them. What earns a permanent place is only what
+/// is read at 60 km/h without thinking — the next turn, the stop it leads
+/// to, and how much trip is left. Everything else waits behind a tap.
+///
+///   * **Top band — the turn.** The maneuver banner: icon, a
+///     continuously counting-down distance, the instruction and the road
+///     it leads onto, all on two lines. Falls back to "continue toward
+///     stop" when the route carries no maneuver data.
+///   * **Top band — the stop.** One line under it: which stop is next,
+///     its position in the round, how far it is, and two circles to
+///     WhatsApp or ring whoever is waiting. A line, not a card: the
+///     labelled full-width contact buttons that used to live here cost
+///     more map than the words were worth.
+///   * **Bottom dock.** Collapsed to a single row of numbers — distance
+///     left, time left with the arrival clock under it, live speed — and
+///     a chevron. Tapping it opens the trip's controls (Maps,
+///     re-optimize, focus, end trip) and the stop timeline; they close
+///     again on use, and on their own if the vehicle is still moving a
+///     few seconds later. Nothing a driver presses once per trip holds
+///     permanent screen.
+///   * **Arrival bar.** One line that appears once the driver reaches the
+///     current stop: the button that marks it served, plus a circle each
+///     for WhatsApp and Call when the stop has a number. Serving is
 ///     always the driver's own act; nothing completes a point on their
 ///     behalf, and the bar waits until they press it.
 ///
-/// Arriving also *removes* things — the maneuver banner and the stop
-/// timeline both stand down — because the screen a driver reads at a
+/// Arriving also *removes* things — the maneuver banner stands down and
+/// the dock shuts itself — because the screen a driver reads at a
 /// customer's door is a map, not a dashboard.
 class RouteNavigationOverlay extends StatefulWidget {
   final VoidCallback? onOpenGoogleMaps;
@@ -124,10 +139,6 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         final soleDestination =
             route.orderedPoints.length == 2 && !route.orderedPoints[1].isDepot;
 
-        // The trip is never "finished" while navigation is active — the
-        // driver must serve the final point to end it.
-        const finished = false;
-
         // Live distance to the current service point — how far there is
         // left to *drive*, measured along the planned route, so U-turns,
         // one-ways and detours are all in the number. The straight line is
@@ -211,6 +222,22 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         // number is planning work; it lives on the stop, in the planning
         // sheet, where there is a keyboard and no engine running.
 
+        // Where this stop sits in the round — "1/4" rather than a spelled
+        // out "next stop · stop 1 of 4". The pin beside it already says
+        // "next", and the heading it replaces was a full line of the HUD
+        // spent restating what the number says in four characters.
+        final counter = (isReturn || soleDestination)
+            ? null
+            : '${_stopNumber(route, targetIndex)}/${_stopCount(route)}';
+
+        // The strip prints its own distance only when the banner above is
+        // not already counting down to the same place. On the last leg
+        // into the stop they are the same journey, and two numbers for one
+        // journey is worse than one.
+        final stripDistance = (arrived || (instruction?.isArrival ?? false))
+            ? null
+            : distanceToTarget;
+
         // Landscape is available for the whole drive. A full-width banner
         // across a wide screen would bury the map, so the HUD docks on the
         // leading edge instead: a full column of the same cards outside
@@ -262,12 +289,12 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           _InstructionBanner(instruction: instruction),
                         if (instruction != null && !arrived)
                           const SizedBox(height: 6),
-                        _NextStopBar(
+                        _NextStopStrip(
                           isReturn: isReturn,
                           arrived: arrived,
-                          subtitle: subtitle,
                           label: target.label,
-                          distanceToTarget: distanceToTarget,
+                          counter: counter,
+                          distance: stripDistance,
                           onLongPress: cubit.servePoint,
                           onWhatsapp: arrived ? null : onWhatsappStop,
                           onCall: arrived ? null : onCallStop,
@@ -282,10 +309,14 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           onWhatsapp: onWhatsappStop,
                           onCall: onCallStop,
                         ),
-                        _BottomPanel(
+                        _BottomDock(
                           remainingKm: remainingKm,
                           remainingMinutes: remainingMinutes,
                           speedMps: state.navigationSpeedMps,
+                          arrived: arrived,
+                          points: route.orderedPoints,
+                          targetIndex: targetIndex,
+                          showTimeline: !soleDestination,
                           onFocus: () => _setFocusMode(true),
                           onOpenGoogleMaps: widget.onOpenGoogleMaps,
                           onReoptimize: cubit.reoptimizeRemaining,
@@ -303,7 +334,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         return Positioned.fill(
           child: Column(
             children: [
-              // ── Top: instruction banner + next stop + timeline ──
+              // ── Top band: the turn, then the stop. Two thin things. ──
               SafeArea(
                 bottom: false,
                 child: Padding(
@@ -318,50 +349,35 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                         _InstructionBanner(instruction: instruction),
                         const SizedBox(height: 6),
                       ],
-                      _NextStopBar(
-                        isReturn: isReturn,
-                        arrived: arrived,
-                        subtitle: subtitle,
-                        label: target.label,
-                        distanceToTarget: distanceToTarget,
-                        // Escape hatch: a long-press serves the point even
-                        // when GPS never registers the 10 m radius.
-                        onLongPress: cubit.servePoint,
-                        onWhatsapp: arrived ? null : onWhatsappStop,
-                        onCall: arrived ? null : onCallStop,
-                      ),
+                      // Focus mode is the turn and the road, nothing else —
+                      // except at the stop, where the driver needs to know
+                      // which door they are looking for. The rail does the
+                      // same thing in landscape.
+                      if (!_focusMode || arrived)
+                        _NextStopStrip(
+                          isReturn: isReturn,
+                          arrived: arrived,
+                          label: target.label,
+                          counter: counter,
+                          distance: stripDistance,
+                          // Escape hatch: a long-press serves the point even
+                          // when GPS never registers the 10 m radius.
+                          onLongPress: cubit.servePoint,
+                          onWhatsapp: arrived ? null : onWhatsappStop,
+                          onCall: arrived ? null : onCallStop,
+                        ),
                       // Subtle live notice while a deviation triggers a
                       // background route recalculation.
                       _ReroutingNotice(visible: state.isRerouting),
-                      // The timeline is a picture of a sequence. With one
-                      // place to be there is no sequence to picture, so it
-                      // stays away and the map keeps the room — and at the
-                      // stop the sequence is not the question either.
-                      if (!_focusMode && !soleDestination && !arrived) ...[
-                        const SizedBox(height: 6),
-                        // Timeline strip.
-                        GlassPanel(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 4,
-                          ),
-                          radius: 14,
-                          child: StopTimeline(
-                            points: route.orderedPoints,
-                            currentTarget: targetIndex,
-                            finished: finished,
-                            compact: true,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
               ),
 
+              // ── The map. Most of the screen, by construction. ──
               const Spacer(),
 
-              // ── Bottom: Point Served + full panel (or slim focus bar) ──
+              // ── Bottom: Point Served + the dock (or slim focus bar) ──
               SafeArea(
                 top: false,
                 child: Padding(
@@ -385,10 +401,17 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                               speedMps: state.navigationSpeedMps,
                               onExit: () => _setFocusMode(false),
                             )
-                          : _BottomPanel(
+                          : _BottomDock(
                               remainingKm: remainingKm,
                               remainingMinutes: remainingMinutes,
                               speedMps: state.navigationSpeedMps,
+                              arrived: arrived,
+                              points: route.orderedPoints,
+                              targetIndex: targetIndex,
+                              // The timeline is a picture of a sequence.
+                              // With one place to be there is no sequence
+                              // to picture.
+                              showTimeline: !soleDestination,
                               onFocus: () => _setFocusMode(true),
                               onOpenGoogleMaps: widget.onOpenGoogleMaps,
                               onReoptimize: cubit.reoptimizeRemaining,
@@ -422,12 +445,22 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
       route.orderedPoints.where((p) => !p.isDepot).length;
 }
 
-/// Top maneuver banner: big icon, counting-down distance, localized
-/// instruction and the road it leads onto — dark, high-contrast, readable
-/// in sunlight at a glance.
+/// Top maneuver banner: the icon, the counting-down distance, the
+/// localized instruction and the road it leads onto — dark, high-contrast,
+/// readable in sunlight at a glance.
+///
+/// Two lines, not three. The road name used to have its own line under the
+/// instruction, which pushed the banner past 80 px of a screen the driver
+/// is trying to see a junction through; it now rides on the end of the
+/// instruction in a dimmer grey, read as the tail of the same sentence —
+/// "turn right · Hyde Street" — and the banner is the height of its icon.
 class _InstructionBanner extends StatelessWidget {
   final NavInstruction instruction;
   const _InstructionBanner({required this.instruction});
+
+  /// The glyph tile, and therefore the banner: everything beside it is
+  /// sized to fit within this.
+  static const double _glyph = 46;
 
   @override
   Widget build(BuildContext context) {
@@ -445,17 +478,17 @@ class _InstructionBanner extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        padding: const EdgeInsets.all(10),
         child: Row(
           children: [
             // Maneuver glyph — cross-fades when the maneuver changes so
             // transitions feel deliberate, not flickery.
             Container(
-              width: 54,
-              height: 54,
+              width: _glyph,
+              height: _glyph,
               decoration: BoxDecoration(
                 color: AppColors.primary,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(13),
               ),
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
@@ -467,45 +500,48 @@ class _InstructionBanner extends StatelessWidget {
                   instruction.icon,
                   key: ValueKey(instruction.icon.codePoint),
                   color: AppColors.white,
-                  size: 32,
+                  size: 28,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // The headline number: distance to the maneuver, updated
                   // on every progress tick.
                   Text(
                     MetricFormat.distance(instruction.distanceMeters / 1000),
+                    maxLines: 1,
                     style: AppTextStyles.h2.copyWith(
                       color: AppColors.white,
                       fontWeight: FontWeight.w800,
-                      height: 1.05,
+                      height: 1.0,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    instruction.text,
-                    maxLines: 2,
+                  const SizedBox(height: 3),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: instruction.text),
+                        if (road != null && road.isNotEmpty)
+                          TextSpan(
+                            text: '  ·  $road',
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.white.withValues(alpha: 0.55),
+                            ),
+                          ),
+                      ],
+                    ),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.titleSm.copyWith(
                       color: AppColors.white.withValues(alpha: 0.92),
+                      height: 1.25,
                     ),
                   ),
-                  if (road != null && road.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      road,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.white.withValues(alpha: 0.55),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -516,31 +552,43 @@ class _InstructionBanner extends StatelessWidget {
   }
 }
 
-/// Slim pill under the instruction banner: which service point is next
-/// (n of m + name) and how far it is. Long-press = manual serve escape
-/// hatch when GPS can't register the service radius.
+/// One line under the maneuver banner: which stop is next, where it sits
+/// in the round, how far it is, and the two ways to reach whoever is
+/// waiting there.
 ///
-/// When the stop carries a phone number the pill grows a second line: one
-/// full-width button per channel, WhatsApp and Call, side by side.
+/// It used to be a two-row card — a "next stop · stop 1 of 4" heading over
+/// the name, and beneath them a full-width WhatsApp button beside a
+/// full-width Call button, each 46 px tall and captioned. Roughly 110 px
+/// of a phone clipped to a windscreen, for one name and two numbers.
 ///
-/// Two buttons rather than one that opens a chooser, and no hiding them
-/// behind a tap on the pill. This is a HUD in a moving vehicle: every extra
-/// step is a second longer looking down, and a hidden control is one the
-/// driver has to remember exists. They are also deliberately sized like the
-/// serve button rather than like icons — a thumb aiming at a phone clipped
-/// to a windscreen is not a thumb aiming at a 20 px target.
-class _NextStopBar extends StatelessWidget {
+/// So it is a line now. The heading collapses into a "1/4" after the name —
+/// the pin already says "next" — and the two channels become circles at the
+/// trailing edge. They keep everything that mattered about them: still one
+/// tap, still no chooser to read, still not hidden behind a menu, and still
+/// wide enough for a thumb that is not aiming. What they lose is the two
+/// words underneath, which a green WhatsApp mark and a handset never needed.
+///
+/// Long-press = the manual serve escape hatch, for when GPS never registers
+/// the service radius.
+class _NextStopStrip extends StatelessWidget {
   final bool isReturn;
 
-  /// At the stop the pill stops being a heading and becomes an answer:
-  /// a tick, the word for it, and the name. The distance goes — "0 m" to
-  /// somewhere the driver is standing is noise — and so does the contact
-  /// row, which has moved down to the arrival bar where the thumb is.
+  /// At the stop the strip stops being a heading and becomes an answer:
+  /// a tick, the name, and "arrived". The distance goes — "0 m" to
+  /// somewhere the driver is standing is noise — and so do the circles,
+  /// which move down to the arrival bar where the thumb already is.
   final bool arrived;
 
-  final String subtitle;
   final String label;
-  final double? distanceToTarget;
+
+  /// "1/4", or null on the leg home and on a lone destination, where
+  /// there is no round to be somewhere in.
+  final String? counter;
+
+  /// Null once the banner above is already counting down to this same
+  /// place, and at the stop.
+  final double? distance;
+
   final VoidCallback onLongPress;
 
   /// Null when the stop has no number — which is also the depot's answer on
@@ -548,12 +596,16 @@ class _NextStopBar extends StatelessWidget {
   final VoidCallback? onWhatsapp;
   final VoidCallback? onCall;
 
-  const _NextStopBar({
+  /// Big enough for a thumb aiming at a windscreen mount, small enough
+  /// that the whole strip is one line.
+  static const double _circle = 40;
+
+  const _NextStopStrip({
     required this.isReturn,
     required this.arrived,
-    required this.subtitle,
     required this.label,
-    required this.distanceToTarget,
+    required this.counter,
+    required this.distance,
     required this.onLongPress,
     this.onWhatsapp,
     this.onCall,
@@ -561,6 +613,7 @@ class _NextStopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trailing = arrived ? AppStrings.arrivedHere : counter;
     return GestureDetector(
       onLongPress: () {
         HapticFeedback.heavyImpact();
@@ -572,169 +625,90 @@ class _NextStopBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: arrived ? AppColors.success : AppColors.primary,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Icon(
-                      arrived
-                          ? Iconsax.tick_circle
-                          : isReturn
-                          ? Iconsax.repeat
-                          : Iconsax.location,
-                      color: AppColors.white,
-                      size: 14,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          arrived ? AppStrings.arrivedHere : subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.mutedSm.copyWith(
-                            color: AppColors.white.withValues(alpha: 0.65),
-                          ),
-                        ),
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.titleSm.copyWith(
-                            color: AppColors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (distanceToTarget != null && !arrived) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      MetricFormat.distance(distanceToTarget!),
-                      style: AppTextStyles.titleMd.copyWith(
-                        color: AppColors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ],
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: arrived ? AppColors.success : AppColors.primary,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(
+                  arrived
+                      ? Iconsax.tick_circle
+                      : isReturn
+                      ? Iconsax.repeat
+                      : Iconsax.location,
+                  color: AppColors.white,
+                  size: 15,
+                ),
               ),
-              if (onWhatsapp != null || onCall != null) ...[
-                const SizedBox(height: 8),
-                Row(
+              const SizedBox(width: 8),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
-                    if (onWhatsapp != null)
-                      Expanded(
-                        child: _ContactButton(
-                          // The real mark, not a generic chat bubble: at a
-                          // glance in a moving car, the logo is read before
-                          // the word underneath it ever is.
-                          glyph: const WhatsappGlyph(
-                            size: 19,
-                            color: AppColors.white,
-                          ),
-                          label: AppStrings.stopWhatsapp,
-                          // White on a green wash rather than green text:
-                          // the tint is what separates the two buttons, and
-                          // white is the one foreground that survives every
-                          // palette on asphalt.
-                          background: AppColors.success.withValues(alpha: 0.28),
-                          onTap: onWhatsapp!,
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.titleMd.copyWith(
+                          color: AppColors.white,
                         ),
                       ),
-                    if (onWhatsapp != null && onCall != null)
-                      const SizedBox(width: 8),
-                    if (onCall != null)
-                      Expanded(
-                        child: _ContactButton(
-                          glyph: const Icon(
-                            Iconsax.call,
-                            size: 19,
-                            color: AppColors.white,
-                          ),
-                          label: AppStrings.stopCall,
-                          background: AppColors.white.withValues(alpha: 0.13),
-                          onTap: onCall!,
+                    ),
+                    if (trailing != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        trailing,
+                        maxLines: 1,
+                        style: AppTextStyles.mutedSm.copyWith(
+                          color: AppColors.white.withValues(alpha: 0.60),
                         ),
                       ),
+                    ],
                   ],
+                ),
+              ),
+              if (distance != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  MetricFormat.distance(distance!),
+                  style: AppTextStyles.titleMd.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// One channel to the stop's contact, sized for a thumb in a moving car.
-///
-/// Height, radius and weight are borrowed from the serve button rather than
-/// from anything in the planning sheet: on this screen a control is either
-/// hittable without aiming or it may as well not be there.
-class _ContactButton extends StatelessWidget {
-  final Widget glyph;
-  final String label;
-  final Color background;
-
-  final VoidCallback onTap;
-
-  /// Sized for the next-stop pill, its one home: tall enough for a thumb
-  /// aiming at a windscreen mount, short enough that the pill stays a pill.
-  static const double _height = 46;
-
-  const _ContactButton({
-    required this.glyph,
-    required this.label,
-    required this.background,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: SizedBox(
-          height: _height,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              glyph,
-              const SizedBox(width: 8),
-              // Arabic "واتساب" beside a logo on half a narrow phone is
-              // tight; shrink the word rather than clip it.
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    style: AppTextStyles.titleSm.copyWith(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
+              if (onWhatsapp != null) ...[
+                const SizedBox(width: 8),
+                _RoundContact(
+                  size: _circle,
+                  // A wash rather than full green: on the way this is an
+                  // offer, not the thing to press. At the stop it goes
+                  // solid, on the arrival bar.
+                  background: AppColors.success.withValues(alpha: 0.30),
+                  onTap: onWhatsapp!,
+                  child: const WhatsappGlyph(size: 20, color: AppColors.white),
+                ),
+              ],
+              if (onCall != null) ...[
+                const SizedBox(width: 6),
+                _RoundContact(
+                  size: _circle,
+                  background: AppColors.white.withValues(alpha: 0.13),
+                  onTap: onCall!,
+                  child: const Icon(
+                    Iconsax.call,
+                    size: 20,
+                    color: AppColors.white,
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -926,22 +900,27 @@ class _ArrivedBar extends StatelessWidget {
   }
 }
 
-/// One way to reach the customer, at the stop: a glyph in a circle, no
-/// label under it.
+/// One way to reach the customer: a glyph in a circle, no label under it.
 ///
-/// The word was worth having on the next-stop pill, where the buttons are
-/// an offer the driver has not thought about yet. Here they have parked in
-/// front of the address; a green WhatsApp mark and a handset are read
-/// faster than either word, and the two saved lines are map.
+/// The same control in both places it appears — a 40 px washed circle on
+/// the next-stop strip while driving, and a full-colour 60 px one on the
+/// arrival bar, where the driver has parked and the thumb is free. A
+/// green WhatsApp mark and a handset are read faster than either word
+/// ever was, and the caption they used to carry is map now.
 class _RoundContact extends StatelessWidget {
   final Widget child;
   final Color background;
   final VoidCallback onTap;
 
+  /// Diameter. Defaults to the arrival bar's height so the circles there
+  /// read as siblings of the serve button rather than decoration on it.
+  final double size;
+
   const _RoundContact({
     required this.child,
     required this.background,
     required this.onTap,
+    this.size = _ArrivedBar._height,
   });
 
   @override
@@ -949,7 +928,9 @@ class _RoundContact extends StatelessWidget {
     return Material(
       color: background,
       shape: const CircleBorder(),
-      elevation: 6,
+      // Lifted off the map on the arrival bar; flat inside the strip,
+      // which already has its own dark ground.
+      elevation: size >= _ArrivedBar._height ? 6 : 0,
       shadowColor: AppColors.shadow,
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -958,8 +939,8 @@ class _RoundContact extends StatelessWidget {
           onTap();
         },
         child: SizedBox(
-          width: _ArrivedBar._height,
-          height: _ArrivedBar._height,
+          width: size,
+          height: size,
           child: Center(child: child),
         ),
       ),
@@ -967,32 +948,54 @@ class _RoundContact extends StatelessWidget {
   }
 }
 
-/// Bottom glass panel — the drive HUD's status + controls dock.
+/// The bottom dock — the drive HUD's status line, and everything else
+/// folded behind it.
 ///
-/// Two clearly separated tiers so nothing has to compete for room:
-///   * A **stat strip** — remaining distance, remaining time (with the
-///     arrival clock as its caption) and live speed, each a number over a
-///     small label inside one shared tray, with the focus toggle beside it.
-///     Numbers scale down rather than truncate, so a long duration or a
-///     large text-scale setting never clips a digit.
-///   * An **action row** — Maps / Re-optimize / End trip, stacked
-///     icon-over-label so each button owns its full width. Arabic labels
-///     are far too long to survive an icon sitting next to them at a third
-///     of the screen, which is exactly why the old side-by-side row read as
-///     "خرائط Goo…".
-class _BottomPanel extends StatelessWidget {
+/// What was here before was a panel: a tray of three numbers with a focus
+/// button beside it, and under that a permanent row of Maps /
+/// Re-optimize / End trip, each an icon stacked over a label. Around 150 px
+/// of a 844 px screen, held for the whole drive by three controls a driver
+/// touches — at most — once a trip, and one of which ends it.
+///
+/// Now it is one row and a chevron:
+///
+///   * **Collapsed** (the whole drive): distance left, time left with the
+///     arrival clock as its caption, live speed. Numbers only — nothing to
+///     decide, nothing to aim at, and the row is a single tap target.
+///   * **Open**: the stop timeline, then the four trip controls in a 2×2
+///     grid where each label gets half the width instead of a third and can
+///     be read as a word rather than "خرائط Goo…".
+///
+/// It closes itself: on use, on arrival — where the map and the serve
+/// button want the room — and, if the driver opened it and then drove on,
+/// [_autoCollapse] later. Parked, it stays open as long as they want it,
+/// because the reason to shut it is the road, and there isn't one.
+class _BottomDock extends StatefulWidget {
   final double remainingKm;
   final double? remainingMinutes;
   final double? speedMps;
+
+  /// Arriving shuts the dock, once, without stealing it back if the driver
+  /// deliberately reopens it at the door.
+  final bool arrived;
+
+  final List<RoutePoint> points;
+  final int targetIndex;
+  final bool showTimeline;
+
   final VoidCallback onFocus;
   final VoidCallback? onOpenGoogleMaps;
   final VoidCallback onReoptimize;
   final VoidCallback onEndTrip;
 
-  const _BottomPanel({
+  const _BottomDock({
     required this.remainingKm,
     required this.remainingMinutes,
     required this.speedMps,
+    required this.arrived,
+    required this.points,
+    required this.targetIndex,
+    required this.showTimeline,
     required this.onFocus,
     required this.onOpenGoogleMaps,
     required this.onReoptimize,
@@ -1000,126 +1003,267 @@ class _BottomPanel extends StatelessWidget {
   });
 
   @override
+  State<_BottomDock> createState() => _BottomDockState();
+}
+
+class _BottomDockState extends State<_BottomDock> {
+  /// How long an untouched open dock stays open while the vehicle is
+  /// moving. Long enough to read the timeline and think; short enough that
+  /// a driver who opened it at a red light isn't still driving behind it
+  /// two streets later.
+  static const _autoCollapse = Duration(seconds: 12);
+
+  /// Below this the vehicle counts as stopped, and the dock has no business
+  /// closing itself.
+  static const _movingKmh = 5.0;
+
+  bool _open = false;
+  Timer? _timer;
+
+  bool get _moving => _kmh(widget.speedMps) >= _movingKmh;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _BottomDock old) {
+    super.didUpdateWidget(old);
+    // The moment of arrival is the one moment the dock is certainly not
+    // what the driver is looking for: the serve button has just appeared
+    // under it and the door is on the map above it.
+    if (widget.arrived && !old.arrived && _open) _close();
+  }
+
+  void _close() {
+    _timer?.cancel();
+    if (_open) setState(() => _open = false);
+  }
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _open = !_open);
+    _timer?.cancel();
+    if (!_open) return;
+    _timer = Timer(_autoCollapse, () {
+      if (!mounted || !_open || !_moving) return;
+      setState(() => _open = false);
+    });
+  }
+
+  /// Every control in the dock is a one-shot: run it, then give the map
+  /// its screen back.
+  VoidCallback? _once(VoidCallback? action) {
+    if (action == null) return null;
+    return () {
+      _close();
+      action();
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final eta = remainingMinutes != null
+    final eta = widget.remainingMinutes != null
         ? DateFormat('HH:mm').format(
-            DateTime.now().add(Duration(minutes: remainingMinutes!.round())),
+            DateTime.now().add(
+              Duration(minutes: widget.remainingMinutes!.round()),
+            ),
           )
         : null;
 
     return GlassPanel(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
       radius: 24,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Tier 1: the numbers the driver glances at ──
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: _kStatTrayHeight,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.bottomCenter,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Always on: the numbers the driver glances at ──
+            //
+            // Its own transparent Material so the ripple lands on the
+            // dock's glass rather than on whatever Material happens to be
+            // under the map.
+            Material(
+              type: MaterialType.transparency,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: _toggle,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: _kStatTrayHeight,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _Stat(
+                                value: MetricFormat.distance(
+                                  widget.remainingKm,
+                                ),
+                                label: AppStrings.remainingShort,
+                              ),
+                            ),
+                            const _StatDivider(),
+                            Expanded(
+                              child: _Stat(
+                                value: widget.remainingMinutes != null
+                                    ? MetricFormat.duration(
+                                        widget.remainingMinutes!,
+                                      )
+                                    : '--',
+                                // The clock rides along as the caption: it
+                                // answers "when", the number above answers
+                                // "how long".
+                                label: eta != null
+                                    ? '${AppStrings.arrivalLabel} $eta'
+                                    : AppStrings.remainingTime,
+                              ),
+                            ),
+                            const _StatDivider(),
+                            Expanded(
+                              child: _Stat(
+                                value: '${_kmh(widget.speedMps)}',
+                                label: AppStrings.speedUnitKmh,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // The one affordance on the collapsed dock, and it is a
+                    // chevron rather than a button: nothing here is worth a
+                    // labelled control the driver has to rule out at speed.
+                    Semantics(
+                      button: true,
+                      label: AppStrings.driveControls,
+                      child: SizedBox(
+                        width: 30,
+                        height: _kStatTrayHeight,
+                        child: AnimatedRotation(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          turns: _open ? 0.5 : 0,
+                          child: Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            size: 24,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Behind the tap: where am I in the round, and the
+            // controls that are worth exactly one press per trip ──
+            if (_open) ...[
+              if (widget.showTimeline) ...[
+                const SizedBox(height: 10),
+                Container(
                   decoration: BoxDecoration(
                     color: AppColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _Stat(
-                          value: MetricFormat.distance(remainingKm),
-                          label: AppStrings.remainingShort,
-                        ),
-                      ),
-                      const _StatDivider(),
-                      Expanded(
-                        child: _Stat(
-                          value: remainingMinutes != null
-                              ? MetricFormat.duration(remainingMinutes!)
-                              : '--',
-                          // The clock rides along as the caption: it
-                          // answers "when", the number above answers
-                          // "how long".
-                          label: eta != null
-                              ? '${AppStrings.arrivalLabel} $eta'
-                              : AppStrings.remainingTime,
-                        ),
-                      ),
-                      const _StatDivider(),
-                      Expanded(
-                        child: _Stat(
-                          value: '${_kmh(speedMps)}',
-                          label: AppStrings.speedUnitKmh,
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  child: StopTimeline(
+                    points: widget.points,
+                    currentTarget: widget.targetIndex,
+                    // The trip is never "finished" while navigation is
+                    // active — the driver must serve the final point.
+                    finished: false,
+                    compact: true,
                   ),
                 ),
+              ],
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BigAction(
+                      icon: Iconsax.map_1,
+                      label: AppStrings.googleMapsShort,
+                      background: AppColors.surfaceAlt,
+                      foreground: AppColors.textPrimary,
+                      onTap: _once(widget.onOpenGoogleMaps),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Mid-trip re-plan: re-optimizes the unserved stops from
+                  // the current position and drops straight back into the
+                  // drive.
+                  Expanded(
+                    child: _BigAction(
+                      icon: Iconsax.refresh,
+                      label: AppStrings.reoptimize,
+                      background: AppColors.primary.withValues(alpha: 0.10),
+                      foreground: AppColors.primary,
+                      onTap: _once(widget.onReoptimize),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              _FocusToggleButton(onTap: onFocus),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BigAction(
+                      icon: Icons.center_focus_strong_rounded,
+                      label: AppStrings.focusMode,
+                      background: AppColors.primary.withValues(alpha: 0.10),
+                      foreground: AppColors.primary,
+                      onTap: _once(widget.onFocus),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Last, and in the corner furthest from the thumb that
+                  // just opened the dock: it throws the trip away.
+                  Expanded(
+                    child: _BigAction(
+                      icon: Iconsax.close_circle,
+                      label: AppStrings.endTrip,
+                      background: AppColors.danger.withValues(alpha: 0.10),
+                      foreground: AppColors.danger,
+                      onTap: _once(widget.onEndTrip),
+                    ),
+                  ),
+                ],
+              ),
             ],
-          ),
-          const SizedBox(height: 10),
 
-          // ── Tier 2: the controls ──
-          // Serving happens with the big Point Served button (only shown
-          // at the stop), so the panel stays minimal.
-          Row(
-            children: [
-              Expanded(
-                child: _BigAction(
-                  icon: Iconsax.map_1,
-                  label: AppStrings.googleMapsShort,
-                  background: AppColors.surfaceAlt,
-                  foreground: AppColors.textPrimary,
-                  onTap: onOpenGoogleMaps,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Mid-trip re-plan: re-optimizes the unserved stops from the
-              // current position and drops straight back into the drive.
-              Expanded(
-                child: _BigAction(
-                  icon: Iconsax.refresh,
-                  label: AppStrings.reoptimize,
-                  background: AppColors.primary.withValues(alpha: 0.10),
-                  foreground: AppColors.primary,
-                  onTap: onReoptimize,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _BigAction(
-                  icon: Iconsax.close_circle,
-                  label: AppStrings.endTrip,
-                  background: AppColors.danger.withValues(alpha: 0.10),
-                  foreground: AppColors.danger,
-                  onTap: onEndTrip,
-                ),
-              ),
+            // ── DEBUG ONLY — the synthetic drive simulator controls,
+            // compiled out of release builds via [kDebugMode]. It rides
+            // outside the fold on purpose: it is the thing being driven
+            // with, and folding it away would mean opening the dock
+            // between every steer.
+            // Deliberately non-const: the steer chips recolour when the
+            // driver leaves/rejoins the road, so the bar must rebuild with
+            // the dock on every tick.
+            if (kDebugMode) ...[
+              const SizedBox(height: 8),
+              // ignore: prefer_const_constructors
+              _DebugSimBar(),
             ],
-          ),
-
-          // ── DEBUG ONLY — the synthetic drive simulator controls,
-          // compiled out of release builds via [kDebugMode].
-          // Deliberately non-const: the steer chips recolour when the
-          // driver leaves/rejoins the road, so the bar must rebuild with
-          // the panel on every tick.
-          if (kDebugMode) ...[
-            const SizedBox(height: 8),
-            // ignore: prefer_const_constructors
-            _DebugSimBar(),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Height of the stat tray — shared with the focus toggle so the two sit
-/// as a matched pair on one line.
-const double _kStatTrayHeight = 52;
+/// Height of the dock's stat row — and, since the row is all the collapsed
+/// dock contains, of the dock itself.
+const double _kStatTrayHeight = 46;
 
 /// One cell of the stat tray: a number with its caption underneath.
 ///
@@ -1690,60 +1834,6 @@ class _DebugSimBarState extends State<_DebugSimBar> {
   }
 }
 
-/// Switches the HUD into eyes-on-road focus mode.
-///
-/// Sized and cornered to match the stat tray it sits beside, so the two
-/// read as one line rather than a pill floating next to a box.
-class _FocusToggleButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _FocusToggleButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.primary.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: SizedBox(
-          height: _kStatTrayHeight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.center_focus_strong_rounded,
-                  size: 19,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(height: 3),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    AppStrings.focusMode,
-                    maxLines: 1,
-                    style: AppTextStyles.mutedSm.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      height: 1.1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Slim bottom bar shown in focus mode: current speed plus a one-tap
 /// control to leave focus mode. Kept minimal so the map dominates the screen.
 class _FocusExitBar extends StatelessWidget {
@@ -1848,14 +1938,17 @@ class _RailSpeed extends StatelessWidget {
   }
 }
 
-/// One of the panel's three drive actions.
+/// One of the dock's four trip controls.
 ///
-/// Icon over label, not beside it: at a third of the screen the label is
-/// the part that has to survive, and Arabic ("خرائط Google", "إعادة
-/// التحسين") is long enough that an icon on the same line steals the room
-/// it needs. Stacked, the text gets the button's whole width, and it
-/// shrinks to fit rather than ellipsizing so a large text-scale setting
-/// never leaves a driver reading half a word.
+/// Icon beside the label, on one line. Stacked was the right answer while
+/// three of these shared a row — Arabic ("خرائط Google", "إعادة التحسين")
+/// is long enough that at a third of the screen an icon on the same line
+/// steals the room the words need, and the old row read as "خرائط Goo…".
+/// Two per row is a different sum: the label gets half the screen, which
+/// is more than it ever needed, so the button can be a line instead of a
+/// tile and the open dock is 36 px shorter for it. The text still shrinks
+/// to fit rather than ellipsizing, so a large text-scale setting never
+/// leaves a driver reading half a word.
 class _BigAction extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1884,26 +1977,31 @@ class _BigAction extends StatelessWidget {
                 HapticFeedback.mediumImpact();
                 onTap!();
               },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: foreground, size: 21),
-              const SizedBox(height: 6),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.titleSm.copyWith(
-                    color: foreground,
-                    height: 1.15,
+        child: SizedBox(
+          height: 46,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: foreground, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.titleSm.copyWith(
+                        color: foreground,
+                        height: 1.15,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -139,8 +139,13 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text(AppStrings.stopWhatsapp), findsOneWidget);
-    expect(find.text(AppStrings.stopCall), findsOneWidget);
+    // Two circles on the next-stop strip — no captions. The controls are
+    // still one tap and still on screen the whole drive; what they gave
+    // up is the two labelled full-width buttons that cost a band of map.
+    expect(find.byType(WhatsappGlyph), findsOneWidget);
+    expect(find.byIcon(Iconsax.call), findsOneWidget);
+    expect(find.text(AppStrings.stopWhatsapp), findsNothing);
+    expect(find.text(AppStrings.stopCall), findsNothing);
   });
 
   testWidgets('a stop with no number offers nothing to press', (tester) async {
@@ -151,8 +156,8 @@ void main() {
     await tester.pumpWidget(_harness(_driving(_route())));
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text(AppStrings.stopWhatsapp), findsNothing);
-    expect(find.text(AppStrings.stopCall), findsNothing);
+    expect(find.byType(WhatsappGlyph), findsNothing);
+    expect(find.byIcon(Iconsax.call), findsNothing);
   });
 
   testWidgets('the contact follows the target, not the trip', (tester) async {
@@ -168,9 +173,10 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    // The name appears on the pill and again on the timeline strip.
-    expect(find.text('Stop 2'), findsAtLeastNWidgets(1));
-    expect(find.text(AppStrings.stopCall), findsNothing);
+    // The name is on the strip; the timeline that used to repeat it is
+    // folded into the dock now.
+    expect(find.text('Stop 2'), findsOneWidget);
+    expect(find.byIcon(Iconsax.call), findsNothing);
   });
 
   testWidgets('the leg home offers no one to ring', (tester) async {
@@ -183,7 +189,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text(AppStrings.stopCall), findsNothing);
+    expect(find.byIcon(Iconsax.call), findsNothing);
   });
 
   // ── Arrival ────────────────────────────────────────────────────────────
@@ -255,6 +261,99 @@ void main() {
 
     expect(find.byType(WhatsappGlyph), findsNothing);
     expect(find.byIcon(Iconsax.call), findsNothing);
+  });
+
+  // ── What the driver can see ────────────────────────────────────────────
+  //
+  // The HUD's real job is not to show things, it is to *not* show things:
+  // the map is the instrument, and a control the driver presses once a trip
+  // has no claim on the screen for the other fifty-nine minutes.
+
+  group('the trip controls stay behind the dock', () {
+    /// Opens the dock and lets its expansion animation land.
+    ///
+    /// Deliberately not `pumpAndSettle`: the stop timeline the dock
+    /// reveals pulses forever, so settling would run the fake clock right
+    /// past the dock's own auto-collapse and shut it again.
+    Future<void> openDock(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.keyboard_arrow_up_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    Future<void> pumpDriving(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_harness(_driving(_route())));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('driving shows numbers, not buttons', (tester) async {
+      await pumpDriving(tester);
+
+      // The numbers are always there.
+      expect(find.text(AppStrings.remainingShort), findsOneWidget);
+      expect(find.text(AppStrings.speedUnitKmh), findsOneWidget);
+
+      // Everything a driver touches once a trip is not.
+      expect(find.text(AppStrings.googleMapsShort), findsNothing);
+      expect(find.text(AppStrings.reoptimize), findsNothing);
+      expect(find.text(AppStrings.endTrip), findsNothing);
+      expect(find.text(AppStrings.focusMode), findsNothing);
+    });
+
+    testWidgets('a tap on the dock brings them out, and using one puts '
+        'them away again', (tester) async {
+      await pumpDriving(tester);
+
+      await openDock(tester);
+
+      expect(find.text(AppStrings.googleMapsShort), findsOneWidget);
+      expect(find.text(AppStrings.reoptimize), findsOneWidget);
+      expect(find.text(AppStrings.focusMode), findsOneWidget);
+      expect(find.text(AppStrings.endTrip), findsOneWidget);
+
+      // Using one puts the dock away — a control the driver has already
+      // pressed has no reason to still be covering the road.
+      await tester.tap(find.text(AppStrings.googleMapsShort));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.googleMapsShort), findsNothing);
+    });
+
+    testWidgets('a dock left open closes itself once the vehicle moves on', (
+      tester,
+    ) async {
+      await pumpDriving(tester);
+
+      await openDock(tester);
+      expect(find.text(AppStrings.endTrip), findsOneWidget);
+
+      // _driving() rolls at ~40 km/h, so this is a driver who opened the
+      // dock and then simply kept driving.
+      await tester.pump(const Duration(seconds: 13));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.endTrip), findsNothing);
+    });
+
+    testWidgets('arriving takes the screen back for the serve button', (
+      tester,
+    ) async {
+      await pumpDriving(tester);
+
+      await openDock(tester);
+      expect(find.text(AppStrings.endTrip), findsOneWidget);
+
+      await tester.pumpWidget(_harness(_driving(_route(), arrived: true)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(AppStrings.endTrip), findsNothing);
+      expect(find.text(AppStrings.pointServed), findsOneWidget);
+    });
   });
 
   // ── The write-through that makes the in-drive "add a number" work ──────

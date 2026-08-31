@@ -59,13 +59,14 @@ class MapConfig {
   /// How far above the bottom inset drive mode's "Re-center" pill floats,
   /// in logical px.
   ///
-  /// It has to clear the HUD, not merely sit near it: the bottom panel is
-  /// roughly 160 tall, and reaching a stop adds the arrival bar above it.
-  /// The old single value cleared the panel by a hair and was landed on by
-  /// the serve button the moment the driver arrived — which is exactly when
-  /// they are most likely to be poking at the map.
-  static const double navRecenterLiftPx = 232;
-  static const double navRecenterLiftArrivedPx = 304;
+  /// It has to clear the HUD, not merely sit near it — and it has to do it
+  /// without floating in the middle of the map either, which is what these
+  /// became when the HUD's bottom panel folded into a one-row dock. The
+  /// collapsed dock is 64 tall over an 8 px gutter; arriving stacks the
+  /// 60 px arrival bar and its own gutter on top of that. Each value is
+  /// that plus a thumb's worth of clearance.
+  static const double navRecenterLiftPx = 88;
+  static const double navRecenterLiftArrivedPx = 156;
 
   /// Half-size of the box a tap searches for a map label, in logical px.
   ///

@@ -184,6 +184,7 @@ class AppStrings {
   static String get remainingDistance => _t('remainingDistance');
   static String get remainingTime => _t('remainingTime');
   static String get focusMode => _t('focusMode');
+  static String get driveControls => _t('driveControls');
   static String get exitFocus => _t('exitFocus');
   static String get remainingShort => _t('remainingShort');
   static String get simulationSubtitle => _t('simulationSubtitle');
@@ -1148,6 +1149,7 @@ const Map<String, Map<String, String>> _copy = {
     'remainingDistance': 'Remaining distance',
     'remainingTime': 'Remaining time',
     'focusMode': 'Focus',
+    'driveControls': 'Trip controls',
     'exitFocus': 'Exit focus',
     'remainingShort': 'left',
     'simulationSubtitle': 'Watch your route from start to finish',
@@ -1729,6 +1731,7 @@ const Map<String, Map<String, String>> _copy = {
     'remainingDistance': 'المسافة المتبقية',
     'remainingTime': 'الوقت المتبقي',
     'focusMode': 'تركيز',
+    'driveControls': 'أدوات الرحلة',
     'exitFocus': 'خروج من التركيز',
     'remainingShort': 'متبقّي',
     'simulationSubtitle': 'شاهد مسارك من البداية للنهاية',
@@ -2309,6 +2312,7 @@ const Map<String, Map<String, String>> _copy = {
     'remainingDistance': 'Distance restante',
     'remainingTime': 'Temps restant',
     'focusMode': 'Focus',
+    'driveControls': 'Commandes du trajet',
     'exitFocus': 'Quitter',
     'remainingShort': 'restant',
     'simulationSubtitle': 'Visualisez votre trajet du debut a la fin',
