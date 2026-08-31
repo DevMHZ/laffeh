@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -7,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../widgets/destination_card.dart';
+import '../widgets/route_drive_action_bar.dart';
 import '../widgets/route_plan_action_bar.dart';
 import '../widgets/route_points_sheet.dart';
 import '../widgets/route_summary_sheet.dart';
@@ -100,12 +102,14 @@ class BottomSheetHost extends StatelessWidget {
             // pinned "optimize" CTA, because a driver who never drags the
             // sheet has to be able to finish a plan anyway. Each rise in this
             // number has been the ways-in growing — first the action bar,
-            // then the four methods taking the place of one button.
+            // then the four methods taking the place of one button, now the
+            // CSV row, which at 0.33 was sliced in half by the CTA and read
+            // as a rendering fault rather than as "there is more below".
             : const _SheetConfig(
-                min: 0.33,
-                initial: 0.33,
+                min: 0.40,
+                initial: 0.40,
                 max: 0.80,
-                snaps: [0.33, 0.58, 0.80],
+                snaps: [0.40, 0.60, 0.80],
               );
 
         return DraggableScrollableSheet(
@@ -167,14 +171,25 @@ class BottomSheetHost extends StatelessWidget {
                               : const RoutePointsSheet(),
                         ),
                       ),
-                      // The summary sheet has its own actions at the top;
-                      // only the planning sheet needs a pinned one.
+                      // Each phase of the trip has exactly one thing to do
+                      // next, and it is pinned here rather than left to
+                      // scroll: optimize while the plan is being made, drive
+                      // once it is made.
                       if (!showSummary)
                         RoutePlanActionBar(
                           pointsCount: state.routableCount,
                           canOptimize: state.canOptimize,
                           isOptimizing: state.isOptimizing,
                           onOptimize: cubit.optimize,
+                        )
+                      else
+                        RouteDriveActionBar(
+                          onDrive: cubit.startNavigation,
+                          // DEBUG: long-press drives the route with the
+                          // synthetic driver (no real GPS needed).
+                          onDebugLongPress: kDebugMode
+                              ? cubit.debugStartDriveSim
+                              : null,
                         ),
                     ],
                   ),

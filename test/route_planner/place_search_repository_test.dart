@@ -163,9 +163,7 @@ void main() {
         ],
       );
 
-      final snapshots = await repo
-          .search('حلب', near: _damascus)
-          .toList();
+      final snapshots = await repo.search('حلب', near: _damascus).toList();
 
       // Both wider rings run, and they run because nothing nearby was
       // actually called حلب — not because the ring came back short.
@@ -318,10 +316,7 @@ void main() {
       await repo.remember(warehouse);
 
       expect(repo.recentPlaces(near: _damascus).single.name, 'مستودع المزة');
-      expect(
-        repo.recentPlaces(near: _damascus).single.distanceKm,
-        isNotNull,
-      );
+      expect(repo.recentPlaces(near: _damascus).single.distanceKm, isNotNull);
 
       when(
         () => photon.search(

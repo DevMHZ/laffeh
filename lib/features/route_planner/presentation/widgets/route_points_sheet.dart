@@ -15,7 +15,6 @@ import '../pages/route_planner_actions.dart';
 import 'add_place_bar.dart';
 import 'missed_time_window_sheet.dart';
 import 'route_address_search_sheet.dart';
-import 'offline_area_offer.dart';
 import 'point_actions_sheet.dart';
 import 'stop_time_window_sheet.dart';
 
@@ -88,18 +87,19 @@ class RoutePointsSheet extends StatelessWidget {
               ],
 
               // Offline first — it explains why a sync/optimize may wait.
+              //
+              // Nothing offers to download a map here any more. The app
+              // keeps a square around the driver on its own (see
+              // `AutoMapCache`), so the banner that used to ask about it was
+              // spending a row of the planning sheet on a question already
+              // answered. Picking a *bigger* map is still a real choice, and
+              // it lives in Settings.
               if (state.isOffline) ...[
                 const _OfflineBanner(),
                 const SizedBox(height: 10),
-              ] else ...[
-                // Only worth offering while there is still a connection to
-                // download over — which is exactly when the driver is least
-                // likely to think of it.
-                const OfflineAreaOffer(),
-                if (state.draftRestored && state.hasPoints) ...[
-                  const _DraftRestoredHint(),
-                  const SizedBox(height: 10),
-                ],
+              ] else if (state.draftRestored && state.hasPoints) ...[
+                const _DraftRestoredHint(),
+                const SizedBox(height: 10),
               ],
 
               if (state.errorMessage != null &&

@@ -56,6 +56,17 @@ class MapConfig {
   /// logical px away from their current position.
   static const double recenterDriftPx = 90;
 
+  /// How far above the bottom inset drive mode's "Re-center" pill floats,
+  /// in logical px.
+  ///
+  /// It has to clear the HUD, not merely sit near it: the bottom panel is
+  /// roughly 160 tall, and reaching a stop adds the arrival bar above it.
+  /// The old single value cleared the panel by a hair and was landed on by
+  /// the serve button the moment the driver arrived — which is exactly when
+  /// they are most likely to be poking at the map.
+  static const double navRecenterLiftPx = 232;
+  static const double navRecenterLiftArrivedPx = 304;
+
   /// Half-size of the box a tap searches for a map label, in logical px.
   ///
   /// A single-pixel query is the wrong shape for a finger: it only hits a

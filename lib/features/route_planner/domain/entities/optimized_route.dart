@@ -53,6 +53,23 @@ class OptimizedRoute extends Equatable {
 
   bool get isEmpty => orderedPoints.isEmpty;
 
+  /// The same route with its stops replaced.
+  ///
+  /// Exists because a solved route holds its *own* copies of the points, so
+  /// editing one in `state.points` afterwards changed nothing the driver
+  /// could see — the summary sheet and the drive HUD both read from here.
+  /// Geometry is untouched on purpose: this is for facts about a stop that
+  /// do not move it, a phone number above all.
+  OptimizedRoute withPoints(List<RoutePoint> points) => OptimizedRoute(
+    orderedPoints: points,
+    fullPolyline: fullPolyline,
+    goPolyline: goPolyline,
+    returnPolyline: returnPolyline,
+    metrics: metrics,
+    hasRoadGeometry: hasRoadGeometry,
+    maneuvers: maneuvers,
+  );
+
   @override
   List<Object?> get props => [
     orderedPoints,

@@ -22,7 +22,17 @@ import '../../../../core/widgets/vehicle_turntable.dart';
 import '../widgets/account_section.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  /// Picks a spreadsheet of stops for the trip behind this page, and reports
+  /// how many landed. Null when Settings is opened from anywhere without a
+  /// route to import into — the row simply isn't there.
+  ///
+  /// The work belongs to the planner, not to Settings: the callback is
+  /// supplied by the screen that pushed this one, so the import runs with the
+  /// planner's context and cubit. Settings only decides where the row sits
+  /// and what happens after.
+  final Future<int> Function()? onImportCsv;
+
+  const SettingsPage({super.key, this.onImportCsv});
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +81,10 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 22),
 
-          _SettingsGroups(onAboutUsTap: () => _openWebsite(context)),
+          _SettingsGroups(
+            onAboutUsTap: () => _openWebsite(context),
+            onImportCsv: onImportCsv,
+          ),
         ],
       ),
     );
@@ -198,15 +211,21 @@ class _LanguageTile extends StatelessWidget {
 ///
 /// The order now follows what a driver actually comes here to do. Their
 /// account first, because that is what decides whether their trips are
-/// being kept. The offline map next: it is the one thing on this page that
-/// *does* something, and the one worth finding quickly before losing
-/// signal. Then the preferences they set once — language ahead of the rest,
-/// since a driver who opened the app in the wrong language cannot read
-/// anything else until they find it. The documents last, where read-once
-/// material belongs.
+/// being kept. Then the preferences they set once — language ahead of the
+/// rest, since a driver who opened the app in the wrong language cannot
+/// read anything else until they find it. The documents last, where
+/// read-once material belongs.
+///
+/// The offline map used to sit second, on the reasoning that it was the one
+/// thing here that *did* something and was worth finding before losing
+/// signal. It no longer needs finding: the app keeps a square around the
+/// driver by itself (see `AutoMapCache`), unasked and unannounced, so what
+/// is left on this page is the picker for choosing a *bigger* map
+/// deliberately — settings, not an errand. It moved down accordingly.
 class _SettingsGroups extends StatelessWidget {
   final VoidCallback onAboutUsTap;
-  const _SettingsGroups({required this.onAboutUsTap});
+  final Future<int> Function()? onImportCsv;
+  const _SettingsGroups({required this.onAboutUsTap, this.onImportCsv});
 
   @override
   Widget build(BuildContext context) {
@@ -224,16 +243,31 @@ class _SettingsGroups extends StatelessWidget {
           children: [AccountSection()],
         ),
         _SettingsGroup(
-          label: AppStrings.settingsGroupMap,
-          // Only the saved area lives here now. The trip corridor moved to
-          // the offline button on the map, next to the driving it is for —
-          // in Settings it was a permanent row that spent most of its life
-          // saying there was no trip to save.
-          children: [OfflineAreaSection()],
-        ),
-        _SettingsGroup(
           label: AppStrings.settingsGroupPreferences,
           children: [_LanguageSection(), _ThemeSection(), _VehicleSection()],
+        ),
+        // The spreadsheet of stops the office keeps. It used to sit on the
+        // planning sheet and on the empty map, where it spent its life being
+        // scrolled past by the drivers who type addresses one at a time —
+        // and where, as a row with a heading and a subtitle, it cost the map
+        // more than the feature is worth to most of them. A driver who has a
+        // file came looking for this; the rest never have to see it.
+        if (onImportCsv != null)
+          _SettingsGroup(
+            label: AppStrings.settingsGroupTrip,
+            children: [_ImportCsvRow(onTap: onImportCsv!)],
+          ),
+        _SettingsGroup(
+          label: AppStrings.settingsGroupMap,
+          // Only the hand-picked area. The square the app keeps around the
+          // driver used to have a switch here, and the switch was the whole
+          // problem: a row explaining a background download invites a
+          // decision about something that works better as weather. It is
+          // now simply how the app behaves, like a browser cache — always
+          // on, never mentioned. The trip corridor lives on the route
+          // summary instead, next to the driving it is for; here it spent
+          // most of its life saying there was no trip to save.
+          children: [OfflineAreaSection()],
         ),
         _SettingsGroup(
           label: AppStrings.settingsGroupAbout,
@@ -1003,6 +1037,57 @@ class _LegalRow extends StatelessWidget {
                 child: Text(
                   AppStrings.legalTitle,
                   style: AppTextStyles.titleMd,
+                ),
+              ),
+              const AppChevron(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Import a CSV file" — the way a whole round arrives at once, with the
+/// customer names and phone numbers a pasted list throws away.
+///
+/// A successful import closes Settings on the driver's behalf: the stops they
+/// just added are on the map one screen back, and asking them to find their
+/// own way there would be asking them to check the app's work.
+class _ImportCsvRow extends StatelessWidget {
+  final Future<int> Function() onTap;
+  const _ImportCsvRow({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          final navigator = Navigator.of(context);
+          final added = await onTap();
+          if (added > 0 && navigator.canPop()) navigator.pop();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Icon(Iconsax.document_text, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      AppStrings.importChooserCsv,
+                      style: AppTextStyles.titleMd,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(AppStrings.importCsvSub, style: AppTextStyles.mutedSm),
+                  ],
                 ),
               ),
               const AppChevron(),

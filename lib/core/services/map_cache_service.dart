@@ -339,7 +339,17 @@ class MapCacheService {
   /// A pack whose bounds cannot be read is skipped rather than guessed at —
   /// it would be a region this version did not write, and drawing it in the
   /// wrong place is worse than not drawing it.
-  static Future<List<SavedMapArea>> savedAreas() async {
+  ///
+  /// The automatic square is left out unless [includeAutomatic] is set, and
+  /// only `AutoMapCache` ever sets it. It is stored as an area like any
+  /// other, but it is not one the driver *chose*, and every screen that
+  /// lists these treats a listed area as a choice: the picker offers to
+  /// update or delete one, and counts it against the ceiling. Letting a
+  /// rolling cache into that list would let the driver update a pack that
+  /// re-centres itself the moment they drive on.
+  static Future<List<SavedMapArea>> savedAreas({
+    bool includeAutomatic = false,
+  }) async {
     try {
       final all = await getListOfRegions();
       final byPack = <String, List<OfflineRegion>>{};
@@ -351,6 +361,9 @@ class MapCacheService {
         }
         final packId = region.metadata[OfflineMapConfig.metaPackId];
         if (packId is! String) continue;
+        if (!includeAutomatic && packId == OfflineMapConfig.autoAreaPackId) {
+          continue;
+        }
         byPack.putIfAbsent(packId, () => []).add(region);
       }
 

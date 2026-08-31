@@ -114,6 +114,89 @@ class OfflineMapConfig {
   /// that never ends. 30 km at a 12 km cell is 36 cells, well under this.
   static const int maxAreaCells = 100;
 
+  // ── The automatic area (no driver involved at all) ───────
+  /// The map nobody asked for, and the one that actually saves the day.
+  ///
+  /// Every figure below is chosen against a single constraint: this
+  /// download happens *silently*, on someone else's mobile data, so it has
+  /// to be small enough that nobody would have said no to it. Anything the
+  /// driver would want to think about belongs in the picker instead.
+
+  /// Pack id the automatic cache always uses.
+  ///
+  /// One fixed id, so the cache *rolls*: driving out of it replaces it
+  /// rather than stacking a second copy behind. It carries [areaPackPrefix]
+  /// deliberately — it is a saved area like any other, so it shows up in
+  /// the picker's list, counts towards the stored total, and can be deleted
+  /// by hand.
+  static const String autoAreaPackId = '${areaPackPrefix}auto';
+
+  /// Edge of the square cached around the driver — a 20 × 20 km box.
+  ///
+  /// Roughly a city and its approaches: far enough that a driver cannot
+  /// leave it during a normal errand, small enough (a handful of MB at
+  /// [areaMinZoom]–[areaMaxZoom]) to spend without asking. The manual
+  /// picker is where a bigger map is chosen deliberately —
+  /// [defaultAreaRadiusKm] frames 30 × 30 km there.
+  static const double autoAreaEdgeKm = 20;
+
+  /// The same square as a half-edge, which is what [AreaGrid] takes.
+  static const double autoAreaHalfEdgeKm = autoAreaEdgeKm / 2;
+
+  /// Cell edge for the automatic square — 2 × 2 cells across 20 km.
+  ///
+  /// Smaller than [areaCellKm] so even this small pack downloads in four
+  /// pieces: a background download nobody is watching must be able to lose
+  /// one corner to a dropped connection without losing the other three.
+  static const double autoAreaCellKm = 10;
+
+  /// How far inside a saved pack the driver has to be to count as covered,
+  /// as a fraction of that pack's span.
+  ///
+  /// Without a margin the cache would only refresh once the driver was
+  /// already off the edge of the stored map — which is to say, once they
+  /// had already lost it. This buys the download a head start, and it is
+  /// read against *every* saved area, so a driver who hand-picked their
+  /// city is never charged for a second copy of it.
+  static const double autoAreaCoveredMargin = 0.2;
+
+  /// Hard floor: the automatic square is never re-downloaded sooner than
+  /// this, however far the driver has travelled.
+  ///
+  /// This is the one that bounds a long trip. Without it, a driver on a
+  /// 200 km run leaves the square every twenty minutes or so and pays for a
+  /// fresh one each time — a rolling cache turning into tens of megabytes
+  /// nobody agreed to. Half an hour caps it at roughly two squares an hour
+  /// in the very worst case, and in the ordinary case (a driver working one
+  /// town) it never comes up at all, because they never leave the square
+  /// they have.
+  static const Duration autoAreaFloorInterval = Duration(minutes: 30);
+
+  /// Floor on how often the automatic cache may spend data from one spot.
+  ///
+  /// Past [autoAreaFloorInterval] this is what still holds a *stationary*
+  /// driver back; moving somewhere genuinely new is worth a fresh square
+  /// before it elapses. It exists for the failure case — a download that
+  /// keeps not completing must not keep retrying all afternoon.
+  static const Duration autoAreaMinInterval = Duration(hours: 6);
+
+  /// How far the driver must be from the last automatic centre for
+  /// [autoAreaMinInterval] to be waived, as a fraction of the half-edge.
+  static const double autoAreaRefreshFraction = 0.5;
+
+  /// Cheap in-memory gate in front of everything above: below this much
+  /// movement, or this soon, a position fix is not worth the disk and DNS
+  /// round-trips the real check costs. GPS delivers fixes far faster than
+  /// any of this needs to be reconsidered.
+  static const double autoAreaCheckMoveKm = 2;
+  static const Duration autoAreaCheckInterval = Duration(minutes: 2);
+
+  /// Preference keys: the last automatic centre, with the time it was
+  /// taken. There is no key for whether the square is kept at all — it
+  /// always is.
+  static const String autoAreaCentreKey = 'laffeh.offline_auto_area_centre';
+  static const String autoAreaStampKey = 'laffeh.offline_auto_area_at';
+
   // ── Route corridor ───────────────────────────────────────
   /// Road length covered by each downloaded box.
   ///

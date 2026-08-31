@@ -1,13 +1,25 @@
 part of 'route_summary_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compact metrics row — replaces the old GridView card layout.
-// One thin bar with icon + value + label for each metric, separated by a line.
+// The trip's numbers, and the two actions that are not driving.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _InlineMetrics extends StatelessWidget {
+/// Time · distance · stops, in one line.
+///
+/// This was a card of two labelled tiles — an icon in a tinted square, the
+/// value, and a caption under it saying "estimated time" — plus a third
+/// number, the stop count, in a chip beside the route-order heading further
+/// down. Three numbers, three shapes, and a great deal of air between them on
+/// a sheet whose job is to get a driver moving. A clock next to "38 min" does
+/// not need a caption saying it is a time.
+class _TripStrip extends StatelessWidget {
   final OptimizedRoute route;
-  const _InlineMetrics({required this.route});
+
+  /// Everything the route calls at, the departure and the way home included —
+  /// the same count the list below this strip shows.
+  final int stops;
+
+  const _TripStrip({required this.route, required this.stops});
 
   @override
   Widget build(BuildContext context) {
@@ -18,45 +30,51 @@ class _InlineMetrics extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: _MetricItem(
-              icon: Iconsax.timer_1,
-              label: AppStrings.estimatedTime,
-              value: m.estimatedDurationMinutes == null
-                  ? AppStrings.unavailable
-                  : MetricFormat.duration(m.estimatedDurationMinutes!),
-              color: AppColors.primary,
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: _StatCell(
+                icon: Iconsax.timer_1,
+                color: AppColors.primary,
+                value: m.estimatedDurationMinutes == null
+                    ? AppStrings.unavailable
+                    : MetricFormat.duration(m.estimatedDurationMinutes!),
+              ),
             ),
-          ),
-          Container(width: 1, height: 32, color: AppColors.border),
-          Expanded(
-            child: _MetricItem(
-              icon: Iconsax.routing,
-              label: AppStrings.totalDistance,
-              value: m.totalDistanceKm == null
-                  ? AppStrings.unavailable
-                  : MetricFormat.distance(m.totalDistanceKm!),
-              color: AppColors.info,
+            const _StatRule(),
+            Expanded(
+              child: _StatCell(
+                icon: Iconsax.routing,
+                color: AppColors.info,
+                value: m.totalDistanceKm == null
+                    ? AppStrings.unavailable
+                    : MetricFormat.distance(m.totalDistanceKm!),
+              ),
             ),
-          ),
-        ],
+            const _StatRule(),
+            Expanded(
+              child: _StatCell(
+                icon: Iconsax.location,
+                color: AppColors.accent,
+                value: AppStrings.pointsCount(stops),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _MetricItem extends StatelessWidget {
+class _StatCell extends StatelessWidget {
   final IconData icon;
-  final String label;
   final String value;
   final Color color;
 
-  const _MetricItem({
+  const _StatCell({
     required this.icon,
-    required this.label,
     required this.value,
     required this.color,
   });
@@ -66,24 +84,81 @@ class _MetricItem extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(9),
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.titleSm,
           ),
-          child: Icon(icon, color: color, size: 16),
-        ),
-        const SizedBox(width: 9),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(value, style: AppTextStyles.titleMd),
-            Text(label, style: AppTextStyles.mutedSm),
-          ],
         ),
       ],
+    );
+  }
+}
+
+class _StatRule extends StatelessWidget {
+  const _StatRule();
+
+  @override
+  Widget build(BuildContext context) =>
+      VerticalDivider(width: 1, thickness: 1, color: AppColors.border);
+}
+
+/// Preview, and open-in-Maps: real wants, neither of them this screen's job.
+///
+/// Both used to be full-width buttons in the app's secondary green, one of
+/// them sitting above "start driving" — which is how a rehearsal of the trip
+/// came to be the thing drivers tapped. Half width, side by side, and grey
+/// enough that the only filled control in the sheet is the one that starts
+/// the trip.
+class _SecondaryAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _SecondaryAction({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              },
+        child: Container(
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleSm,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -174,98 +249,6 @@ class _ActionTile extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StartNavigationButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  /// DEBUG ONLY: long-press starts the synthetic drive simulator instead
-  /// of a real GPS trip. Null in release builds.
-  final VoidCallback? onDebugLongPress;
-
-  const _StartNavigationButton({
-    required this.onPressed,
-    this.onDebugLongPress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final arrowIcon = Directionality.of(context) == TextDirection.rtl
-        ? Icons.arrow_back_rounded
-        : Icons.arrow_forward_rounded;
-
-    return Material(
-      borderRadius: BorderRadius.circular(16),
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        onLongPress: onDebugLongPress == null
-            ? null
-            : () {
-                HapticFeedback.heavyImpact();
-                onDebugLongPress!();
-              },
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.centerRight,
-              end: Alignment.centerLeft,
-              colors: [AppColors.accent, AppColors.accentDark],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.accent.withValues(alpha: 0.30),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Iconsax.play,
-                  color: AppColors.white,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      AppStrings.startNavigation,
-                      style: AppTextStyles.titleLg.copyWith(
-                        color: AppColors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      AppStrings.navigationSubtitle,
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: Colors.white.withValues(alpha: 0.82),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(arrowIcon, color: AppColors.white, size: 22),
             ],
           ),
         ),

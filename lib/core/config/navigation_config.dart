@@ -85,18 +85,15 @@ class NavigationConfig {
 
   // ── Service points ───────────────────────────────────────
   /// Radius (metres) around the current service point in which the driver
-  /// counts as "arrived": the Point Served button appears and the
-  /// enter-then-leave auto-serve arms itself.
+  /// counts as "arrived" and the serve button appears. Nothing completes
+  /// the point from here — leaving the radius again does not serve it, and
+  /// never will: that is the driver's own call.
   static const double serviceRadiusMeters = 10.0;
 
   /// The service radius grows by the fix's reported accuracy, capped at
   /// this — otherwise a 10 m radius can be physically unreachable on a
   /// phone that only ever reports 15–25 m accuracy.
   static const double serviceRadiusAccuracySlack = 15.0;
-
-  /// After entering the service radius, moving farther than this from the
-  /// point auto-completes it (the driver has served it and moved on).
-  static const double autoServeExitMeters = 20.0;
 
   /// Chord length (metres) used to read the road tangent under the car for
   /// the avatar's rotation — long enough to smooth polyline vertex kinks,

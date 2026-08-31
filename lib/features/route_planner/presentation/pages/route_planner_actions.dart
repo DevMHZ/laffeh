@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -92,6 +93,69 @@ class RoutePlannerActions {
     }
   }
 
+  /// Picks a CSV off the device and adds every row in it as a stop.
+  ///
+  /// The way a real round arrives. A dispatcher does not send twenty map
+  /// links; they send the sheet they already keep — an address column, a
+  /// customer name, a phone number — and the driver's job is to turn it
+  /// into an order to drive. Pasting that as text loses the names and the
+  /// numbers, which is exactly the part the driver needs at the door.
+  ///
+  /// The file itself is read natively (see `MainActivity.pickCsvFile` and
+  /// `CsvFilePicker`): the system's own document picker asks for no
+  /// permission, so no storage or photo-library grant is involved on either
+  /// platform. Cancelling returns null and says nothing — backing out of a
+  /// file picker is not an error.
+  ///
+  /// Resolving is the slow part: each row may need geocoding, so the
+  /// blocking spinner is the same one shared text gets.
+  /// Returns how many stops actually landed on the route — 0 for a cancelled
+  /// pick, an unreadable file, or a file whose rows all failed to resolve.
+  /// The one caller left is Settings, which is a screen away from the map and
+  /// only worth closing when something did arrive.
+  static Future<int> importCsv(
+    BuildContext context,
+    RoutePlannerCubit cubit,
+  ) async {
+    String? text;
+    try {
+      text = await _appChannel.invokeMethod<String>('pickCsvFile');
+    } catch (_) {
+      if (context.mounted) {
+        AppToast.show(
+          context,
+          AppStrings.csvImportFailed,
+          tone: ToastTone.failure,
+        );
+      }
+      return 0;
+    }
+    if (text == null) return 0; // cancelled
+
+    final stops = RouteCsvUtils.decodeImportRows(text);
+    if (stops.isEmpty) {
+      if (context.mounted) {
+        AppToast.show(
+          context,
+          AppStrings.csvImportEmpty,
+          tone: ToastTone.failure,
+        );
+      }
+      return 0;
+    }
+
+    EasyLoading.show(status: AppStrings.searchingAddresses);
+    final added = await cubit.addImportedStops(stops);
+    EasyLoading.dismiss();
+    if (!context.mounted) return added;
+    AppToast.show(
+      context,
+      addedMessage(added),
+      tone: added > 0 ? ToastTone.success : ToastTone.info,
+    );
+    return added;
+  }
+
   /// Opens a WhatsApp chat with the stop's contact.
   ///
   /// `wa.me` wants bare international digits. A number saved with its country
@@ -99,14 +163,25 @@ class RoutePlannerActions {
   /// internationally, and we hand WhatsApp what we have rather than guessing a
   /// country on the driver's behalf — WhatsApp's own "invalid number" is a
   /// clearer answer than us silently dialling the wrong country.
+  ///
+  /// [message] is dropped into the chat's compose box, ready to send but not
+  /// sent — WhatsApp offers no way to send on the driver's behalf, and it
+  /// would be the wrong thing to want. It is what makes the button
+  /// self-explanatory: from drive mode it arrives already saying "I'm on my
+  /// way" or "I've arrived", so tapping it is one gesture and a thumb on
+  /// send, not a keyboard at the wheel.
   static Future<void> messageStopOnWhatsapp(
     BuildContext context,
-    String phone,
-  ) async {
+    String phone, {
+    String? message,
+  }) async {
     var ok = false;
     try {
+      final text = message == null || message.trim().isEmpty
+          ? ''
+          : '?text=${Uri.encodeComponent(message)}';
       ok = await launchUrl(
-        Uri.parse('https://wa.me/${PhoneUtils.digitsOnly(phone)}'),
+        Uri.parse('https://wa.me/${PhoneUtils.digitsOnly(phone)}$text'),
         mode: LaunchMode.externalApplication,
       );
     } catch (_) {
@@ -425,11 +500,15 @@ class RoutePlannerActions {
       context: context,
       backgroundColor: AppColors.surface,
       showDragHandle: true,
+      // Five ways in is taller than the half-screen a plain sheet gives
+      // itself, and the fifth arrived after the sheet was written: without
+      // this it overflowed by exactly the height of the CSV row.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,

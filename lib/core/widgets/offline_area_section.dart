@@ -9,20 +9,17 @@ import '../theme/app_text_styles.dart';
 import 'app_chevron.dart';
 import 'offline_area_picker_page.dart';
 
-/// Offline map row: a saved patch of map, with no trip involved.
+/// Offline map row: a patch of map the driver picked out themselves.
 ///
-/// The trip corridor only helps someone who has already planned a route. A
-/// driver who opens the app in a basement, or drives out of coverage before
-/// planning anything, needs map under them regardless — that is what this
-/// saves.
-///
-/// Shown in two places, both reading the same saved regions: Settings, and
-/// the offline sheet behind the map's own offline button.
+/// The square the app keeps around them is handled above this row and needs
+/// nobody's attention. This is the other case: a district across town, the
+/// city they are driving to tomorrow, anywhere bigger or elsewhere. Nothing
+/// raises it — a driver who wants a particular map comes looking for it,
+/// and Settings is where they look.
 ///
 /// Deliberately thin: everything about choosing and downloading lives in
-/// [openOfflineAreaPicker], which the offer on the map opens too, so both
-/// routes into the feature behave identically. All this row owes the
-/// driver is whether a map is saved and how big it is.
+/// [openOfflineAreaPicker]. All this row owes the driver is whether a map
+/// is saved and how big it is.
 class OfflineAreaSection extends StatefulWidget {
   const OfflineAreaSection({super.key});
 

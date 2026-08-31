@@ -130,13 +130,6 @@ class RoutePlannerState extends Equatable {
   /// lifecycle as [stopFractions].
   final List<double> maneuverFractions;
 
-  /// Monotonic counter bumped every time a service point is completed
-  /// automatically (enter-then-leave). The HUD listens for increments to
-  /// flash the "service point completed" notice; [autoServedStopLabel]
-  /// carries the completed stop's name.
-  final int autoServeCount;
-  final String? autoServedStopLabel;
-
   /// True while a deviation-triggered route recalculation is in flight.
   /// Navigation keeps running off the old geometry until the new route
   /// lands; the HUD shows a subtle "recalculating" notice meanwhile.
@@ -209,8 +202,6 @@ class RoutePlannerState extends Equatable {
     this.navigationStopDistanceMeters,
     this.navigationStopRouteDistanceMeters,
     this.maneuverFractions = const [],
-    this.autoServeCount = 0,
-    this.autoServedStopLabel,
     this.isRerouting = false,
     this.isOffline = false,
     this.draftRestored = false,
@@ -299,8 +290,6 @@ class RoutePlannerState extends Equatable {
     double? navigationStopDistanceMeters,
     double? navigationStopRouteDistanceMeters,
     List<double>? maneuverFractions,
-    int? autoServeCount,
-    String? autoServedStopLabel,
     bool? isRerouting,
     bool? isOffline,
     bool? draftRestored,
@@ -355,8 +344,6 @@ class RoutePlannerState extends Equatable {
           : (navigationStopRouteDistanceMeters ??
                 this.navigationStopRouteDistanceMeters),
       maneuverFractions: maneuverFractions ?? this.maneuverFractions,
-      autoServeCount: autoServeCount ?? this.autoServeCount,
-      autoServedStopLabel: autoServedStopLabel ?? this.autoServedStopLabel,
       isRerouting: isRerouting ?? this.isRerouting,
       isOffline: isOffline ?? this.isOffline,
       draftRestored: draftRestored ?? this.draftRestored,
@@ -396,8 +383,6 @@ class RoutePlannerState extends Equatable {
     navigationStopDistanceMeters,
     navigationStopRouteDistanceMeters,
     maneuverFractions,
-    autoServeCount,
-    autoServedStopLabel,
     isRerouting,
     isOffline,
     draftRestored,

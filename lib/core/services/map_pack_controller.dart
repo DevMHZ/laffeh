@@ -39,11 +39,12 @@ enum MapPackStatus {
 /// or settings page that started it, so navigating away and back has to
 /// find the progress still running rather than a reset bar.
 ///
-/// There are two instances, because the two packs are independent and
-/// either can be stored without the other: [area] is the map around the
-/// driver, downloaded with no route in sight, and [route] is the corridor
-/// along a planned trip. Clearing a plan deletes the corridor and leaves
-/// the area map exactly where it was.
+/// There are three instances, because the packs are independent and any of
+/// them can be stored without the others: [area] is a map the driver framed
+/// themselves, [autoArea] is the square the app keeps around them without
+/// being asked, and [route] is the corridor along a planned trip. Clearing
+/// a plan deletes the corridor and leaves both area maps exactly where they
+/// were.
 class MapPackController extends ChangeNotifier {
   MapPackController._({
     required String kind,
@@ -65,6 +66,22 @@ class MapPackController extends ChangeNotifier {
     kind: OfflineMapConfig.kindCorridor,
     minZoom: OfflineMapConfig.corridorMinZoom,
     maxZoom: OfflineMapConfig.corridorMaxZoom,
+  );
+
+  /// The square the app keeps around the driver by itself.
+  ///
+  /// A third instance rather than a reuse of [area] because the two are
+  /// driven by different things and must not interrupt each other: [area]
+  /// belongs to the picker and shows the driver a bar they are watching,
+  /// while this one runs in the background off a position fix. Sharing an
+  /// instance would let a silent refresh reset the picker's progress under
+  /// the driver's thumb — and let the picker's `bind` cancel the automatic
+  /// download's identity mid-flight. Same kind and same zooms, so what
+  /// lands on disk is indistinguishable.
+  static final MapPackController autoArea = MapPackController._(
+    kind: OfflineMapConfig.kindArea,
+    minZoom: OfflineMapConfig.areaMinZoom,
+    maxZoom: OfflineMapConfig.areaMaxZoom,
   );
 
   final String _kind;
@@ -128,8 +145,21 @@ class MapPackController extends ChangeNotifier {
   /// listener *outside* the subtree being built (the map's offline button)
   /// as needing to build, which Flutter rejects outright. Deferring costs a
   /// frame and nothing else.
+  ///
+  /// The try/catch covers the case with no binding at all. Downloads are
+  /// started from a position stream now, so this can be reached outside any
+  /// widget tree — and the rest of this layer promises that a missing
+  /// platform degrades to "no offline map", never to a crash. There is
+  /// nothing to schedule against and nobody listening, so plain notifying
+  /// is both correct and enough.
   void _notify() {
-    final phase = SchedulerBinding.instance.schedulerPhase;
+    SchedulerPhase phase;
+    try {
+      phase = SchedulerBinding.instance.schedulerPhase;
+    } catch (_) {
+      notifyListeners();
+      return;
+    }
     if (phase == SchedulerPhase.persistentCallbacks ||
         phase == SchedulerPhase.midFrameMicrotasks) {
       SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());

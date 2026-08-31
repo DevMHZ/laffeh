@@ -12,7 +12,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
+import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../pages/route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../utils/navigation_instructions.dart';
@@ -25,14 +27,19 @@ import 'stop_timeline.dart';
 ///     text + road name) with a continuously counting-down distance,
 ///     Google-Maps style. Falls back to "continue toward stop" when the
 ///     route carries no maneuver data.
-///   * Slim next-stop bar + horizontal stop timeline underneath.
+///   * Slim next-stop bar + horizontal stop timeline underneath, with
+///     one-tap WhatsApp / Call for whoever is waiting at that stop.
 ///   * Bottom info panel: remaining distance, time and arrival clock,
 ///     live speed, focus toggle, Maps / End-trip actions.
-///   * "Point Served" — a large button that appears only while the driver
-///     is inside the service radius of the current stop; serving advances
-///     to the next stop instantly. Leaving the radius without tapping
-///     auto-serves (see the cubit's service state machine) and flashes a
-///     brief notice here.
+///   * An **arrival bar** — one line that appears once the driver reaches
+///     the current stop: the button that marks it served, plus a circle
+///     each for WhatsApp and Call when the stop has a number. Serving is
+///     always the driver's own act; nothing completes a point on their
+///     behalf, and the bar waits until they press it.
+///
+/// Arriving also *removes* things — the maneuver banner and the stop
+/// timeline both stand down — because the screen a driver reads at a
+/// customer's door is a map, not a dashboard.
 class RouteNavigationOverlay extends StatefulWidget {
   final VoidCallback? onOpenGoogleMaps;
 
@@ -162,6 +169,48 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
             : AppStrings.pointServed;
         final serveIcon = isReturn ? Iconsax.flag : Iconsax.tick_circle;
 
+        // ── Reaching whoever is waiting ────────────────────────────
+        //
+        // A *driving* task, not a planning one: "I'm five minutes away",
+        // "nobody is answering the gate", "which building is it?". The
+        // number is already on the stop; the HUD just has to offer it.
+        //
+        // Two moments, and they want different things:
+        //
+        //   * **on the way** — the controls ride on the next-stop pill,
+        //     beside the name they belong to, and WhatsApp opens saying "I'm
+        //     on my way";
+        //   * **at the stop** — they move down into their own card above
+        //     "Point served", because that is where the driver's eye and
+        //     thumb already are once they have parked, and WhatsApp opens
+        //     saying "I've arrived".
+        //
+        // The pill gives them up while arrived rather than showing both: one
+        // pair of buttons on screen, always the pair for right now.
+        final arrived = state.navigationArrived;
+        final phone = target.hasPhone ? target.phone! : null;
+
+        VoidCallback? reach(Future<void> Function(BuildContext, String) via) =>
+            phone == null ? null : () => via(context, phone);
+        final onCallStop = reach(RoutePlannerActions.callStop);
+        final onWhatsappStop = phone == null
+            ? null
+            : () => RoutePlannerActions.messageStopOnWhatsapp(
+                context,
+                phone,
+                message: arrived
+                    ? AppStrings.stopWhatsappArrived
+                    : AppStrings.stopWhatsappOnTheWay,
+              );
+
+        // Nothing here offers to *add* a number. Most stops carry none —
+        // one dropped on the map or found by search never does — and the
+        // drive HUD used to answer that with a card saying so and a button
+        // opening a keypad. On the screen a driver reads at a customer's
+        // door, the common case was a paragraph about an absence. Typing a
+        // number is planning work; it lives on the stop, in the planning
+        // sheet, where there is a keyboard and no engine running.
+
         // Landscape is available for the whole drive. A full-width banner
         // across a wide screen would bury the map, so the HUD docks on the
         // leading edge instead: a full column of the same cards outside
@@ -185,7 +234,10 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       distanceToTarget: distanceToTarget,
                       speedMps: state.navigationSpeedMps,
                       arrived: state.navigationArrived,
+                      serveLabel: serveLabel,
                       onServe: cubit.servePoint,
+                      onWhatsapp: onWhatsappStop,
+                      onCall: onCallStop,
                       onExitFocus: () => _setFocusMode(false),
                     ),
                   ),
@@ -206,24 +258,29 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (instruction != null)
+                        if (instruction != null && !arrived)
                           _InstructionBanner(instruction: instruction),
-                        const SizedBox(height: 6),
+                        if (instruction != null && !arrived)
+                          const SizedBox(height: 6),
                         _NextStopBar(
                           isReturn: isReturn,
+                          arrived: arrived,
                           subtitle: subtitle,
                           label: target.label,
                           distanceToTarget: distanceToTarget,
                           onLongPress: cubit.servePoint,
+                          onWhatsapp: arrived ? null : onWhatsappStop,
+                          onCall: arrived ? null : onCallStop,
                         ),
-                        const _AutoServeNotice(),
                         _ReroutingNotice(visible: state.isRerouting),
                         const Spacer(),
-                        _ServedButton(
-                          visible: state.navigationArrived,
+                        _ArrivedBar(
+                          visible: arrived,
                           label: serveLabel,
                           icon: serveIcon,
-                          onTap: cubit.servePoint,
+                          onServe: cubit.servePoint,
+                          onWhatsapp: onWhatsappStop,
+                          onCall: onCallStop,
                         ),
                         _BottomPanel(
                           remainingKm: remainingKm,
@@ -253,28 +310,34 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
                   child: Column(
                     children: [
-                      if (instruction != null)
+                      // Arriving retires the maneuver banner. There is no
+                      // next turn at a customer's door, and the biggest,
+                      // darkest panel on the screen was spending the top of
+                      // the map saying so.
+                      if (instruction != null && !arrived) ...[
                         _InstructionBanner(instruction: instruction),
-                      const SizedBox(height: 6),
+                        const SizedBox(height: 6),
+                      ],
                       _NextStopBar(
                         isReturn: isReturn,
+                        arrived: arrived,
                         subtitle: subtitle,
                         label: target.label,
                         distanceToTarget: distanceToTarget,
                         // Escape hatch: a long-press serves the point even
                         // when GPS never registers the 10 m radius.
                         onLongPress: cubit.servePoint,
+                        onWhatsapp: arrived ? null : onWhatsappStop,
+                        onCall: arrived ? null : onCallStop,
                       ),
-                      // One-shot "service point completed" notice for
-                      // automatic completions.
-                      const _AutoServeNotice(),
                       // Subtle live notice while a deviation triggers a
                       // background route recalculation.
                       _ReroutingNotice(visible: state.isRerouting),
                       // The timeline is a picture of a sequence. With one
                       // place to be there is no sequence to picture, so it
-                      // stays away and the map keeps the room.
-                      if (!_focusMode && !soleDestination) ...[
+                      // stays away and the map keeps the room — and at the
+                      // stop the sequence is not the question either.
+                      if (!_focusMode && !soleDestination && !arrived) ...[
                         const SizedBox(height: 6),
                         // Timeline strip.
                         GlassPanel(
@@ -306,11 +369,16 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _ServedButton(
-                        visible: state.navigationArrived,
+                      // Everything arriving needs, on one line: the button
+                      // that closes the leg, and — only if there is somebody
+                      // to reach — the two ways to reach them.
+                      _ArrivedBar(
+                        visible: arrived,
                         label: serveLabel,
                         icon: serveIcon,
-                        onTap: cubit.servePoint,
+                        onServe: cubit.servePoint,
+                        onWhatsapp: onWhatsappStop,
+                        onCall: onCallStop,
                       ),
                       _focusMode
                           ? _FocusExitBar(
@@ -451,19 +519,44 @@ class _InstructionBanner extends StatelessWidget {
 /// Slim pill under the instruction banner: which service point is next
 /// (n of m + name) and how far it is. Long-press = manual serve escape
 /// hatch when GPS can't register the service radius.
+///
+/// When the stop carries a phone number the pill grows a second line: one
+/// full-width button per channel, WhatsApp and Call, side by side.
+///
+/// Two buttons rather than one that opens a chooser, and no hiding them
+/// behind a tap on the pill. This is a HUD in a moving vehicle: every extra
+/// step is a second longer looking down, and a hidden control is one the
+/// driver has to remember exists. They are also deliberately sized like the
+/// serve button rather than like icons — a thumb aiming at a phone clipped
+/// to a windscreen is not a thumb aiming at a 20 px target.
 class _NextStopBar extends StatelessWidget {
   final bool isReturn;
+
+  /// At the stop the pill stops being a heading and becomes an answer:
+  /// a tick, the word for it, and the name. The distance goes — "0 m" to
+  /// somewhere the driver is standing is noise — and so does the contact
+  /// row, which has moved down to the arrival bar where the thumb is.
+  final bool arrived;
+
   final String subtitle;
   final String label;
   final double? distanceToTarget;
   final VoidCallback onLongPress;
 
+  /// Null when the stop has no number — which is also the depot's answer on
+  /// the leg home.
+  final VoidCallback? onWhatsapp;
+  final VoidCallback? onCall;
+
   const _NextStopBar({
     required this.isReturn,
+    required this.arrived,
     required this.subtitle,
     required this.label,
     required this.distanceToTarget,
     required this.onLongPress,
+    this.onWhatsapp,
+    this.onCall,
   });
 
   @override
@@ -480,52 +573,102 @@ class _NextStopBar extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(
-                  isReturn ? Iconsax.repeat : Iconsax.location,
-                  color: AppColors.white,
-                  size: 14,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.mutedSm.copyWith(
-                        color: AppColors.white.withValues(alpha: 0.65),
-                      ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: arrived ? AppColors.success : AppColors.primary,
+                      borderRadius: BorderRadius.circular(9),
                     ),
+                    child: Icon(
+                      arrived
+                          ? Iconsax.tick_circle
+                          : isReturn
+                          ? Iconsax.repeat
+                          : Iconsax.location,
+                      color: AppColors.white,
+                      size: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          arrived ? AppStrings.arrivedHere : subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.mutedSm.copyWith(
+                            color: AppColors.white.withValues(alpha: 0.65),
+                          ),
+                        ),
+                        Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.titleSm.copyWith(
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (distanceToTarget != null && !arrived) ...[
+                    const SizedBox(width: 8),
                     Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.titleSm.copyWith(
+                      MetricFormat.distance(distanceToTarget!),
+                      style: AppTextStyles.titleMd.copyWith(
                         color: AppColors.white,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              if (distanceToTarget != null) ...[
-                const SizedBox(width: 8),
-                Text(
-                  MetricFormat.distance(distanceToTarget!),
-                  style: AppTextStyles.titleMd.copyWith(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
+              if (onWhatsapp != null || onCall != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (onWhatsapp != null)
+                      Expanded(
+                        child: _ContactButton(
+                          // The real mark, not a generic chat bubble: at a
+                          // glance in a moving car, the logo is read before
+                          // the word underneath it ever is.
+                          glyph: const WhatsappGlyph(
+                            size: 19,
+                            color: AppColors.white,
+                          ),
+                          label: AppStrings.stopWhatsapp,
+                          // White on a green wash rather than green text:
+                          // the tint is what separates the two buttons, and
+                          // white is the one foreground that survives every
+                          // palette on asphalt.
+                          background: AppColors.success.withValues(alpha: 0.28),
+                          onTap: onWhatsapp!,
+                        ),
+                      ),
+                    if (onWhatsapp != null && onCall != null)
+                      const SizedBox(width: 8),
+                    if (onCall != null)
+                      Expanded(
+                        child: _ContactButton(
+                          glyph: const Icon(
+                            Iconsax.call,
+                            size: 19,
+                            color: AppColors.white,
+                          ),
+                          label: AppStrings.stopCall,
+                          background: AppColors.white.withValues(alpha: 0.13),
+                          onTap: onCall!,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ],
@@ -536,90 +679,65 @@ class _NextStopBar extends StatelessWidget {
   }
 }
 
-/// One-shot animated notice for automatic service completion:
-/// "Service point completed. Navigating to next stop."
-class _AutoServeNotice extends StatefulWidget {
-  const _AutoServeNotice();
+/// One channel to the stop's contact, sized for a thumb in a moving car.
+///
+/// Height, radius and weight are borrowed from the serve button rather than
+/// from anything in the planning sheet: on this screen a control is either
+/// hittable without aiming or it may as well not be there.
+class _ContactButton extends StatelessWidget {
+  final Widget glyph;
+  final String label;
+  final Color background;
 
-  @override
-  State<_AutoServeNotice> createState() => _AutoServeNoticeState();
-}
+  final VoidCallback onTap;
 
-class _AutoServeNoticeState extends State<_AutoServeNotice> {
-  bool _visible = false;
-  Timer? _hideTimer;
+  /// Sized for the next-stop pill, its one home: tall enough for a thumb
+  /// aiming at a windscreen mount, short enough that the pill stays a pill.
+  static const double _height = 46;
 
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    super.dispose();
-  }
-
-  void _flash() {
-    _hideTimer?.cancel();
-    setState(() => _visible = true);
-    _hideTimer = Timer(const Duration(milliseconds: 2800), () {
-      if (mounted) setState(() => _visible = false);
-    });
-  }
+  const _ContactButton({
+    required this.glyph,
+    required this.label,
+    required this.background,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<RoutePlannerCubit, RoutePlannerState>(
-      listenWhen: (a, b) =>
-          b.autoServeCount > a.autoServeCount && b.navigationActive,
-      listener: (_, __) => _flash(),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        child: !_visible
-            ? const SizedBox(width: double.infinity)
-            : Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _visible ? 1 : 0,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: AppColors.shadow,
-                          blurRadius: 14,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Iconsax.tick_circle,
-                            color: AppColors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              AppStrings.autoServedNotice,
-                              maxLines: 2,
-                              style: AppTextStyles.bodySm.copyWith(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: SizedBox(
+          height: _height,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              glyph,
+              const SizedBox(width: 8),
+              // Arabic "واتساب" beside a logo on half a narrow phone is
+              // tight; shrink the word rather than clip it.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -684,21 +802,46 @@ class _ReroutingNotice extends StatelessWidget {
   }
 }
 
-/// The "Point Served" action: hidden until the driver is inside the
-/// service radius, then springs in as a large, impossible-to-miss button
-/// that's easy to hit while stopped.
-class _ServedButton extends StatelessWidget {
+/// Everything arriving needs, on one line.
+///
+/// What used to be here was a card and a button: a titled panel naming the
+/// stop, repeating its number, offering to take one when there wasn't
+/// one — and under it a full-width "Point served". Together they took a
+/// third of the screen at the exact moment the driver is parked at a door
+/// trying to see which building it is on the map.
+///
+/// So it collapses to a single row: the button that closes the leg takes
+/// the width, and the two ways to reach the customer become plain circles
+/// beside it. Nothing is written that the driver already knows — the name
+/// is on the pill at the top, the number is on the phone once it dials —
+/// and when the stop has nobody to call, the row is only the button.
+///
+/// It appears once the driver is at the stop and does not leave again
+/// until they press it. Serving is theirs to declare now: the app no
+/// longer decides a point was done because the vehicle drove away from it.
+class _ArrivedBar extends StatelessWidget {
   final bool visible;
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback onServe;
 
-  const _ServedButton({
+  /// Null when the stop has no number, which is most stops — then the row
+  /// is the serve button alone, and says nothing about the absence.
+  final VoidCallback? onWhatsapp;
+  final VoidCallback? onCall;
+
+  const _ArrivedBar({
     required this.visible,
     required this.label,
     required this.icon,
-    required this.onTap,
+    required this.onServe,
+    required this.onWhatsapp,
+    required this.onCall,
   });
+
+  /// One height for the whole row, so the circles read as siblings of the
+  /// button rather than as decoration on it.
+  static const double _height = 60;
 
   @override
   Widget build(BuildContext context) {
@@ -713,38 +856,113 @@ class _ServedButton extends StatelessWidget {
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutBack,
                 scale: visible ? 1 : 0.8,
-                child: Material(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(18),
-                  elevation: 8,
-                  shadowColor: AppColors.shadow,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      onTap();
-                    },
-                    child: SizedBox(
-                      height: 58,
-                      width: double.infinity,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(icon, color: AppColors.white, size: 24),
-                          const SizedBox(width: 10),
-                          Text(
-                            label,
-                            style: AppTextStyles.h3.copyWith(
-                              color: AppColors.white,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Material(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(18),
+                        elevation: 8,
+                        shadowColor: AppColors.shadow,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            onServe();
+                          },
+                          child: SizedBox(
+                            height: _height,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(icon, color: AppColors.white, size: 24),
+                                const SizedBox(width: 10),
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      label,
+                                      maxLines: 1,
+                                      style: AppTextStyles.h3.copyWith(
+                                        color: AppColors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    if (onWhatsapp != null) ...[
+                      const SizedBox(width: 8),
+                      _RoundContact(
+                        background: AppColors.success,
+                        onTap: onWhatsapp!,
+                        child: const WhatsappGlyph(
+                          size: 24,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ],
+                    if (onCall != null) ...[
+                      const SizedBox(width: 8),
+                      _RoundContact(
+                        background: AppColors.asphalt,
+                        onTap: onCall!,
+                        child: const Icon(
+                          Iconsax.call,
+                          size: 24,
+                          color: AppColors.white,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// One way to reach the customer, at the stop: a glyph in a circle, no
+/// label under it.
+///
+/// The word was worth having on the next-stop pill, where the buttons are
+/// an offer the driver has not thought about yet. Here they have parked in
+/// front of the address; a green WhatsApp mark and a handset are read
+/// faster than either word, and the two saved lines are map.
+class _RoundContact extends StatelessWidget {
+  final Widget child;
+  final Color background;
+  final VoidCallback onTap;
+
+  const _RoundContact({
+    required this.child,
+    required this.background,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      shape: const CircleBorder(),
+      elevation: 6,
+      shadowColor: AppColors.shadow,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: SizedBox(
+          width: _ArrivedBar._height,
+          height: _ArrivedBar._height,
+          child: Center(child: child),
+        ),
+      ),
     );
   }
 }
@@ -971,6 +1189,11 @@ class _StatDivider extends StatelessWidget {
 /// Tapping the next-stop badge expands the rail to reveal the stop name (and
 /// "Next stop · N of M" heading); tapping again collapses it. The expand state
 /// is local — width animates so the map is uncovered again the moment it closes.
+///
+/// Contact keeps its place here too, as two stacked circles. Focus mode is
+/// where a driver spends the long stretches between stops, so it is exactly
+/// where "call ahead" happens — sending them back to portrait for it would
+/// undo the point of the rail.
 class _LandscapeHudRail extends StatefulWidget {
   final bool isReturn;
   final String subtitle;
@@ -980,7 +1203,14 @@ class _LandscapeHudRail extends StatefulWidget {
   final double? distanceToTarget;
   final double? speedMps;
   final bool arrived;
+
+  /// What the serve button says — "point served", "arrived", or "end trip"
+  /// on the leg home. The rail used to say nothing at all, which made the
+  /// one irreversible control on the screen the only unlabelled one.
+  final String serveLabel;
   final VoidCallback onServe;
+  final VoidCallback? onWhatsapp;
+  final VoidCallback? onCall;
   final VoidCallback onExitFocus;
 
   const _LandscapeHudRail({
@@ -992,7 +1222,10 @@ class _LandscapeHudRail extends StatefulWidget {
     required this.distanceToTarget,
     required this.speedMps,
     required this.arrived,
+    required this.serveLabel,
     required this.onServe,
+    required this.onWhatsapp,
+    required this.onCall,
     required this.onExitFocus,
   });
 
@@ -1002,6 +1235,13 @@ class _LandscapeHudRail extends StatefulWidget {
 
 class _LandscapeHudRailState extends State<_LandscapeHudRail> {
   bool _expanded = false;
+
+  /// The rail is a sliver by choice — eyes on the road, map everywhere
+  /// else. Arriving is the one moment that choice stops being right: the
+  /// driver has parked, and what they need now is a button they can hit
+  /// without aiming and a name on it telling them what it does. So the
+  /// rail opens itself, whether or not they ever tapped it open.
+  bool get _open => _expanded || widget.arrived;
 
   void _toggle() {
     HapticFeedback.selectionClick();
@@ -1017,11 +1257,11 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
       curve: Curves.easeOutCubic,
       alignment: AlignmentDirectional.centerStart,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: _expanded ? 200 : 58),
+        constraints: BoxConstraints(maxWidth: _open ? 200 : 58),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: AppColors.asphalt.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(_expanded ? 22 : 28),
+            borderRadius: BorderRadius.circular(_open ? 22 : 28),
             boxShadow: const [
               BoxShadow(
                 color: AppColors.shadow,
@@ -1033,14 +1273,15 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
           child: Padding(
             padding: EdgeInsets.symmetric(
               vertical: 12,
-              horizontal: _expanded ? 12 : 6,
+              horizontal: _open ? 12 : 6,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Upcoming maneuver — the primary in-drive information.
-                if (instruction != null) ...[
+                // Upcoming maneuver — the primary in-drive information,
+                // and beside a customer's door, no information at all.
+                if (instruction != null && !widget.arrived) ...[
                   Icon(instruction.icon, size: 22, color: AppColors.white),
                   const SizedBox(height: 2),
                   Text(
@@ -1091,11 +1332,14 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
                   ),
                 ),
 
-                // Stop name + heading — only when expanded.
-                if (_expanded) ...[
+                // Stop name + heading — whenever the rail is open.
+                if (_open) ...[
                   const SizedBox(height: 2),
                   Text(
-                    widget.subtitle,
+                    // The same answer the portrait pill gives: at the door,
+                    // "next stop · 1 of 4" is describing a queue the driver
+                    // has already reached the front of.
+                    widget.arrived ? AppStrings.arrivedHere : widget.subtitle,
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1126,8 +1370,9 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
                   ],
                 ],
 
-                // Live distance to the target — the big number.
-                if (widget.distanceToTarget != null) ...[
+                // Live distance to the target — the big number, until
+                // there is no distance left to run.
+                if (widget.distanceToTarget != null && !widget.arrived) ...[
                   const SizedBox(height: 8),
                   Text(
                     MetricFormat.distance(widget.distanceToTarget!),
@@ -1140,26 +1385,90 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
                   ),
                 ],
 
-                // Serve control — only while inside the service radius.
-                if (widget.arrived) ...[
+                // Contact — above the serve control, because it is the
+                // one that matters *before* arriving. Collapsed the rail is
+                // 58 wide, so the two circles sit on one line; open, they
+                // grow to the size a parked thumb expects.
+                if (widget.onWhatsapp != null || widget.onCall != null) ...[
                   const SizedBox(height: 10),
-                  Align(
-                    child: Material(
-                      color: AppColors.primary,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          widget.onServe();
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.all(11),
-                          child: Icon(
-                            Iconsax.tick_circle,
-                            size: 20,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (widget.onWhatsapp != null)
+                        _RailCircleButton(
+                          background: widget.arrived
+                              ? AppColors.success
+                              : AppColors.success.withValues(alpha: 0.30),
+                          big: widget.arrived,
+                          onTap: widget.onWhatsapp!,
+                          child: WhatsappGlyph(
+                            size: widget.arrived ? 22 : 18,
                             color: AppColors.white,
                           ),
+                        ),
+                      if (widget.onWhatsapp != null && widget.onCall != null)
+                        SizedBox(width: widget.arrived ? 10 : 6),
+                      if (widget.onCall != null)
+                        _RailCircleButton(
+                          background: widget.arrived
+                              ? AppColors.white.withValues(alpha: 0.22)
+                              : AppColors.white.withValues(alpha: 0.13),
+                          big: widget.arrived,
+                          onTap: widget.onCall!,
+                          child: Icon(
+                            Iconsax.call,
+                            size: widget.arrived ? 22 : 18,
+                            color: AppColors.white,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+
+                // Serve control — only once the driver has reached the
+                // stop, and then as a named button across the whole rail
+                // rather than a tick in a circle. Focus mode is a smaller
+                // HUD, not a more cryptic one: the control that closes the
+                // leg has to say what it does here exactly as it does in
+                // the full HUD, and be as easy to hit.
+                if (widget.arrived) ...[
+                  const SizedBox(height: 12),
+                  Material(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        widget.onServe();
+                      },
+                      child: SizedBox(
+                        height: 50,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              widget.isReturn
+                                  ? Iconsax.flag
+                                  : Iconsax.tick_circle,
+                              size: 20,
+                              color: AppColors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  widget.serveLabel,
+                                  maxLines: 1,
+                                  style: AppTextStyles.titleSm.copyWith(
+                                    color: AppColors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1201,6 +1510,50 @@ class _LandscapeHudRailState extends State<_LandscapeHudRail> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One round control on the landscape rail.
+///
+/// The rail's own serve and exit buttons predate it and are still written
+/// out by hand; this exists because the two contact circles are a *pair*
+/// and had to be identical, which is exactly the case a shared widget is
+/// for.
+class _RailCircleButton extends StatelessWidget {
+  final Widget child;
+  final Color background;
+
+  /// True at the stop, where the rail is open and the thumb is not on a
+  /// steering wheel — 52 px across instead of a glance-sized 38.
+  final bool big;
+
+  final VoidCallback onTap;
+
+  const _RailCircleButton({
+    required this.child,
+    required this.background,
+    required this.onTap,
+    this.big = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: SizedBox(
+          width: big ? 52 : 38,
+          height: big ? 52 : 38,
+          child: Center(child: child),
         ),
       ),
     );

@@ -87,6 +87,12 @@ class RouteMapViewState extends State<RouteMapView>
   /// move so the compass widget can counter-rotate the needle in real time.
   final ValueNotifier<double> _bearing = ValueNotifier(0);
 
+  /// Camera tilt in degrees, 0 flat. Feeds the same control the bearing
+  /// does: once the map can be tilted by hand, "put it back" has to cover
+  /// the angle as well as the heading, or the driver is left looking at a
+  /// 3D map with no way out of it.
+  final ValueNotifier<double> _tilt = ValueNotifier(0);
+
   /// Drives the on-map "return to my location" control: flips to true once
   /// the user pans the planning map noticeably away from their current
   /// position, and back to false when they're roughly centred on it again.
@@ -441,6 +447,7 @@ class RouteMapViewState extends State<RouteMapView>
     _controller = null;
     _styleLoaded = false;
     _bearing.dispose();
+    _tilt.dispose();
     _showRecenter.dispose();
     aimOffset.dispose();
     _navPuckPos.dispose();
@@ -483,6 +490,7 @@ class RouteMapViewState extends State<RouteMapView>
 
   void _onCameraMove(CameraPosition position) {
     _bearing.value = position.bearing;
+    _tilt.value = position.tilt;
     // Keep the drop point (= camera centre) continuously fresh, so adding
     // a point is accurate even if onCameraIdle is unreliable on a device.
     _mapCenter = ll.LatLng(position.target.latitude, position.target.longitude);
@@ -538,6 +546,16 @@ class RouteMapViewState extends State<RouteMapView>
 
   void _onCameraIdle() {
     _updateMapCenter();
+    // Settle the heading/angle from the camera itself rather than trusting
+    // the last `onCameraMove`. An animated move stops reporting a frame or
+    // two before it finishes, which leaves a hair of tilt on the notifier —
+    // enough to strand the "put the map back" control on screen after it has
+    // already put the map back.
+    final cam = _controller?.cameraPosition;
+    if (cam != null) {
+      _bearing.value = cam.bearing;
+      _tilt.value = cam.tilt;
+    }
     unawaited(_calibrateAim());
   }
 
@@ -1627,6 +1645,16 @@ class RouteMapViewState extends State<RouteMapView>
     if (_disposed) return;
     if (!_styleLoaded) return;
 
+    // Aiming is a top-down act. The crosshair↔drop-point calibration is
+    // measured flat and north-up (see [_calibrateAim], which refuses to
+    // re-measure under an angle), so a tilted map would put the pin
+    // somewhere other than where the driver aimed it. Flatten as they enter
+    // the aiming flow rather than letting them find out afterwards.
+    if (state.manualPlacement || state.movingPointId != null) {
+      final tilt = _controller?.cameraPosition?.tilt ?? 0;
+      if (tilt.abs() > 1) await _animateCamera(CameraUpdate.tiltTo(0));
+    }
+
     // Moving a point (#9): centre on it once, then let the user pan it
     // under the reticle. Takes priority over the route-fit logic so the
     // post-optimize "move" case frames the point properly.
@@ -2413,7 +2441,13 @@ class RouteMapViewState extends State<RouteMapView>
     }
   }
 
-  void _holdNorth() {
+  /// Puts the map back: north-up and flat.
+  ///
+  /// Both, not just the heading, because both are now things a driver can
+  /// change by hand and this is the only control that undoes either. Mid-
+  /// drive it means something different — hand the camera back to the
+  /// navigation logic, which owns the tilt there.
+  void _resetViewAngle() {
     final state = context.read<RoutePlannerCubit>().state;
     if (state.navigationActive) {
       _northLock = false;
@@ -2421,7 +2455,17 @@ class RouteMapViewState extends State<RouteMapView>
       return;
     }
     _northLock = true;
-    unawaited(_animateCamera(CameraUpdate.bearingTo(0)));
+    unawaited(_flattenView());
+  }
+
+  /// Animates the planning camera back to flat and north-up.
+  ///
+  /// Two updates rather than a `newCameraPosition`, so neither the centre
+  /// nor the zoom is touched — the driver keeps looking at exactly what
+  /// they were looking at, from above.
+  Future<void> _flattenView() async {
+    await _animateCamera(CameraUpdate.bearingTo(0));
+    await _animateCamera(CameraUpdate.tiltTo(0));
   }
 
   /// Re-frame the whole route in panoramic mode after the user zoomed or
@@ -2453,6 +2497,8 @@ class RouteMapViewState extends State<RouteMapView>
           a.userLocation != b.userLocation ||
           a.points != b.points ||
           a.movingPointId != b.movingPointId ||
+          // Entering the aim flow flattens the map — see [_syncCamera].
+          a.manualPlacement != b.manualPlacement ||
           a.displaySegment != b.displaySegment,
       listener: (_, state) => _scheduleApply(state),
       child: Stack(
@@ -2574,7 +2620,11 @@ class RouteMapViewState extends State<RouteMapView>
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.only(left: 14),
-                    child: MapCompass(bearing: _bearing, onTap: _holdNorth),
+                    child: MapCompass(
+                      bearing: _bearing,
+                      tilt: _tilt,
+                      onTap: _resetViewAngle,
+                    ),
                   ),
                 ),
               );
@@ -2663,37 +2713,52 @@ class RouteMapViewState extends State<RouteMapView>
           // Drive-mode "Re-center": floats above the HUD's bottom panel
           // while the user is exploring the map mid-navigation. One tap
           // (or 3 s hands-off) returns to the follow camera.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: MediaQuery.paddingOf(context).bottom + 200,
-            child: Center(
-              child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-                buildWhen: (a, b) => a.navigationActive != b.navigationActive,
-                builder: (context, state) {
-                  if (!state.navigationActive) return const SizedBox.shrink();
-                  return ValueListenableBuilder<bool>(
-                    valueListenable: _navExploring,
-                    builder: (context, exploring, __) {
-                      return AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        transitionBuilder: (child, anim) => FadeTransition(
-                          opacity: anim,
-                          child: ScaleTransition(scale: anim, child: child),
-                        ),
-                        child: exploring
-                            ? RecenterButton(
-                                key: const ValueKey('nav-recenter'),
-                                icon: Icons.navigation_rounded,
-                                label: AppStrings.reCenter,
-                                onTap: () => _stopExploring(resumeCamera: true),
-                              )
-                            : const SizedBox.shrink(),
-                      );
-                    },
-                  );
-                },
-              ),
+          //
+          // It rides higher once the driver has reached a stop, because the
+          // HUD grows the arrival bar underneath it then. A control that
+          // overlaps the button ending the leg is worse than one slightly
+          // further from the thumb.
+          Positioned.fill(
+            child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+              buildWhen: (a, b) =>
+                  a.navigationActive != b.navigationActive ||
+                  a.navigationArrived != b.navigationArrived,
+              builder: (context, state) {
+                if (!state.navigationActive) return const SizedBox.shrink();
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom:
+                          MediaQuery.paddingOf(context).bottom +
+                          (state.navigationArrived
+                              ? MapConfig.navRecenterLiftArrivedPx
+                              : MapConfig.navRecenterLiftPx),
+                    ),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: _navExploring,
+                      builder: (context, exploring, __) {
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, anim) => FadeTransition(
+                            opacity: anim,
+                            child: ScaleTransition(scale: anim, child: child),
+                          ),
+                          child: exploring
+                              ? RecenterButton(
+                                  key: const ValueKey('nav-recenter'),
+                                  icon: Icons.navigation_rounded,
+                                  label: AppStrings.reCenter,
+                                  onTap: () =>
+                                      _stopExploring(resumeCamera: true),
+                                )
+                              : const SizedBox.shrink(),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -2740,9 +2805,21 @@ class RouteMapViewState extends State<RouteMapView>
       rotateGesturesEnabled: false,
       scrollGesturesEnabled: gesturesEnabled,
       zoomGesturesEnabled: gesturesEnabled,
-      // Keep the viewing angle owned by the app camera so drive mode never
-      // drifts into a manual side/top angle.
-      tiltGesturesEnabled: false,
+      // Two fingers dragged up or down tilt the planning map into a 3D
+      // view, the same one drive mode uses.
+      //
+      // It was off on the reasoning that the viewing angle belongs to the
+      // app camera and a manual angle would leak into the drive. It does
+      // not: entering navigation sets its own tilt, and leaving flattens
+      // back to zero. What the ban actually cost was a driver's ability to
+      // look down a street they are planning around — and it left the
+      // compass permanently invisible, since nothing could turn the map
+      // off north either.
+      //
+      // Rotation stays off. Tilt answers "what does this street look like";
+      // a map that has also quietly spun 40° answers nothing, and the two
+      // ride on gestures close enough that a thumb aiming for one gets both.
+      tiltGesturesEnabled: gesturesEnabled,
       myLocationEnabled: false,
       minMaxZoomPreference: const MinMaxZoomPreference(
         MapConfig.minZoom,

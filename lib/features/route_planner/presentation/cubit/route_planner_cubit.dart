@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/services/auto_map_cache.dart';
 import '../../../../core/services/location_gate.dart';
 import '../../../../core/config/map_config.dart';
 import '../../../../core/config/navigation_config.dart';
@@ -78,9 +79,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// regressing the trail (you can't un-drive a segment).
   double _lastNavProgress = 0.0;
 
-  /// Service-point state machine: true once the driver has entered the
-  /// service radius of the *current* target stop. Armed → leaving beyond
-  /// [NavigationConfig.autoServeExitMeters] auto-completes the point.
+  /// Service-point state machine: true once the driver has reached the
+  /// *current* target stop — entered its service radius, or driven past it
+  /// on the planned route. Armed, it keeps the serve button on screen
+  /// until the driver presses it; only serving clears it.
   bool _enteredServiceRadius = false;
 
   // ── Deviation → automatic reroute state ──
@@ -150,6 +152,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       // Permission is granted and a fix landed, so the dot can start
       // following the driver instead of freezing here.
       _startLiveLocation();
+      _keepOfflineMapAround(loc);
     } on LocationException catch (e) {
       developer.log('Location unavailable: ${e.message}');
       emit(
@@ -280,12 +283,19 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       _stopLiveLocation();
       return;
     }
-    emit(
-      state.copyWith(
-        userLocation: LatLng(position.latitude, position.longitude),
-      ),
-    );
+    final loc = LatLng(position.latitude, position.longitude);
+    emit(state.copyWith(userLocation: loc));
+    _keepOfflineMapAround(loc);
   }
+
+  /// Keeps a square of map stored around the driver, without saying so.
+  ///
+  /// Fire-and-forget by design: nothing in the planner waits on it, and a
+  /// failure to store map has no bearing on anything the driver is doing
+  /// right now. [AutoMapCache] carries its own gates, so this can sit on a
+  /// position stream without turning every fix into work.
+  void _keepOfflineMapAround(LatLng where) =>
+      unawaited(AutoMapCache.ensureAround(where));
 
   /// A background stream that dies is not worth a banner: the dot simply
   /// stops moving, exactly as it behaved before this stream existed. The
@@ -1002,12 +1012,29 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   void setPointPhone(String id, String? phone) {
     final trimmed = phone?.trim();
     final clear = trimmed == null || trimmed.isEmpty;
-    final list = state.points.map((p) {
-      if (p.id != id) return p;
-      return clear ? p.copyWith(clearPhone: true) : p.copyWith(phone: trimmed);
-    }).toList();
+    RoutePoint apply(RoutePoint p) => p.id != id
+        ? p
+        : clear
+        ? p.copyWith(clearPhone: true)
+        : p.copyWith(phone: trimmed);
+
+    final list = state.points.map(apply).toList();
+
+    // The solved route keeps its own copies of the stops, so a number added
+    // after optimizing — or added *mid-drive*, from the HUD, which is where
+    // it is most likely to happen — would otherwise be invisible to every
+    // screen that reads the route rather than the plan. The route's own
+    // return leg carries a suffixed id and simply never matches, which is
+    // correct: it is the depot.
+    final route = state.optimizedRoute;
     emit(
-      state.copyWith(points: list, status: RoutePlannerStatus.pointsUpdated),
+      state.copyWith(
+        points: list,
+        optimizedRoute: route?.withPoints(
+          route.orderedPoints.map(apply).toList(),
+        ),
+        status: RoutePlannerStatus.pointsUpdated,
+      ),
     );
   }
 
@@ -1611,9 +1638,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     );
   }
 
-  /// Driver taps "Point Served" — manual completion, always wins over the
-  /// automatic fallback. Marks the current target stop as done and
-  /// activates the next one; serving the last point ends the trip.
+  /// Driver taps the serve button — the only way a point is completed.
+  /// Marks the current target stop as done and activates the next one;
+  /// serving the last point ends the trip.
   void servePoint() {
     if (state.optimizedRoute == null || !state.navigationActive) return;
     HapticFeedback.mediumImpact();
@@ -1699,11 +1726,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     }
   }
 
-  /// Shared completion path for manual + automatic serving. Advances to
-  /// the next service point (ending the trip after the final one) and,
-  /// when [autoServedLabel] is set, bumps the one-shot auto-serve notice
-  /// the HUD listens for.
-  void _advanceServicePoint({String? autoServedLabel}) {
+  /// Closes the current leg: advances to the next service point, or ends
+  /// the trip after the final one. Only [servePoint] reaches it — nothing
+  /// completes a point on the driver's behalf.
+  void _advanceServicePoint() {
     final route = state.optimizedRoute;
     if (route == null || !state.navigationActive) return;
     _enteredServiceRadius = false;
@@ -1718,10 +1744,6 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationStopIndex: next,
         navigationArrived: false,
         clearNavigationStopDistance: true,
-        autoServeCount: autoServedLabel != null
-            ? state.autoServeCount + 1
-            : state.autoServeCount,
-        autoServedStopLabel: autoServedLabel,
       ),
     );
   }
@@ -2090,6 +2112,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     }
 
     final loc = LatLng(position.latitude, position.longitude);
+    // A drive is exactly when losing the map hurts most, and exactly when
+    // the driver is in no position to do anything about it.
+    _keepOfflineMapAround(loc);
     final rawHeading = position.heading.isFinite && position.heading >= 0
         ? position.heading
         : null;
@@ -2145,12 +2170,23 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     }
 
     // ── Service-point state machine ──
-    // Upcoming → Arrived (inside the service radius; Point Served button
-    // shows) → Served, either manually (button) or automatically once the
-    // driver leaves the area and is >autoServeExitMeters away.
+    // Upcoming → Arrived (the driver has reached the stop) → Served, and
+    // only the driver serves it. The app used to complete a point by
+    // itself as soon as the vehicle left the area, on the theory that
+    // driving away is what "done" looks like. From the seat it looked
+    // like the trip skipping a stop nobody had finished: a delivery still
+    // in the boot, a customer not yet at the door, a wrong turn out of a
+    // car park. So arriving now only *offers* the button, and it keeps
+    // offering it until the driver presses it.
     final stopIndex = state.navigationStopIndex;
     var arrived = state.navigationArrived;
     double? distToStop;
+    // Whether the vehicle is inside the radius *right now* — as opposed to
+    // [_enteredServiceRadius], which stays armed once reached. Being off
+    // the road is normal at a stop (driveways, yards, car parks), so this
+    // is what the deviation watch has to read; the sticky flag would mute
+    // rerouting for the rest of a trip the driver never confirmed.
+    var atStop = false;
     if (stopIndex < route.orderedPoints.length) {
       final targetStop = route.orderedPoints[stopIndex];
       distToStop = DistanceUtils.haversineKm(loc, targetStop.latLng) * 1000;
@@ -2164,47 +2200,36 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
             )
           : 0.0;
       final radius = NavigationConfig.serviceRadiusMeters + slack;
+      atStop = distToStop <= radius;
 
-      if (distToStop <= radius) {
-        if (!_enteredServiceRadius) {
-          DebugLog.nav(
-            'ARRIVED at stop $stopIndex (${distToStop.toStringAsFixed(1)}m '
-            '≤ ${radius.toStringAsFixed(1)}m) — Point Served button shown',
-          );
-          HapticFeedback.lightImpact();
-        }
+      if (atStop && !_enteredServiceRadius) {
+        DebugLog.nav(
+          'ARRIVED at stop $stopIndex (${distToStop.toStringAsFixed(1)}m '
+          '≤ ${radius.toStringAsFixed(1)}m) — serve button shown',
+        );
+        HapticFeedback.lightImpact();
         _enteredServiceRadius = true;
-        arrived = true;
-      } else {
-        arrived = false;
+      } else if (!atStop && !_enteredServiceRadius) {
+        // Driven straight past it, on the planned route. A 10 m radius is
+        // easy for a fix in a street canyon to miss entirely, and a stop
+        // the driver has demonstrably reached must still be closeable
+        // without hunting for the long-press escape hatch.
         final passedStop =
             onRouteProg != null &&
             stopIndex < state.stopFractions.length &&
             progress >= state.stopFractions[stopIndex];
-        if ((_enteredServiceRadius || passedStop) &&
-            distToStop > NavigationConfig.autoServeExitMeters) {
-          // Entered-then-left (or drove straight past on-route): the point
-          // has been served — complete it without any dialog and continue
-          // to the next one.
+        if (passedStop) {
           DebugLog.nav(
-            'AUTO-SERVED stop $stopIndex '
-            '(${_enteredServiceRadius ? 'entered-then-left' : 'passed on route'}, '
-            'now ${distToStop.toStringAsFixed(0)}m away)',
+            'PASSED stop $stopIndex on route '
+            '(${distToStop.toStringAsFixed(0)}m away) — serve button shown',
           );
-          HapticFeedback.mediumImpact();
-          emit(
-            state.copyWith(
-              userLocation: loc,
-              cameraTarget: loc,
-              navigationProgress: progress,
-              navigationHeading: _smoothedHeading,
-              navigationSpeedMps: _smoothedSpeed,
-            ),
-          );
-          _advanceServicePoint(autoServedLabel: targetStop.label);
-          return;
+          HapticFeedback.lightImpact();
+          _enteredServiceRadius = true;
         }
       }
+      // Sticky: reached is reached. Drifting back out of a 10 m circle
+      // while parked must not take the button away mid-press.
+      arrived = _enteredServiceRadius;
     }
 
     // How far there still is to *drive* — arc length along the planned
@@ -2224,7 +2249,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       offRouteMeters: projection?.offRouteMeters,
       loc: loc,
       accuracy: position.accuracy,
-      arrived: arrived,
+      atStop: atStop,
     );
 
     DebugLog.nav(
@@ -2269,7 +2294,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     required double? offRouteMeters,
     required LatLng loc,
     required double accuracy,
-    required bool arrived,
+    required bool atStop,
   }) {
     if (offRouteMeters == null) return;
 
@@ -2312,7 +2337,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     if (backoff != null && DateTime.now().isBefore(backoff)) return;
     // At the stop itself, being off the road is the point (driveways,
     // parking) — never reroute around the service radius.
-    if (arrived || _enteredServiceRadius) return;
+    if (atStop) return;
 
     unawaited(_reroute(loc));
   }

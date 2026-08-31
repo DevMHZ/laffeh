@@ -98,6 +98,13 @@ class RouteSimulationOverlay extends StatelessWidget {
                                 children: [
                                   Row(
                                     children: [
+                                      // Says what this screen is, every
+                                      // second it is up. Drivers were
+                                      // watching the preview play out and
+                                      // leaving believing they had driven
+                                      // the trip.
+                                      const _PreviewBadge(),
+                                      const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
                                           finished
@@ -165,16 +172,36 @@ class RouteSimulationOverlay extends StatelessWidget {
                 ),
               ),
 
-              // Camera-mode switch — Overview fits every point on screen
-              // (#1), Follow tracks the vehicle, Chase is the 3D view.
+              // One line, two things: the way on to the real drive, and
+              // the camera-mode switch — Overview fits every point on
+              // screen (#1), Follow tracks the vehicle, Chase is the 3D
+              // view. Sharing the row is the point: the call to action
+              // costs the map no height it was not already spending.
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: _CameraModeToggle(
-                    mode: state.simulationCameraMode,
-                    onChanged: cubit.setSimulationCameraMode,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: _StartDriveCta(
+                        // Watching the trip and then driving it are two
+                        // different things, and the preview never said so.
+                        // Leaving here is a tap, not a hunt back through
+                        // the summary sheet for a button they have already
+                        // scrolled past once.
+                        onTap: () {
+                          HapticFeedback.mediumImpact();
+                          cubit.exitSimulation();
+                          cubit.startNavigation();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _CameraModeToggle(
+                      mode: state.simulationCameraMode,
+                      onChanged: cubit.setSimulationCameraMode,
+                    ),
+                  ],
                 ),
               ),
 

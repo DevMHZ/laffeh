@@ -20,7 +20,14 @@ import 'glass_panel.dart';
 /// The other three ways in — drop a pin, paste a Maps link, import from
 /// WhatsApp — keep their place underneath as quiet icon buttons. They are how
 /// existing drivers work, and promoting search must not cost them a tap they
-/// used to have.
+/// used to have. They share one panel rather than a card each: this is the
+/// screen a driver stares at with nothing on it yet, and the map underneath
+/// is what they came for.
+///
+/// A whole round arriving as a file is a fifth way in, and it is not here.
+/// It lives in Settings, where it costs this screen nothing — a driver with
+/// a spreadsheet is a driver who came looking for the feature, not one who
+/// needs it offered every time they open the map.
 ///
 /// Underneath them is the door for the other kind of arrival: the driver who
 /// opened Laffeh precisely because they have six deliveries and no idea what
@@ -97,8 +104,10 @@ class WhereToBar extends StatelessWidget {
 ///
 /// The drawings carry the meaning for anyone who does not read the label —
 /// a dot with a line to one pin, against a winding route threading several.
-/// They carry it well enough that the caption that used to sit underneath —
-/// a sentence restating the ticked card — was only costing a line of map.
+/// They carry it well enough that the two lines of text that used to frame
+/// them — a caption restating the ticked card, and a "trip type" heading over
+/// the pair — were only costing map. The heading survives for a screen reader,
+/// which cannot see that these two cards are one question.
 class TripShapeSelector extends StatelessWidget {
   final bool multiStop;
   final VoidCallback onSingle;
@@ -115,48 +124,37 @@ class TripShapeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassPanel(
       radius: 20,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsetsDirectional.only(start: 2, bottom: 8),
-            child: Text(
-              AppStrings.tripShapeTitle,
-              style: AppTextStyles.mutedSm.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
+      padding: const EdgeInsets.all(10),
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        label: AppStrings.tripShapeTitle,
+        // Intrinsic so the pair is always the same height: two cards of
+        // different heights would read as one being the main option.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _ShapeCard(
+                  label: AppStrings.tripShapeSingle,
+                  selected: !multiStop,
+                  multi: false,
+                  onTap: onSingle,
+                ),
               ),
-            ),
-          ),
-          // Intrinsic so the pair is always the same height: two cards of
-          // different heights would read as one being the main option.
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _ShapeCard(
-                    label: AppStrings.tripShapeSingle,
-                    selected: !multiStop,
-                    multi: false,
-                    onTap: onSingle,
-                  ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ShapeCard(
+                  label: AppStrings.tripShapeMulti,
+                  selected: multiStop,
+                  multi: true,
+                  onTap: onMulti,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ShapeCard(
-                    label: AppStrings.tripShapeMulti,
-                    selected: multiStop,
-                    multi: true,
-                    onTap: onMulti,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -203,7 +201,7 @@ class _ShapeCard extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
-            padding: const EdgeInsets.fromLTRB(9, 9, 9, 10),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -218,7 +216,7 @@ class _ShapeCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _ShapeThumb(multi: multi, selected: selected),
-                const SizedBox(height: 9),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     _Tick(selected: selected),
@@ -259,7 +257,7 @@ class _ShapeThumb extends StatelessWidget {
       borderRadius: BorderRadius.circular(11),
       child: AspectRatio(
         // The design box the painter is written in.
-        aspectRatio: 150 / 52,
+        aspectRatio: 150 / 46,
         child: CustomPaint(
           painter: _ShapeGlyphPainter(
             multi: multi,
@@ -291,8 +289,8 @@ class _Tick extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
-      width: 20,
-      height: 20,
+      width: 19,
+      height: 19,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -304,8 +302,8 @@ class _Tick extends StatelessWidget {
       ),
       child: selected
           ? SizedBox(
-              width: 12,
-              height: 12,
+              width: 11,
+              height: 11,
               child: CustomPaint(painter: _TickPainter(color: AppColors.white)),
             )
           : null,
@@ -315,10 +313,23 @@ class _Tick extends StatelessWidget {
 
 /// The two trips, drawn rather than named.
 ///
-///   * single — the driver's dot, one route, one pin. Nothing to order.
-///   * multi  — the same dot, a route that visits numbered stops and ends at
-///     the last one. The numbers are the whole product in one glance: not
-///     "several places" but *several places put in an order*.
+///   * single — the driver's dot, one turn, one pin. Nothing to order.
+///   * multi  — the same dot, and a route that climbs to the top avenue,
+///     drops to the bottom one and climbs again, with a numbered stop
+///     waiting at the end of each climb. The numbers are the whole product
+///     in one glance: not "several places" but *several places put in an
+///     order*.
+///
+/// The multi route weaves on purpose. Drawn as one long line with a couple of
+/// jogs it read as a distance with dots on it; up, down and up again is what
+/// a round actually looks like from above, and the picture has to move the
+/// way the trip does.
+///
+/// All three of its stops are the same numbered circle. The last one used to
+/// be a teardrop pin, on the reasoning that a round has an end — but in a
+/// picture whose entire subject is *order*, one differently-shaped mark reads
+/// as a different kind of place, and the eye stops on it and asks why. The
+/// lone destination keeps the pin, where there is no order for it to disturb.
 ///
 /// Both routes run **along the streets**. A diagonal line between two pins is
 /// a distance, not a trip — no car drives it — and the picture is a promise
@@ -345,12 +356,13 @@ class _ShapeGlyphPainter extends CustomPainter {
   });
 
   /// Design box the coordinates below are written in; scaled to fit.
-  static const Size _box = Size(150, 52);
+  static const Size _box = Size(150, 46);
 
   /// The street grid every drawing here is laid on. Two avenues and four
-  /// cross streets: enough of a city for a route to have to turn in.
-  static const List<double> _avenues = [20, 42];
-  static const List<double> _streets = [16, 48, 92, 124];
+  /// cross streets: enough of a city for a route to have to turn in, and the
+  /// two avenues are what the multi route climbs between.
+  static const List<double> _avenues = [12, 34];
+  static const List<double> _streets = [16, 50, 88, 124];
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -371,39 +383,47 @@ class _ShapeGlyphPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
 
     if (multi) {
-      // Out along the avenue, down a street, back up another — and the two
-      // stops sit mid-block on the streets it turns into, where an address
-      // actually is.
+      // Up, down, up: out along the bottom avenue, up to the top one, back
+      // down, up again — and the route ends *at* the last stop rather than
+      // running past it.
+      //
+      // Each stop sits at the end of a climb, so the three of them are
+      // staggered high-low-high and the weave is legible in the marks
+      // themselves. Mid-block on the climbs, which is where an address
+      // really is, they were pearls on a string: a stop is nearly as tall as
+      // the climb it stands on, so the marks covered the very rise they were
+      // supposed to be showing.
       canvas.drawPath(
         _along(const [
-          Offset(16, 20),
-          Offset(48, 20),
-          Offset(48, 42),
-          Offset(92, 42),
-          Offset(92, 20),
-          Offset(124, 20),
-          Offset(124, 42),
+          Offset(16, 34),
+          Offset(50, 34),
+          Offset(50, 12),
+          Offset(88, 12),
+          Offset(88, 34),
+          Offset(124, 34),
+          Offset(124, 12),
         ]),
         stroke,
       );
-      _origin(canvas, const Offset(16, 20));
-      _stop(canvas, const Offset(48, 31), '1');
-      _stop(canvas, const Offset(92, 31), '2');
-      // The last stop is a pin: a round has an end, and the end is a place
-      // you arrive at like any other destination.
-      _pin(canvas, const Offset(124, 26.6), '3');
+      _origin(canvas, const Offset(16, 34));
+      _stop(canvas, const Offset(50, 12), '1');
+      _stop(canvas, const Offset(88, 34), '2');
+      _stop(canvas, const Offset(124, 12), '3');
     } else {
       canvas.drawPath(
         _along(const [
-          Offset(16, 20),
-          Offset(92, 20),
-          Offset(92, 42),
-          Offset(134, 42),
+          Offset(16, 12),
+          Offset(88, 12),
+          Offset(88, 34),
+          Offset(124, 34),
         ]),
         stroke,
       );
-      _origin(canvas, const Offset(16, 20));
-      _pin(canvas, const Offset(134, 26.6), null);
+      _origin(canvas, const Offset(16, 12));
+      // Standing on the road it arrived by, and as far along the picture as
+      // the round's last stop is: the two cards end in the same place, so
+      // what differs between them is the trip, not the framing.
+      _pin(canvas, const Offset(124, 20.1), null);
     }
     canvas.restore();
   }
@@ -440,7 +460,7 @@ class _ShapeGlyphPainter extends CustomPainter {
     final tarmac = Paint()
       ..color = AppColors.white.withValues(alpha: 0.85)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 7.6
+      ..strokeWidth = 7.0
       ..strokeCap = StrokeCap.round;
     for (final y in _avenues) {
       canvas.drawLine(Offset(-6, y), Offset(_box.width + 6, y), tarmac);
@@ -452,38 +472,39 @@ class _ShapeGlyphPainter extends CustomPainter {
 
   /// Where the driver is: the map's own green dot, white-cored.
   void _origin(Canvas canvas, Offset at) {
-    canvas.drawCircle(at, 7.4, Paint()..color = AppColors.white);
-    canvas.drawCircle(at, 6.2, Paint()..color = route);
-    canvas.drawCircle(at, 2.6, Paint()..color = AppColors.white);
+    canvas.drawCircle(at, 7.0, Paint()..color = AppColors.white);
+    canvas.drawCircle(at, 5.9, Paint()..color = route);
+    canvas.drawCircle(at, 2.5, Paint()..color = AppColors.white);
   }
 
-  /// A numbered stop, exactly as the map draws one.
+  /// A numbered stop, exactly as the map draws one — and the only mark the
+  /// multi-stop route uses, first to last.
   void _stop(Canvas canvas, Offset at, String number) {
-    canvas.drawCircle(at, 9.4, Paint()..color = AppColors.white);
-    canvas.drawCircle(at, 8.2, Paint()..color = mark);
+    canvas.drawCircle(at, 8.8, Paint()..color = AppColors.white);
+    canvas.drawCircle(at, 7.6, Paint()..color = mark);
     _number(canvas, at, number);
   }
 
-  /// The destination. [number] is the stop's place in the order, or null
-  /// when it is the only place the trip goes.
+  /// The destination of a one-place trip. [number] is kept for the day a pin
+  /// needs to carry one; the round draws circles all the way through.
   void _pin(Canvas canvas, Offset head, String? number) {
     final path = Path()
-      ..moveTo(head.dx, head.dy + 15.4)
+      ..moveTo(head.dx, head.dy + 13.9)
       ..cubicTo(
-        head.dx - 9.6,
-        head.dy + 5.0,
-        head.dx - 9.2,
-        head.dy - 9.2,
+        head.dx - 8.6,
+        head.dy + 4.5,
+        head.dx - 8.3,
+        head.dy - 8.3,
         head.dx,
-        head.dy - 9.2,
+        head.dy - 8.3,
       )
       ..cubicTo(
-        head.dx + 9.2,
-        head.dy - 9.2,
-        head.dx + 9.6,
-        head.dy + 5.0,
+        head.dx + 8.3,
+        head.dy - 8.3,
+        head.dx + 8.6,
+        head.dy + 4.5,
         head.dx,
-        head.dy + 15.4,
+        head.dy + 13.9,
       )
       ..close();
     canvas.drawPath(
@@ -496,7 +517,7 @@ class _ShapeGlyphPainter extends CustomPainter {
     );
     canvas.drawPath(path, Paint()..color = mark);
     if (number == null) {
-      canvas.drawCircle(head, 3.4, Paint()..color = AppColors.white);
+      canvas.drawCircle(head, 3.1, Paint()..color = AppColors.white);
     } else {
       _number(canvas, head, number);
     }
@@ -514,7 +535,7 @@ class _ShapeGlyphPainter extends CustomPainter {
         text: text,
         style: TextStyle(
           color: AppColors.white,
-          fontSize: 11,
+          fontSize: 10,
           height: 1,
           fontWeight: FontWeight.w800,
           fontFamily: 'Almarai',

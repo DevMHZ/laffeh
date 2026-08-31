@@ -18,7 +18,6 @@ import 'package:laffeh/core/utils/tile_math.dart';
 import 'package:laffeh/core/widgets/map_pack_progress_view.dart';
 import 'package:laffeh/core/widgets/offline_area_picker_page.dart';
 import 'package:laffeh/core/widgets/trip_map_pack_tile.dart';
-import 'package:laffeh/features/route_planner/presentation/widgets/offline_area_offer.dart';
 import 'package:laffeh/core/widgets/offline_area_section.dart';
 
 Future<void> _loadFonts() async {
@@ -73,23 +72,6 @@ void main() {
         await SharedPreferences.getInstance(),
       );
     }
-  });
-
-  testWidgets('offline area offer', (tester) async {
-    tester.view.physicalSize = const Size(390 * 3, 300 * 3);
-    tester.view.devicePixelRatio = 3.0;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(_harness(const OfflineAreaOffer()));
-    // The widget's own bind() can't resolve without a platform behind it,
-    // so put the pack in the state this preview is about: nothing saved.
-    MapPackController.area.debugSetProgress(status: MapPackStatus.idle);
-    await tester.pump(const Duration(milliseconds: 300));
-
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/offline_area_offer.png'),
-    );
   });
 
   testWidgets('download progress', (tester) async {

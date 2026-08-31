@@ -69,7 +69,10 @@ void main() {
 
     test('an exact nearby name beats a closer partial match', () {
       final exact = _place('صيدلية الشفاء', at: const LatLng(33.5300, 36.2900));
-      final partial = _place('مكتبة الشفاء', at: const LatLng(33.5140, 36.2770));
+      final partial = _place(
+        'مكتبة الشفاء',
+        at: const LatLng(33.5140, 36.2770),
+      );
 
       final ranked = PlaceSearchRanker.rank(
         [partial, exact],
@@ -208,7 +211,13 @@ void main() {
 
   group('category lexicon', () {
     test('colloquial words for fuel all reach amenity=fuel', () {
-      for (final word in ['بنزين', 'كازية', 'محروقات', 'مازوت', 'gas station']) {
+      for (final word in [
+        'بنزين',
+        'كازية',
+        'محروقات',
+        'مازوت',
+        'gas station',
+      ]) {
         final category = PlaceCategoryLexicon.match(word);
         expect(category, isNotNull, reason: word);
         expect(category!.tags, contains('amenity=fuel'), reason: word);
@@ -216,8 +225,14 @@ void main() {
     });
 
     test('a category word inside a longer question still counts', () {
-      expect(PlaceCategoryLexicon.match('أقرب صيدلية')?.labelKey, 'catPharmacy');
-      expect(PlaceCategoryLexicon.match('محطة وقود قريبة')?.labelKey, 'catFuel');
+      expect(
+        PlaceCategoryLexicon.match('أقرب صيدلية')?.labelKey,
+        'catPharmacy',
+      );
+      expect(
+        PlaceCategoryLexicon.match('محطة وقود قريبة')?.labelKey,
+        'catFuel',
+      );
     });
 
     test('a place asked for by name is not a category', () {

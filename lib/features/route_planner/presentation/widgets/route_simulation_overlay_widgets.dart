@@ -332,3 +332,101 @@ class _SmallControl extends StatelessWidget {
     );
   }
 }
+
+/// "Preview" — the word the whole screen was missing.
+///
+/// Drivers were opening the preview, watching the car drive the round, and
+/// putting the phone down believing the trip had started. Nothing on screen
+/// contradicted them: a moving vehicle, a live-looking timeline, a stop
+/// counter counting. The badge is deliberately the first thing in the top
+/// card's caption line, ahead of the counter, because that caption is the
+/// only line on this screen the eye reads before the map.
+class _PreviewBadge extends StatelessWidget {
+  const _PreviewBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.pinOrange.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        AppStrings.previewBadge,
+        style: AppTextStyles.mutedSm.copyWith(
+          color: AppColors.pinOrange,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+/// "Ready? Start driving" — the door out of the preview.
+///
+/// It is a pill and not a bar on purpose. The preview's whole argument is
+/// that the map is the show, and a full-width button across the bottom
+/// would take the room the trip is being drawn in. So it rides the line the
+/// camera switch already occupies, on the opposite edge: no new height, no
+/// new layer over the map, and still the largest coloured thing on a screen
+/// where everything else is frosted white.
+class _StartDriveCta extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _StartDriveCta({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(99),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(99),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(99),
+            gradient: LinearGradient(
+              begin: AlignmentDirectional.centerStart,
+              end: AlignmentDirectional.centerEnd,
+              colors: [AppColors.accent, AppColors.accentDark],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.32),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 14, 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Iconsax.driving, color: AppColors.white, size: 18),
+              const SizedBox(width: 8),
+              // Shrink rather than clip: "جاهز؟ ابدأ القيادة" beside the
+              // camera switch is tight on a narrow phone, and half a
+              // sentence is worse than a slightly smaller one.
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    AppStrings.previewStartDrive,
+                    maxLines: 1,
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -113,9 +113,17 @@ class TopBar extends StatelessWidget {
                       tooltip: AppStrings.settings,
                       icon: Iconsax.setting_2,
                       onPressed: () {
+                        final cubit = context.read<RoutePlannerCubit>();
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const SettingsPage(),
+                            builder: (_) => SettingsPage(
+                              // A file of stops is imported *into this trip*,
+                              // so the work is handed back to the planner's
+                              // own context: its cubit and its toast both
+                              // outlive the settings route the tap came from.
+                              onImportCsv: () =>
+                                  RoutePlannerActions.importCsv(context, cubit),
+                            ),
                           ),
                         );
                       },

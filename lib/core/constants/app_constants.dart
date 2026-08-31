@@ -122,6 +122,9 @@ class AppStrings {
   static String get stopPhoneEdit => _t('stopPhoneEdit');
   static String get stopCall => _t('stopCall');
   static String get stopWhatsapp => _t('stopWhatsapp');
+  // Reaching the stop from inside the drive.
+  static String get stopWhatsappOnTheWay => _t('stopWhatsappOnTheWay');
+  static String get stopWhatsappArrived => _t('stopWhatsappArrived');
   static String get stopCallFailed => _t('stopCallFailed');
   static String get errInvalidResponse => _t('errInvalidResponse');
   static String get errEmptyOptimizedRoute => _t('errEmptyOptimizedRoute');
@@ -323,6 +326,8 @@ class AppStrings {
   static String get stepRoute => _t('stepRoute');
   static String get stepDrive => _t('stepDrive');
   static String get previewRoute => _t('previewRoute');
+  static String get previewBadge => _t('previewBadge');
+  static String get previewStartDrive => _t('previewStartDrive');
   static String get endTrip => _t('endTrip');
   static String get moreActions => _t('moreActions');
   static String get googleMapsShort => _t('googleMapsShort');
@@ -333,7 +338,6 @@ class AppStrings {
 
   // Drive mode — service points & turn guidance
   static String get pointServed => _t('pointServed');
-  static String get autoServedNotice => _t('autoServedNotice');
   static String get rerouting => _t('rerouting');
   static String get reoptimize => _t('reoptimize');
   static String get reCenter => _t('reCenter');
@@ -432,8 +436,6 @@ class AppStrings {
   }
 
   // Offline map around the driver — no trip required.
-  static String get offlineMapsSheetTitle => _t('offlineMapsSheetTitle');
-  static String get offlineMapsSheetBody => _t('offlineMapsSheetBody');
   static String get offlineAreaTitle => _t('offlineAreaTitle');
   static String get offlineAreaHint => _t('offlineAreaHint');
   static String get offlineAreaNotSaved => _t('offlineAreaNotSaved');
@@ -441,12 +443,6 @@ class AppStrings {
   static String get offlineAreaNeedsLocation => _t('offlineAreaNeedsLocation');
   static String get offlineAreaDeleteTitle => _t('offlineAreaDeleteTitle');
   static String get offlineAreaDeleteMessage => _t('offlineAreaDeleteMessage');
-
-  // The offer that raises offline maps before the driver loses signal.
-  static String get offlineAreaOfferTitle => _t('offlineAreaOfferTitle');
-  static String get offlineAreaOfferBody => _t('offlineAreaOfferBody');
-  static String get offlineAreaOfferAccept => _t('offlineAreaOfferAccept');
-  static String get offlineAreaOfferDismiss => _t('offlineAreaOfferDismiss');
 
   // Framing the area to save on the map.
   static String get offlineAreaPickTitle => _t('offlineAreaPickTitle');
@@ -673,7 +669,13 @@ class AppStrings {
   static String pointsCount(int count) {
     switch (_languageCode) {
       case 'ar':
-        return '$count نقطة';
+        // Same agreement as [timeWindowMissedCount], and for the same
+        // reason: "2 نقطة" and "5 نقطة" are mistakes a reader notices at a
+        // glance. One is named, two take the dual, 3–10 take the plural
+        // noun, and 11 up goes back to the singular.
+        if (count == 1) return 'نقطة واحدة';
+        if (count == 2) return 'نقطتان';
+        return '$count ${count <= 10 ? 'نقاط' : 'نقطة'}';
       case 'fr':
         return '$count ${count == 1 ? 'point' : 'points'}';
       default:
@@ -750,6 +752,7 @@ class AppStrings {
   static String get importChooserTitle => _t('importChooserTitle');
   static String get importChooserPaste => _t('importChooserPaste');
   static String get importChooserCsv => _t('importChooserCsv');
+  static String get importCsvSub => _t('importCsvSub');
   static String get whatsappOpenFailed => _t('whatsappOpenFailed');
   static String get waInfoBody => _t('waInfoBody');
   // The two imports that come from another app, each with its own little
@@ -1005,8 +1008,9 @@ class AppStrings {
   // ── Legal / consent ────────────────────────────────────
   static String get legalTitle => _t('legalTitle');
 
-  // Headings over the four groups the Settings page is built from.
+  // Headings over the groups the Settings page is built from.
   static String get settingsGroupAccount => _t('settingsGroupAccount');
+  static String get settingsGroupTrip => _t('settingsGroupTrip');
   static String get settingsGroupMap => _t('settingsGroupMap');
   static String get settingsGroupPreferences => _t('settingsGroupPreferences');
   static String get settingsGroupAbout => _t('settingsGroupAbout');
@@ -1084,6 +1088,8 @@ const Map<String, Map<String, String>> _copy = {
     'stopPhoneEdit': 'Edit the phone number',
     'stopCall': 'Call',
     'stopWhatsapp': 'WhatsApp',
+    'stopWhatsappOnTheWay': 'Hello, I am on my way to you.',
+    'stopWhatsappArrived': 'Hello, I have arrived at your location.',
     'stopCallFailed': 'Could not start the call',
     'locGateTitle': 'Laffah needs your location',
     'locGateBody':
@@ -1261,10 +1267,6 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapCancelling': 'Stopping…',
     'offlineMapCancelled': 'Stopped. What was downloaded is kept.',
     'offlineMapResume': 'Continue',
-    'offlineMapsSheetTitle': 'Offline maps',
-    'offlineMapsSheetBody':
-        'Save the map now and the streets stay on screen when the signal '
-        'goes.',
     'offlineAreaTitle': 'Offline map',
     'offlineAreaHint':
         'Save any area of the map and its streets keep showing with no '
@@ -1285,10 +1287,6 @@ const Map<String, Map<String, String>> _copy = {
     'offlineAreaSavedHere': 'This area is saved',
     'offlineAreaAtCeiling':
         'You have reached the limit of saved areas — delete one first.',
-    'offlineAreaOfferTitle': 'Save a map for offline?',
-    'offlineAreaOfferBody': 'Then it keeps working where there is no signal.',
-    'offlineAreaOfferAccept': 'Choose area',
-    'offlineAreaOfferDismiss': 'Not now',
     'arrivalTime': 'Customer availability',
     'setArrivalTime': 'Set when the customer is available',
     'clearArrivalTime': 'Remove the availability window',
@@ -1331,6 +1329,8 @@ const Map<String, Map<String, String>> _copy = {
     'stepRoute': 'Route',
     'stepDrive': 'Drive',
     'previewRoute': 'Preview trip',
+    'previewBadge': 'Preview',
+    'previewStartDrive': 'Ready? Start driving',
     'endTrip': 'End trip',
     'moreActions': 'More',
     'googleMapsShort': 'Google Maps',
@@ -1340,7 +1340,6 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'Replay',
     'arrivedHere': 'Arrived',
     'pointServed': 'Point served',
-    'autoServedNotice': 'Service point completed. Navigating to next stop.',
     'rerouting': 'Recalculating route…',
     'reoptimize': 'Re-optimize',
     'reCenter': 'Re-center',
@@ -1397,6 +1396,7 @@ const Map<String, Map<String, String>> _copy = {
     'importChooserTitle': 'Add several stops',
     'importChooserPaste': 'Paste a list of addresses',
     'importChooserCsv': 'Import a CSV file',
+    'importCsvSub': 'Addresses, names and numbers in one go',
     'addMethodTitle': 'How do you want to add this point?',
     'addMethodAddress': 'Type an address',
     'addMethodAddressSub': 'Search and pick one address',
@@ -1584,6 +1584,7 @@ const Map<String, Map<String, String>> _copy = {
         'Please accept the Terms of Service and Privacy Policy to continue.',
     'legalTitle': 'Legal',
     'settingsGroupAccount': 'Account',
+    'settingsGroupTrip': 'Trip',
     'settingsGroupMap': 'Map',
     'settingsGroupPreferences': 'Preferences',
     'settingsGroupAbout': 'About',
@@ -1670,6 +1671,8 @@ const Map<String, Map<String, String>> _copy = {
     'stopPhoneEdit': 'تعديل رقم الهاتف',
     'stopCall': 'اتصال',
     'stopWhatsapp': 'واتساب',
+    'stopWhatsappOnTheWay': 'مرحبًا، أنا في الطريق إليك.',
+    'stopWhatsappArrived': 'مرحبًا، لقد وصلتُ إلى موقعك.',
     'stopCallFailed': 'تعذر بدء المكالمة',
     'locGateTitle': 'لفّة تحتاج إلى موقعك',
     'locGateBody': 'مسارك يبدأ من مكانك، والخريطة تتابعك أثناء القيادة.',
@@ -1844,9 +1847,6 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapCancelling': 'جارٍ الإيقاف…',
     'offlineMapCancelled': 'أوقفتَ التنزيل، وما نُزّل محفوظ.',
     'offlineMapResume': 'متابعة',
-    'offlineMapsSheetTitle': 'الخرائط دون إنترنت',
-    'offlineMapsSheetBody':
-        'احفظ الخريطة الآن لتبقى الشوارع ظاهرة أمامك عند انقطاع الشبكة.',
     'offlineAreaTitle': 'خريطة دون إنترنت',
     'offlineAreaHint':
         'احفظ أي منطقة من الخريطة لتبقى شوارعها ظاهرة عند انقطاع الشبكة، '
@@ -1867,10 +1867,6 @@ const Map<String, Map<String, String>> _copy = {
     'offlineAreaSavedHere': 'هذه المنطقة محفوظة',
     'offlineAreaAtCeiling':
         'بلغتَ الحد الأقصى للمناطق المحفوظة — احذف واحدة أولًا.',
-    'offlineAreaOfferTitle': 'أتحبّ حفظ خريطة للعمل دون إنترنت؟',
-    'offlineAreaOfferBody': 'لتبقى الخريطة تعمل حيث لا تصل الشبكة.',
-    'offlineAreaOfferAccept': 'اختر المنطقة',
-    'offlineAreaOfferDismiss': 'ليس الآن',
     'arrivalTime': 'وقت توفّر العميل',
     'setArrivalTime': 'حدّد وقت توفّر العميل',
     'clearArrivalTime': 'إزالة وقت التوفّر',
@@ -1912,6 +1908,8 @@ const Map<String, Map<String, String>> _copy = {
     'stepRoute': 'المسار',
     'stepDrive': 'القيادة',
     'previewRoute': 'معاينة اللفة',
+    'previewBadge': 'معاينة',
+    'previewStartDrive': 'جاهز؟ ابدأ القيادة',
     'endTrip': 'إنهاء الرحلة',
     'moreActions': 'المزيد',
     'googleMapsShort': 'خرائط Google',
@@ -1921,7 +1919,6 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'إعادة التشغيل',
     'arrivedHere': 'تم الوصول',
     'pointServed': 'تمت الخدمة',
-    'autoServedNotice': 'اكتملت خدمة النقطة. جارٍ التوجه إلى المحطة التالية.',
     'rerouting': 'جارٍ إعادة حساب المسار…',
     'reoptimize': 'إعادة التحسين',
     'reCenter': 'إعادة التمركز',
@@ -1977,6 +1974,7 @@ const Map<String, Map<String, String>> _copy = {
     'importChooserTitle': 'أضف عدة نقاط',
     'importChooserPaste': 'لصق قائمة عناوين',
     'importChooserCsv': 'استيراد ملف CSV',
+    'importCsvSub': 'العناوين والأسماء والأرقام دفعة واحدة',
     'addMethodTitle': 'كيف تريد إضافة هذه النقطة؟',
     'addMethodAddress': 'اكتب عنواناً',
     'addMethodAddressSub': 'ابحث واختر عنواناً واحداً',
@@ -2161,6 +2159,7 @@ const Map<String, Map<String, String>> _copy = {
         'الرجاء الموافقة على شروط الاستخدام وسياسة الخصوصية للمتابعة.',
     'legalTitle': 'المستندات القانونية',
     'settingsGroupAccount': 'الحساب',
+    'settingsGroupTrip': 'الرحلة',
     'settingsGroupMap': 'الخريطة',
     'settingsGroupPreferences': 'التفضيلات',
     'settingsGroupAbout': 'عن التطبيق',
@@ -2247,6 +2246,8 @@ const Map<String, Map<String, String>> _copy = {
     'stopPhoneEdit': 'Modifier le numero',
     'stopCall': 'Appeler',
     'stopWhatsapp': 'WhatsApp',
+    'stopWhatsappOnTheWay': 'Bonjour, je suis en route vers vous.',
+    'stopWhatsappArrived': 'Bonjour, je suis arrive a votre adresse.',
     'stopCallFailed': "Impossible de lancer l'appel",
     'locGateTitle': 'Laffah a besoin de votre position',
     'locGateBody':
@@ -2434,10 +2435,6 @@ const Map<String, Map<String, String>> _copy = {
     'offlineMapResume': 'Continuer',
     'offlineMapNeedsConnection':
         'Le telechargement de la carte necessite une connexion.',
-    'offlineMapsSheetTitle': 'Cartes hors ligne',
-    'offlineMapsSheetBody':
-        'Enregistrez la carte maintenant et les rues restent affichees '
-        'quand le reseau disparait.',
     'offlineAreaTitle': 'Carte hors ligne',
     'offlineAreaHint':
         'Enregistrez n\'importe quelle zone de la carte et ses rues restent '
@@ -2459,10 +2456,6 @@ const Map<String, Map<String, String>> _copy = {
     'offlineAreaSavedHere': 'Cette zone est enregistree',
     'offlineAreaAtCeiling':
         'Vous avez atteint la limite de zones — supprimez-en une.',
-    'offlineAreaOfferTitle': 'Enregistrer une carte hors ligne ?',
-    'offlineAreaOfferBody': 'Elle continuera de fonctionner sans reseau.',
-    'offlineAreaOfferAccept': 'Choisir la zone',
-    'offlineAreaOfferDismiss': 'Pas maintenant',
     'arrivalTime': 'Disponibilite du client',
     'setArrivalTime': 'Definir la disponibilite du client',
     'clearArrivalTime': 'Retirer le creneau de disponibilite',
@@ -2504,6 +2497,8 @@ const Map<String, Map<String, String>> _copy = {
     'stepRoute': 'Itineraire',
     'stepDrive': 'Conduite',
     'previewRoute': 'Apercu du trajet',
+    'previewBadge': 'Apercu',
+    'previewStartDrive': 'Pret ? Demarrer',
     'endTrip': 'Terminer le trajet',
     'moreActions': 'Plus',
     'googleMapsShort': 'Google Maps',
@@ -2513,8 +2508,6 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'Rejouer',
     'arrivedHere': 'Arrive',
     'pointServed': 'Point servi',
-    'autoServedNotice':
-        'Point de service termine. Navigation vers le prochain arret.',
     'rerouting': 'Recalcul de l\'itineraire…',
     'reoptimize': 'Reoptimiser',
     'reCenter': 'Recentrer',
@@ -2571,6 +2564,7 @@ const Map<String, Map<String, String>> _copy = {
     'importChooserTitle': 'Ajouter plusieurs arrets',
     'importChooserPaste': "Coller une liste d'adresses",
     'importChooserCsv': 'Importer un fichier CSV',
+    'importCsvSub': 'Adresses, noms et numeros en une fois',
     'addMethodTitle': 'Comment ajouter ce point ?',
     'addMethodAddress': 'Saisir une adresse',
     'addMethodAddressSub': 'Rechercher et choisir une adresse',
@@ -2767,6 +2761,7 @@ const Map<String, Map<String, String>> _copy = {
         'Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité pour continuer.',
     'legalTitle': 'Documents légaux',
     'settingsGroupAccount': 'Compte',
+    'settingsGroupTrip': 'Trajet',
     'settingsGroupMap': 'Carte',
     'settingsGroupPreferences': 'Preferences',
     'settingsGroupAbout': 'A propos',

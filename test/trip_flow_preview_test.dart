@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:laffeh/core/constants/app_constants.dart';
 import 'package:laffeh/core/theme/app_colors.dart';
 import 'package:laffeh/core/theme/app_theme.dart';
 import 'package:laffeh/features/route_planner/domain/entities/optimized_route.dart';
@@ -191,6 +192,184 @@ void main() {
     );
   });
 
+  // The same HUD, for a stop that has a contact number: the pill grows a
+  // WhatsApp / Call row. Its own preview rather than a phone added to the
+  // shared fixture, which every other golden in this file also renders.
+  testWidgets('drive hud overlay — reaching the stop', (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+
+    final route = _fixtureRoute();
+    final reachable = OptimizedRoute(
+      orderedPoints: [
+        for (final p in route.orderedPoints)
+          p.id == '1' ? p.copyWith(phone: '+963944123456') : p,
+      ],
+      fullPolyline: route.fullPolyline,
+      goPolyline: route.goPolyline,
+      returnPolyline: route.returnPolyline,
+      // No duration, so the panel shows "--" instead of an arrival clock.
+      // The clock is `DateTime.now()` plus the remaining minutes, which
+      // makes any golden containing it drift by a pixel every minute — see
+      // `drive_hud_overlay`, which does. Nothing about this preview is
+      // asking about the clock.
+      metrics: const RouteMetrics(totalDistanceKm: 24.6),
+      hasRoadGeometry: true,
+    );
+
+    final state = RoutePlannerState(
+      status: RoutePlannerStatus.optimizedSuccess,
+      optimizedRoute: reachable,
+      navigationActive: true,
+      navigationProgress: 0.12,
+      navigationStopIndex: 1,
+      userLocation: const LatLng(33.515, 36.275),
+      navigationSpeedMps: 9.4,
+    );
+
+    await tester.pumpWidget(
+      _harness(
+        state,
+        RouteNavigationOverlay(onOpenGoogleMaps: () {}),
+        inStack: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/drive_hud_contact.png'),
+    );
+  });
+
+  // Arrival, with a number and without one. This is the moment the driver
+  // asked about — "how do I talk to the stop once I'm there?" — so both
+  // answers are worth a picture.
+  for (final (name, phone) in [
+    ('drive hud arrived — with a number', '+963944123456'),
+    ('drive hud arrived — no number yet', null),
+  ]) {
+    testWidgets(name, (tester) async {
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3.0;
+
+      final route = _fixtureRoute();
+      final at = OptimizedRoute(
+        orderedPoints: [
+          for (final p in route.orderedPoints)
+            p.id == '1' ? p.copyWith(phone: phone) : p,
+        ],
+        fullPolyline: route.fullPolyline,
+        goPolyline: route.goPolyline,
+        returnPolyline: route.returnPolyline,
+        metrics: const RouteMetrics(totalDistanceKm: 24.6),
+        hasRoadGeometry: true,
+      );
+
+      final state = RoutePlannerState(
+        status: RoutePlannerStatus.optimizedSuccess,
+        optimizedRoute: at,
+        navigationActive: true,
+        navigationProgress: 0.12,
+        navigationStopIndex: 1,
+        navigationArrived: true,
+        navigationStopRouteDistanceMeters: 6,
+        userLocation: const LatLng(33.52, 36.28),
+        navigationSpeedMps: 0,
+      );
+
+      await tester.pumpWidget(
+        _harness(
+          state,
+          RouteNavigationOverlay(onOpenGoogleMaps: () {}),
+          inStack: true,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await expectLater(
+        find.byType(Scaffold),
+        matchesGoldenFile(
+          'goldens/${phone == null ? 'drive_hud_arrived_no_phone' : 'drive_hud_arrived'}.png',
+        ),
+      );
+    });
+  }
+
+  // Focus mode, at the stop. The HUD collapses to "eyes on road" for the
+  // driving, but arriving is when the driver looks *down* — so the two
+  // controls that matter there have to survive the collapse, in words and
+  // at a size a parked thumb can hit. Both orientations, because a phone
+  // on a windscreen mount spends the day in either.
+  for (final landscape in [false, true]) {
+    testWidgets(
+      'focus mode at the stop — ${landscape ? 'landscape rail' : 'portrait'}',
+      (tester) async {
+        tester.view.physicalSize = landscape
+            ? const Size(844 * 3, 390 * 3)
+            : const Size(390 * 3, 844 * 3);
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(tester.view.reset);
+
+        final route = _fixtureRoute();
+        final reachable = OptimizedRoute(
+          orderedPoints: [
+            for (final p in route.orderedPoints)
+              p.id == '1' ? p.copyWith(phone: '+963944123456') : p,
+          ],
+          fullPolyline: route.fullPolyline,
+          goPolyline: route.goPolyline,
+          returnPolyline: route.returnPolyline,
+          // No duration: the arrival clock would drift the golden by a
+          // pixel every minute.
+          metrics: const RouteMetrics(totalDistanceKm: 24.6),
+          hasRoadGeometry: true,
+        );
+
+        final state = RoutePlannerState(
+          status: RoutePlannerStatus.optimizedSuccess,
+          optimizedRoute: reachable,
+          navigationActive: true,
+          navigationProgress: 0.12,
+          navigationStopIndex: 1,
+          navigationArrived: true,
+          navigationStopRouteDistanceMeters: 4,
+          userLocation: const LatLng(33.52, 36.28),
+          navigationSpeedMps: 0,
+        );
+
+        await tester.pumpWidget(
+          _harness(
+            state,
+            RouteNavigationOverlay(onOpenGoogleMaps: () {}),
+            inStack: true,
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+
+        // Focus mode is the HUD's own state, reached the way the driver
+        // reaches it. In landscape the toggle lives on the side column's
+        // panel, in portrait on the bottom one — the same button either
+        // way.
+        await tester.tap(
+          find.byType(RouteNavigationOverlay).last,
+          warnIfMissed: false,
+        );
+        await tester.tap(
+          find.byIcon(Icons.center_focus_strong_rounded),
+          warnIfMissed: false,
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+
+        await expectLater(
+          find.byType(Scaffold),
+          matchesGoldenFile(
+            'goldens/drive_hud_focus_arrived'
+            '${landscape ? '_landscape' : ''}.png',
+          ),
+        );
+      },
+    );
+  }
+
   testWidgets('summary sheet', (tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -221,6 +400,69 @@ void main() {
     await expectLater(
       find.byType(Scaffold),
       matchesGoldenFile('goldens/summary_sheet_bottom.png'),
+    );
+  });
+
+  // The finished route as a driver first meets it, in the real sheet: the
+  // one thing left to do is pinned at the foot, and preview no longer sits
+  // above it dressed as a peer.
+  testWidgets('summary sheet — the collapsed peek', (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final route = _fixtureRoute();
+    final state = RoutePlannerState(
+      status: RoutePlannerStatus.optimizedSuccess,
+      optimizedRoute: route,
+      points: route.orderedPoints.sublist(0, 5),
+    );
+
+    await tester.pumpWidget(
+      _harness(
+        state,
+        BackdropGroup(child: const BottomSheetHost()),
+        inStack: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/summary_sheet_peek.png'),
+    );
+  });
+
+  // The same peek in Arabic, which is what most drivers see: the pinned
+  // action mirrors with the text, and its arrow points the way the reader
+  // moves forward.
+  testWidgets('summary sheet — the collapsed peek, ar', (tester) async {
+    AppStrings.setLocale(const Locale('ar'));
+    addTearDown(() => AppStrings.setLocale(const Locale('en')));
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final route = _fixtureRoute();
+    final state = RoutePlannerState(
+      status: RoutePlannerStatus.optimizedSuccess,
+      optimizedRoute: route,
+      points: route.orderedPoints.sublist(0, 5),
+    );
+
+    await tester.pumpWidget(
+      _harness(
+        state,
+        Directionality(
+          textDirection: TextDirection.rtl,
+          child: BackdropGroup(child: const BottomSheetHost()),
+        ),
+        inStack: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/summary_sheet_peek_ar.png'),
     );
   });
 

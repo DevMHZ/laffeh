@@ -152,6 +152,32 @@ class AreaGrid {
     );
   }
 
+  /// Whether [point] sits *comfortably* inside [area] — not merely inside
+  /// it.
+  ///
+  /// [marginFraction] is taken off the whole span, half from each side, so
+  /// 0.2 keeps the outer tenth of the rectangle on every edge out of
+  /// bounds. That margin is the difference between a cache that refreshes
+  /// itself in time and one that refreshes once the driver is already off
+  /// the map they were relying on.
+  static bool containsWithMargin(
+    CoordinateBounds area,
+    LatLng point, {
+    double marginFraction = 0,
+  }) {
+    final latSpan = area.northEast.latitude - area.southWest.latitude;
+    final lonSpan = area.northEast.longitude - area.southWest.longitude;
+    if (latSpan <= 0 || lonSpan <= 0) return false;
+
+    final latMargin = latSpan * marginFraction / 2;
+    final lonMargin = lonSpan * marginFraction / 2;
+
+    return point.latitude >= area.southWest.latitude + latMargin &&
+        point.latitude <= area.northEast.latitude - latMargin &&
+        point.longitude >= area.southWest.longitude + lonMargin &&
+        point.longitude <= area.northEast.longitude - lonMargin;
+  }
+
   /// Whether [a] and [b] are close enough to be the same saved area.
   ///
   /// This is what decides whether the driver is offered "download" or

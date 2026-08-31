@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,7 +9,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
-import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/trip_map_pack_tile.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
 import '../../domain/entities/optimized_route.dart';
@@ -56,7 +54,10 @@ class RouteSummarySheet extends StatelessWidget {
         final missedWindows = state.missedTimeWindowPoints;
 
         return AppSheetContainer(
-          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
+          contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          // "Start driving" is pinned below this content by the sheet host
+          // (see [RouteDriveActionBar]) and carries the device inset with it.
+          applyBottomInset: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
@@ -69,63 +70,45 @@ class RouteSummarySheet extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
 
-              // ── Actions: preview → drive → open in Maps ─────────────
-              AppButton(
-                label: AppStrings.previewRoute,
-                icon: Iconsax.play_circle,
-                variant: AppButtonVariant.secondary,
-                height: 50,
-                radius: 14,
-                onPressed: cubit.startSimulation,
-              ),
-              const SizedBox(height: 8),
-              _StartNavigationButton(
-                onPressed: cubit.startNavigation,
-                // DEBUG: long-press = drive the route with the synthetic
-                // driver (no real GPS needed).
-                onDebugLongPress: kDebugMode ? cubit.debugStartDriveSim : null,
-              ),
-              const SizedBox(height: 8),
-              AppButton(
-                label: AppStrings.openWithMaps,
-                icon: Iconsax.map_1,
-                variant: AppButtonVariant.secondary,
-                height: 50,
-                radius: 14,
-                onPressed: onOpenGoogleMaps,
-              ),
-              const SizedBox(height: 16),
+              // ── The whole trip in one line ─────────────────────────
+              //    Time, distance and how many stops used to be a card with
+              //    two labelled tiles and a lot of air in it, plus a third
+              //    count in a chip further down. They are three numbers.
+              _TripStrip(route: route, stops: order.length),
+              const SizedBox(height: 10),
 
-              // ── Trip metrics (time · distance) ──────────────────────
-              _InlineMetrics(route: route),
-              const SizedBox(height: 16),
-
-              // ── Route sequence ──────────────────────────────────────
+              // ── The two things that are not driving ────────────────
+              //    Half width, quiet, and below the numbers: rehearsing the
+              //    trip and handing it to another app are both real wants,
+              //    and neither is what this screen is for.
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      AppStrings.routeOrder,
-                      style: AppTextStyles.titleMd,
+                    child: _SecondaryAction(
+                      icon: Iconsax.play_circle,
+                      label: AppStrings.previewRoute,
+                      onTap: cubit.startSimulation,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySoft,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      AppStrings.pointsCount(order.length),
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.primary,
-                      ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SecondaryAction(
+                      icon: Iconsax.map_1,
+                      label: AppStrings.openWithMaps,
+                      onTap: onOpenGoogleMaps,
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 18),
+
+              // ── Route sequence ──────────────────────────────────────
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  AppStrings.routeOrder,
+                  style: AppTextStyles.titleMd,
+                ),
               ),
               const SizedBox(height: 8),
               // One full-width row per stop (not a 3-up grid) so the optimised
