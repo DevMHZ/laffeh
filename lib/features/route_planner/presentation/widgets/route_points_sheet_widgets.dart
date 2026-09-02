@@ -220,8 +220,10 @@ class _StartFromRow extends StatelessWidget {
           ),
           child: Row(
             children: [
+              // Same glyph as the map's departure marker. The flag has moved
+              // to the finish, where it means an ending and nothing else.
               Icon(
-                chosen == null ? Icons.my_location_rounded : Iconsax.flag,
+                chosen == null ? Icons.my_location_rounded : Iconsax.home_2,
                 size: 18,
                 color: AppColors.primary,
               ),
@@ -572,4 +574,68 @@ Future<void> confirmClearAll(BuildContext context) async {
   if (confirmed != true) return;
   HapticFeedback.mediumImpact();
   cubit.clearAll();
+}
+
+/// Where the round ends. Mirrors [_StartFromRow] deliberately: the two are
+/// the same kind of decision about the same trip, and a driver should be able
+/// to settle both *before* optimizing rather than discovering after the fact
+/// that Laffeh assumed they drive all the way back.
+class _EndAtRow extends StatelessWidget {
+  final RouteFinish finish;
+  final VoidCallback onTap;
+
+  const _EndAtRow({required this.finish, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    // Home means "back where you started" and belongs to the round trip,
+    // which ends at the departure. The flag marks the other ending — a place
+    // the driver picked that is not home — and matches its map marker.
+    final (String label, IconData icon) = switch (finish.effectiveMode) {
+      RouteEndMode.depot => (AppStrings.finishRoundTrip, Iconsax.home_2),
+      RouteEndMode.open => (AppStrings.finishOpen, Iconsax.location_tick),
+      RouteEndMode.custom => (
+        finish.label?.isNotEmpty == true
+            ? finish.label!
+            : AppStrings.finishPointLabel,
+        Iconsax.flag,
+      ),
+    };
+
+    return Material(
+      color: AppColors.surfaceAlt.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Text('${AppStrings.toLabel} · ', style: AppTextStyles.mutedSm),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleSm,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Iconsax.edit_2, size: 16, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

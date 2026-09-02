@@ -151,7 +151,13 @@ class BottomSheetHost extends StatelessWidget {
                       Expanded(
                         child: SingleChildScrollView(
                           controller: scrollController,
-                          physics: const BouncingScrollPhysics(
+                          // Clamping, not bouncing. A DraggableScrollableSheet
+                          // only resizes when the inner scrollable refuses the
+                          // drag and hands it up; BouncingScrollPhysics never
+                          // refuses, so it rubber-banded the content at the top
+                          // and swallowed every downward drag. The sheet could
+                          // be dragged open but never closed again.
+                          physics: const ClampingScrollPhysics(
                             parent: AlwaysScrollableScrollPhysics(),
                           ),
                           child: showSummary

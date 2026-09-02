@@ -21,10 +21,12 @@ import '../../../../core/widgets/whatsapp_glyph.dart';
 import '../../../onboarding/presentation/widgets/onboarding_mock.dart';
 import '../../../saved_routes/domain/entities/saved_route.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../utils/route_csv_utils.dart';
+import '../widgets/route_finish_sheet.dart';
 import '../widgets/add_place_bar.dart';
 import '../widgets/route_address_search_sheet.dart';
 import '../widgets/route_paste_location_sheet.dart';
@@ -584,6 +586,92 @@ class RoutePlannerActions {
   /// ticked, and then the very same [AddPlaceBar] the rest of the app uses.
   /// A departure picker with its own smaller set of methods would be a second
   /// vocabulary for one idea.
+  /// Where the round ends: back at the start, at the last stop, or a place
+  /// of the driver's own. Sits beside [showDeparturePicker] because the two
+  /// answer the same shape of question about the same trip.
+  static Future<void> showFinishPicker(
+    BuildContext context,
+    RoutePlannerCubit cubit,
+  ) async {
+    final chosen = await showRouteFinishSheet(
+      context,
+      cubit,
+      current: cubit.state.finish,
+    );
+    if (chosen != null) await cubit.setRouteFinish(chosen);
+  }
+
+  /// Name the place the day ends at, by any of the four ways this app lets
+  /// you name a place: type it, drop it on the map, or import it from Google
+  /// Maps or WhatsApp. Deliberately the same set the departure and any stop
+  /// get, because a finish point is just a place.
+  static Future<void> showFinishPlacePicker(
+    BuildContext context,
+    RoutePlannerCubit cubit,
+  ) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  AppStrings.finishPickPlace,
+                  style: AppTextStyles.h3,
+                ),
+              ),
+              const SizedBox(height: 14),
+              AddPlaceBar(
+                title: AppStrings.addMethodAddress,
+                floating: false,
+                onSearch: () {
+                  Navigator.of(ctx).pop();
+                  showAddressSearchSheet(
+                    context,
+                    cubit,
+                    title: AppStrings.finishPickPlace,
+                    // The search sheet adds a stop by default; here the place
+                    // has to become where the day ends instead.
+                    onPicked: (result) => cubit.setRouteFinish(
+                      RouteFinish.at(result.latLng, label: result.name),
+                    ),
+                  );
+                },
+                onPickOnMap: () {
+                  Navigator.of(ctx).pop();
+                  cubit.beginManualPlacement(target: PlacementTarget.finish);
+                },
+                // Both hand off to another app; arm the import so the place
+                // that comes back is the finish and not a new stop.
+                onGoogleMaps: () {
+                  Navigator.of(ctx).pop();
+                  cubit.expectFinishImport();
+                  showGoogleMapsInfo(context, cubit);
+                },
+                onWhatsapp: () {
+                  Navigator.of(ctx).pop();
+                  cubit.expectFinishImport();
+                  showWhatsappInfo(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   static Future<void> showDeparturePicker(
     BuildContext context,
     RoutePlannerCubit cubit,

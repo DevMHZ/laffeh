@@ -17,14 +17,33 @@ import '../../../../core/utils/marker_factory.dart';
 class MapMarkerRenderer {
   MapMarkerRenderer._();
 
-  /// Depot (trip start) — a solid brand-green dot with a flag glyph.
+  /// Depot (trip start) — a solid brand-green dot with a house glyph.
+  ///
+  /// The house says "where you set out from"; the flag it used to carry now
+  /// belongs to [finish], which is the one place on the map that means an
+  /// end. Two markers reading "flag" told the driver nothing about which end
+  /// of the day they were looking at.
   static Future<Uint8List> depot() => _toPng(34, 34, (c, sz) {
     _dot(c, sz, fill: AppColors.primary, r: 10);
     _glyph(
       c,
       sz,
+      String.fromCharCode(Icons.home_rounded.codePoint),
+      fontSize: 13,
+      color: AppColors.white,
+    );
+  });
+
+  /// Where the day ends when it is not back at the departure — a dark dot
+  /// with the chequered-flag glyph. Deliberately not brand green: it is a
+  /// terminal, not a delivery, and should not read as one more stop.
+  static Future<Uint8List> finish() => _toPng(34, 34, (c, sz) {
+    _dot(c, sz, fill: AppColors.asphaltDark, r: 10);
+    _glyph(
+      c,
+      sz,
       String.fromCharCode(Icons.flag_rounded.codePoint),
-      fontSize: 12,
+      fontSize: 13,
       color: AppColors.white,
     );
   });

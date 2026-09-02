@@ -1,5 +1,6 @@
 import '../../../../core/network/api_result.dart';
 import '../entities/optimized_route.dart';
+import '../entities/route_finish.dart';
 import '../entities/route_point.dart';
 
 /// Domain contract for everything route-related.
@@ -16,9 +17,12 @@ abstract class RouteRepository {
   /// [departureAt] is when the driver sets off; it anchors every stop's
   /// clock-time window, which the solver only understands as minutes after
   /// departure. Defaults to now.
+  /// [finish] is where the driver's day ends: back at the start, wherever
+  /// the last stop is, or a place of their own.
   Future<ApiResult<OptimizedRoute>> optimize({
     required List<RoutePoint> points,
     String routingMode,
     DateTime? departureAt,
+    RouteFinish finish,
   });
 }

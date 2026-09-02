@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_dialog.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
@@ -160,6 +161,16 @@ class RoutePointsSheet extends StatelessWidget {
                     onTap: () => showPointActions(context, p),
                   );
                 },
+              ),
+              const SizedBox(height: 10),
+
+              // Where the round ends, directly under the stops so the sheet
+              // reads start → stops → end. This is an input to the solve, not
+              // a review of it, so it belongs here rather than only on the
+              // result sheet.
+              _EndAtRow(
+                finish: state.finish,
+                onTap: () => RoutePlannerActions.showFinishPicker(context, cubit),
               ),
               const SizedBox(height: 6),
 

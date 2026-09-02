@@ -6,6 +6,11 @@ class NavigationConfig {
   /// Pitch — a behind-the-car perspective looking down the road.
   static const double tilt = 60;
 
+  /// Tilt used by the planning map's 3D toggle. A little shallower than the
+  /// driving camera: while planning you are reading a neighbourhood, not
+  /// looking down the next hundred metres of road.
+  static const double exploreTilt = 55;
+
   /// How far ahead of the vehicle the camera targets, so the driver
   /// sits in the lower-middle of the screen.
   static const double lookaheadMeters = 115.0;

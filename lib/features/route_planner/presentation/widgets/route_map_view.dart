@@ -29,9 +29,11 @@ import '../../../../core/utils/polyline_utils.dart';
 import '../../data/datasources/map_label_reader.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/place_suggestion.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
+import 'map_action_button.dart';
 import 'map_compass.dart';
 import 'map_geometry.dart';
 import 'map_marker_renderer.dart';
@@ -92,6 +94,10 @@ class RouteMapViewState extends State<RouteMapView>
   /// the angle as well as the heading, or the driver is left looking at a
   /// 3D map with no way out of it.
   final ValueNotifier<double> _tilt = ValueNotifier(0);
+
+  /// Tilt the map was at when an aiming flow began, so the 3D view can be
+  /// handed back afterwards. Null when the map was already flat.
+  double? _tiltBeforeAiming;
 
   /// Drives the on-map "return to my location" control: flips to true once
   /// the user pans the planning map noticeably away from their current
@@ -1104,6 +1110,26 @@ class RouteMapViewState extends State<RouteMapView>
       );
     }
 
+    // ── Where the day ends ─────────────────────────────────────────────────
+    // A custom finish is not in state.points on purpose (it is a terminal,
+    // not a delivery — see RouteFinish), so nothing above draws it. Without
+    // this the driver picked a place and the map showed no sign of it.
+    // Hidden while it is being placed: the centre reticle stands in, exactly
+    // as it does for a point being repositioned.
+    final finish = state.finish;
+    final placingFinish =
+        state.manualPlacement &&
+        state.placementTarget == PlacementTarget.finish;
+    if (finish.effectiveMode == RouteEndMode.custom && !placingFinish) {
+      specs.add(
+        _SymbolSpec(
+          key: 'finish',
+          imageId: await _ensureImage('img-finish', MapMarkerRenderer.finish),
+          position: finish.location!,
+        ),
+      );
+    }
+
     // The playback vehicle isn't reconciled here: in overview it's an
     // eased native symbol (_onOverviewTick); in follow/chase it's the
     // screen-centred puck.
@@ -1652,7 +1678,16 @@ class RouteMapViewState extends State<RouteMapView>
     // the aiming flow rather than letting them find out afterwards.
     if (state.manualPlacement || state.movingPointId != null) {
       final tilt = _controller?.cameraPosition?.tilt ?? 0;
-      if (tilt.abs() > 1) await _animateCamera(CameraUpdate.tiltTo(0));
+      if (tilt.abs() > 1) {
+        // Remember it: dropping a pin should not quietly cost the driver the
+        // 3D view they chose. Restored once the aiming flow ends.
+        _tiltBeforeAiming = tilt;
+        await _animateCamera(CameraUpdate.tiltTo(0));
+      }
+    } else if (_tiltBeforeAiming != null) {
+      final restore = _tiltBeforeAiming!;
+      _tiltBeforeAiming = null;
+      await _animateCamera(CameraUpdate.tiltTo(restore));
     }
 
     // Moving a point (#9): centre on it once, then let the user pan it
@@ -2447,6 +2482,19 @@ class RouteMapViewState extends State<RouteMapView>
   /// change by hand and this is the only control that undoes either. Mid-
   /// drive it means something different — hand the camera back to the
   /// navigation logic, which owns the tilt there.
+  /// Tilts the planning map into 3D, or lays it flat again.
+  ///
+  /// Tilt has always been reachable by dragging two fingers, which nobody
+  /// discovers. The style already carries 3D buildings, so this only had to
+  /// be given a way in.
+  Future<void> _toggleTilt() async {
+    final current = _controller?.cameraPosition?.tilt ?? 0;
+    final goingFlat = current.abs() > 1;
+    await _animateCamera(
+      CameraUpdate.tiltTo(goingFlat ? 0 : NavigationConfig.exploreTilt),
+    );
+  }
+
   void _resetViewAngle() {
     final state = context.read<RoutePlannerCubit>().state;
     if (state.navigationActive) {
@@ -2620,10 +2668,33 @@ class RouteMapViewState extends State<RouteMapView>
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.only(left: 14),
-                    child: MapCompass(
-                      bearing: _bearing,
-                      tilt: _tilt,
-                      onTap: _resetViewAngle,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MapCompass(
+                          bearing: _bearing,
+                          tilt: _tilt,
+                          onTap: _resetViewAngle,
+                        ),
+                        const SizedBox(height: 10),
+                        // Says what tapping will give you, not what you are
+                        // looking at: flat map offers "3D", tilted offers "2D".
+                        ValueListenableBuilder<double>(
+                          valueListenable: _tilt,
+                          builder: (context, tilt, _) {
+                            final tilted = tilt.abs() > 1;
+                            return MapActionButton(
+                              label: tilted ? '2D' : '3D',
+                              tooltip: tilted
+                                  ? AppStrings.viewFlat
+                                  : AppStrings.view3d,
+                              onPressed: _toggleTilt,
+                              iconColor: tilted ? AppColors.primary : null,
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),

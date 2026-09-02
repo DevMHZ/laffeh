@@ -1,3 +1,4 @@
+import '../../domain/entities/route_finish.dart';
 import 'route_point_model.dart';
 
 /// Wire model for the Afdal VRP request body.
@@ -29,6 +30,10 @@ class RouteRequestModel {
 
   final List<RoutePointModel> deliveries;
 
+  /// Where the driver's day ends. Sent as `end_policy`, with the chosen place
+  /// in `driver_endpoints` when the policy is `custom`.
+  final RouteFinish finish;
+
   const RouteRequestModel({
     required this.numVehicles,
     required this.vehicleCapacity,
@@ -39,6 +44,7 @@ class RouteRequestModel {
     required this.driverHours,
     required this.defaultServiceTimeMinutes,
     required this.deliveries,
+    this.finish = const RouteFinish.depot(),
   });
 
   Map<String, dynamic> toJson() => {
@@ -51,5 +57,8 @@ class RouteRequestModel {
     'driver_hours': driverHours,
     'default_service_time': defaultServiceTimeMinutes,
     'deliveries': deliveries.map((d) => d.toJson()).toList(),
+    'end_policy': finish.effectiveMode.wireValue,
+    if (finish.toEndpointJson() != null)
+      'driver_endpoints': [finish.toEndpointJson()!],
   };
 }

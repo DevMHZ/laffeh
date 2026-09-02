@@ -21,6 +21,13 @@ class RoutePointModel {
   /// Sequence in the optimized itinerary (response-only).
   final int? sequence;
 
+  /// What the backend says this stop is: `depot`, `delivery`, or `finish`
+  /// (the driver's own end point). Response-only. Older backends omit it, so
+  /// null means "assume a delivery" and fall back to the address checks.
+  final String? kind;
+
+  bool get isTerminal => kind == 'depot' || kind == 'finish';
+
   /// The solver's own arrival estimate, minutes after departure
   /// (response-only). The deployed backend always reports `0` here, so the
   /// repository computes ETAs from the road legs instead and only falls back
@@ -35,6 +42,7 @@ class RoutePointModel {
     this.timeWindowStart,
     this.timeWindowEnd,
     this.sequence,
+    this.kind,
     this.arrivalTimeMinutes,
   });
 
@@ -69,6 +77,7 @@ class RoutePointModel {
       sequence: json['sequence'] is num
           ? (json['sequence'] as num).toInt()
           : null,
+      kind: json['kind']?.toString(),
       arrivalTimeMinutes: json['arrival_time'] is num
           ? (json['arrival_time'] as num).toInt()
           : null,

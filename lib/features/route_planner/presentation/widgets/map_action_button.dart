@@ -7,7 +7,10 @@ import '../../../../core/theme/app_colors.dart';
 
 /// Floating circular action used on top of the map.
 class MapActionButton extends StatelessWidget {
-  final IconData icon;
+  /// Either an icon or a short [label] is drawn, never both. "3D" reads at a
+  /// glance where no icon for it does.
+  final IconData? icon;
+  final String? label;
   final VoidCallback? onPressed;
   final Color? color;
   final Color? iconColor;
@@ -16,7 +19,8 @@ class MapActionButton extends StatelessWidget {
 
   const MapActionButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.label,
     this.onPressed,
     this.color,
     this.iconColor,
@@ -52,13 +56,27 @@ class MapActionButton extends StatelessWidget {
               child: SizedBox(
                 width: size,
                 height: size,
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: disabled
-                      ? AppColors.textMuted
-                      : (iconColor ?? AppColors.primary),
-                ),
+                child: label != null
+                    ? Center(
+                        child: Text(
+                          label!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
+                            color: disabled
+                                ? AppColors.textMuted
+                                : (iconColor ?? AppColors.primary),
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        icon,
+                        size: 22,
+                        color: disabled
+                            ? AppColors.textMuted
+                            : (iconColor ?? AppColors.primary),
+                      ),
               ),
             ),
           ),

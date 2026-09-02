@@ -1,7 +1,7 @@
 name: laffeh
 description: "Laffeh - AI Route Optimization (Afdal VRP)."
 publish_to: 'none'
-version: 1.0.3+3
+version: 1.0.4+4
 
 environment:
   sdk: ^3.8.1

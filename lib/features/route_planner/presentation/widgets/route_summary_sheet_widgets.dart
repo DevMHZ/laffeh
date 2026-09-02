@@ -270,6 +270,9 @@ class _SummaryGridCell extends StatelessWidget {
   /// the origin the stop's ETA is offset from.
   final int departureMinute;
 
+  /// Set on the last row only, where tapping changes how the day ends.
+  final VoidCallback? onTap;
+
   const _SummaryGridCell({
     super.key,
     required this.point,
@@ -277,12 +280,13 @@ class _SummaryGridCell extends StatelessWidget {
     required this.color,
     required this.icon,
     required this.departureMinute,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final address = point.address?.trim();
-    return Opacity(
+    final cell = Opacity(
       opacity: point.isDeactivated ? 0.55 : 1.0,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -323,8 +327,27 @@ class _SummaryGridCell extends StatelessWidget {
               ),
             ),
             _StopEta(point: point, departureMinute: departureMinute),
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              Icon(
+                Iconsax.arrow_right_3,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+            ],
           ],
         ),
+      ),
+    );
+
+    if (onTap == null) return cell;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: cell,
       ),
     );
   }
@@ -512,6 +535,56 @@ class _SummaryCellBadge extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Closing row for an open route.
+///
+/// An open route has no terminal point, so there is no cell to hang the
+/// "where does the day end" choice off. This states the outcome instead, and
+/// stays tappable so the choice is never a one-way door.
+class _OpenFinishRow extends StatelessWidget {
+  final String lastStopLabel;
+  final VoidCallback onTap;
+
+  const _OpenFinishRow({required this.lastStopLabel, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceAlt.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                Iconsax.location_tick,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  AppStrings.finishEndsAt(lastStopLabel),
+                  style: AppTextStyles.mutedSm,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Iconsax.arrow_right_3,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

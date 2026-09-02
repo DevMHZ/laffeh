@@ -341,6 +341,23 @@ class AppStrings {
   static String get pointServed => _t('pointServed');
   static String get rerouting => _t('rerouting');
   static String get reoptimize => _t('reoptimize');
+
+  // ── Where the day ends ──
+  static String get endOfDay => _t('endOfDay');
+  static String get finishRoundTrip => _t('finishRoundTrip');
+  static String get finishRoundTripHint => _t('finishRoundTripHint');
+  static String get finishOpen => _t('finishOpen');
+  static String get finishOpenHint => _t('finishOpenHint');
+  static String get finishCustom => _t('finishCustom');
+  static String get finishCustomHint => _t('finishCustomHint');
+  static String get finishPointLabel => _t('finishPointLabel');
+  static String get finishPickPlace => _t('finishPickPlace');
+  static String get toLabel => _t('toLabel');
+  static String get setFinishHere => _t('setFinishHere');
+  static String get view3d => _t('view3d');
+  static String get viewFlat => _t('viewFlat');
+  static String finishEndsAt(String stop) =>
+      _t('finishEndsAt').replaceFirst('{stop}', stop);
   static String get reCenter => _t('reCenter');
   static String get arrivalLabel => _t('arrivalLabel');
   static String get speedUnitKmh => _t('speedUnitKmh');
@@ -1344,6 +1361,20 @@ const Map<String, Map<String, String>> _copy = {
     'pointServed': 'Point served',
     'rerouting': 'Recalculating route…',
     'reoptimize': 'Re-optimize',
+    'endOfDay': 'Where the day ends',
+    'finishRoundTrip': 'Back to the start',
+    'finishRoundTripHint': 'Finish where you set off from.',
+    'finishOpen': 'Stop at the last stop',
+    'finishOpenHint': 'No drive back. The day ends at your last stop.',
+    'finishCustom': 'Somewhere else',
+    'finishCustomHint': 'Finish at a place you choose, like home.',
+    'finishPointLabel': 'Finish',
+    'finishPickPlace': 'Choose the place',
+    'toLabel': 'To',
+    'setFinishHere': 'End the day here',
+    'view3d': 'Tilt the map',
+    'viewFlat': 'Flatten the map',
+    'finishEndsAt': 'Day ends at {stop}',
     'reCenter': 'Re-center',
     'arrivalLabel': 'Arrival',
     'speedUnitKmh': 'km/h',
@@ -1924,6 +1955,20 @@ const Map<String, Map<String, String>> _copy = {
     'pointServed': 'تمت الخدمة',
     'rerouting': 'جارٍ إعادة حساب المسار…',
     'reoptimize': 'إعادة التحسين',
+    'endOfDay': 'أين ينتهي اليوم',
+    'finishRoundTrip': 'العودة إلى نقطة الانطلاق',
+    'finishRoundTripHint': 'تنتهي اللفة حيث بدأت.',
+    'finishOpen': 'التوقف عند آخر نقطة',
+    'finishOpenHint': 'بدون رحلة عودة. ينتهي اليوم عند آخر نقطة.',
+    'finishCustom': 'مكان آخر',
+    'finishCustomHint': 'انهِ اللفة في مكان تختاره، مثل المنزل.',
+    'finishPointLabel': 'نقطة النهاية',
+    'finishPickPlace': 'اختر المكان',
+    'toLabel': 'إلى',
+    'setFinishHere': 'أنهِ اليوم هنا',
+    'view3d': 'إمالة الخريطة',
+    'viewFlat': 'تسطيح الخريطة',
+    'finishEndsAt': 'ينتهي اليوم عند {stop}',
     'reCenter': 'إعادة التمركز',
     'arrivalLabel': 'الوصول',
     'speedUnitKmh': 'كم/س',
@@ -2514,6 +2559,20 @@ const Map<String, Map<String, String>> _copy = {
     'pointServed': 'Point servi',
     'rerouting': 'Recalcul de l\'itineraire…',
     'reoptimize': 'Reoptimiser',
+    'endOfDay': 'Fin de journee',
+    'finishRoundTrip': 'Retour au depart',
+    'finishRoundTripHint': 'Terminez la ou vous etes parti.',
+    'finishOpen': 'Arret au dernier point',
+    'finishOpenHint': 'Pas de retour. La journee finit au dernier point.',
+    'finishCustom': 'Ailleurs',
+    'finishCustomHint': 'Terminez a un endroit de votre choix, comme chez vous.',
+    'finishPointLabel': 'Arrivee',
+    'finishPickPlace': 'Choisir le lieu',
+    'toLabel': 'Vers',
+    'setFinishHere': 'Terminer la journee ici',
+    'view3d': 'Incliner la carte',
+    'viewFlat': 'Aplatir la carte',
+    'finishEndsAt': 'La journee finit a {stop}',
     'reCenter': 'Recentrer',
     'arrivalLabel': 'Arrivee',
     'speedUnitKmh': 'km/h',

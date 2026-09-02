@@ -6,6 +6,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import 'route_planner_actions.dart';
+import '../../domain/entities/route_finish.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../widgets/glass_panel.dart';
@@ -51,11 +52,14 @@ class ManualPlacementHost extends StatelessWidget {
             return;
           }
           final center = await mapState.resolveCenter();
-          final forDeparture =
-              state.placementTarget == PlacementTarget.departure;
+          final target = state.placementTarget;
           cubit.cancelManualPlacement();
-          if (forDeparture) {
+          if (target == PlacementTarget.departure) {
             await cubit.setDeparture(center);
+            return;
+          }
+          if (target == PlacementTarget.finish) {
+            await cubit.setRouteFinish(RouteFinish.at(center));
             return;
           }
           if (!context.mounted) return;
@@ -77,7 +81,11 @@ class ManualPlacementHost extends StatelessWidget {
                     child: Row(
                       children: [
                         Icon(
-                          isDeparture ? Iconsax.flag : Iconsax.location_add,
+                          isDeparture
+                              ? Iconsax.home_2
+                              : state.placementTarget == PlacementTarget.finish
+                              ? Iconsax.flag
+                              : Iconsax.location_add,
                           color: AppColors.primary,
                           size: 20,
                         ),
@@ -90,6 +98,9 @@ class ManualPlacementHost extends StatelessWidget {
                               Text(
                                 isDeparture
                                     ? AppStrings.setDepartureHere
+                                    : state.placementTarget ==
+                                          PlacementTarget.finish
+                                    ? AppStrings.setFinishHere
                                     : AppStrings.addStopHere,
                                 style: AppTextStyles.titleSm,
                                 maxLines: 1,
@@ -128,8 +139,13 @@ class ManualPlacementHost extends StatelessWidget {
                       color: AppColors.primary,
                       foreground: AppColors.white,
                       icon: Iconsax.tick_circle,
+                      // The pill has to name the same act the header does.
+                      // Left at "Add stop here", it told a driver placing
+                      // their finish that they were about to add a delivery.
                       label: isDeparture
                           ? AppStrings.setDepartureHere
+                          : state.placementTarget == PlacementTarget.finish
+                          ? AppStrings.setFinishHere
                           : AppStrings.addStopHere,
                       onTap: confirm,
                     ),

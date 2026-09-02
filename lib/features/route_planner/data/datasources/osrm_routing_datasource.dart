@@ -59,6 +59,15 @@ class OsrmRoutingDataSource {
           // fetches keep the payload light.
           'steps': includeSteps ? 'true' : 'false',
           'alternatives': 'false',
+          // A driver can turn around at a stop. OSRM's car profile forbids a
+          // U-turn at a waypoint unless told otherwise, so it routes the long
+          // way round the block after every delivery: on a real six-stop round
+          // that inflated the drive from 3.1 km to 5.2 km, with one leg 7x
+          // longer than it needed to be. The solver orders the stops from the
+          // /table matrix, which has no such restriction — so leaving this off
+          // also meant the route drawn on the map was not the route the plan
+          // was costed on.
+          'continue_straight': 'false',
         },
       );
 

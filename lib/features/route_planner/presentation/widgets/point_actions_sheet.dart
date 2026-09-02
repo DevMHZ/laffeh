@@ -251,8 +251,9 @@ class _PointActionsSheet extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
+                        // House for the departure, matching its map marker.
                         point.isDepot
-                            ? Iconsax.flag
+                            ? Iconsax.home_2
                             : skipped
                             ? Iconsax.eye_slash
                             : Iconsax.location,

@@ -12,6 +12,7 @@ import '../../../../core/utils/distance_utils.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_maneuver.dart';
 import '../../domain/entities/route_metrics.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../../domain/repositories/route_repository.dart';
@@ -38,6 +39,7 @@ class RouteRepositoryImpl implements RouteRepository {
     required List<RoutePoint> points,
     String routingMode = RoutingConfig.defaultRoutingMode,
     DateTime? departureAt,
+    RouteFinish finish = const RouteFinish.depot(),
   }) async {
     if (!await _network.isConnected) {
       return ApiFailure(NetworkFailure(AppStrings.errNoInternet));
@@ -90,6 +92,7 @@ class RouteRepositoryImpl implements RouteRepository {
       timeLimitSeconds: RoutingConfig.defaultTimeLimitSeconds,
       driverHours: RoutingConfig.driverHoursForHorizon(horizon),
       defaultServiceTimeMinutes: RoutingConfig.defaultServiceTimeMinutes,
+      finish: finish,
       deliveries: stops.map((s) {
         final w = windows[s.id];
         return RoutePointModel(
@@ -114,11 +117,15 @@ class RouteRepositoryImpl implements RouteRepository {
         depot: depot,
         userStops: stops,
         responseStops: response.routes.first.stops,
+        finish: finish,
       );
 
       final polylines = await _buildPolylines(
         reordered.points,
         mode: routingMode,
+        // An open route stops where the work stops: the last point is a
+        // delivery, not a terminal to draw a return leg back from.
+        hasReturnLeg: finish.effectiveMode != RouteEndMode.open,
       );
 
       // The backend never fills `arrival_time`, and it silently drops a stop
@@ -232,6 +239,7 @@ class RouteRepositoryImpl implements RouteRepository {
     required RoutePoint depot,
     required List<RoutePoint> userStops,
     required List<RoutePointModel> responseStops,
+    RouteFinish finish = const RouteFinish.depot(),
   }) {
     final result = <RoutePoint>[];
     final remaining = List<RoutePoint>.from(userStops);
@@ -244,6 +252,11 @@ class RouteRepositoryImpl implements RouteRepository {
       //   • Coordinate proximity (~30 m — API snaps to nearest road so
       //     the returned lat/lon can differ by up to ~20 m from the pin).
       //   • Exact address match (fallback for other VRP backends).
+      // `kind` is authoritative when the backend sends it: a `finish` stop is
+      // the driver's own end point, not somewhere to deliver. The address and
+      // proximity checks below stay for backends that omit it.
+      if (s.isTerminal) continue;
+
       final isDepotLike =
           s.address.trim().toUpperCase() == 'DEPOT' ||
           _isSameCoordLoose(s.lat, s.lon, depot.latitude, depot.longitude) ||
@@ -344,13 +357,42 @@ class RouteRepositoryImpl implements RouteRepository {
       );
     }
 
-    // Multi-stop trips return to the depot; a single destination is a one-way
-    // path (classic navigator), so only close the loop for 2+ stops.
+    // How the day ends. A single destination is a one-way path (classic
+    // navigator) and never gets a terminal, whatever the policy.
+    //
+    // The terminal is built as a depot-kind point on purpose: every renderer
+    // already treats that kind as "not a numbered stop", so the timeline,
+    // the stop numbering and the map markers need no change to show a finish
+    // point correctly.
     final ordered = [depot.copyWith(sequence: 0), ...result];
     if (result.length > 1) {
-      ordered.add(
-        depot.copyWith(id: '${depot.id}_return', sequence: result.length + 1),
-      );
+      switch (finish.effectiveMode) {
+        case RouteEndMode.depot:
+          ordered.add(
+            depot.copyWith(
+              id: '${depot.id}_return',
+              sequence: result.length + 1,
+            ),
+          );
+          break;
+        case RouteEndMode.custom:
+          ordered.add(
+            RoutePoint(
+              id: '${depot.id}$kFinishPointIdSuffix',
+              latitude: finish.location!.latitude,
+              longitude: finish.location!.longitude,
+              label: finish.label?.isNotEmpty == true
+                  ? finish.label!
+                  : AppStrings.finishPointLabel,
+              kind: RoutePointKind.depot,
+              weight: 0,
+              sequence: result.length + 1,
+            ),
+          );
+          break;
+        case RouteEndMode.open:
+          break; // the last delivery is the end of the day
+      }
     }
     return _ReorderResult(ordered, dropped);
   }
@@ -454,6 +496,7 @@ class RouteRepositoryImpl implements RouteRepository {
   Future<_PolylineBundle> _buildPolylines(
     List<RoutePoint> ordered, {
     required String mode,
+    bool hasReturnLeg = true,
   }) async {
     if (ordered.length < 2) {
       return _PolylineBundle.empty();
@@ -466,8 +509,9 @@ class RouteRepositoryImpl implements RouteRepository {
         .map((p) => p.latLng)
         .toList();
 
-    // Single destination (depot → stop): a one-way path, no return leg.
-    final oneWay = waypoints.isEmpty;
+    // No return leg either because there is only one destination, or because
+    // the trip is an open route that ends at its last stop.
+    final oneWay = waypoints.isEmpty || !hasReturnLeg;
 
     final osrmProfile = _mapModeToOsrmProfile(mode);
 

@@ -3,6 +3,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_result.dart';
 import '../entities/optimized_route.dart';
+import '../entities/route_finish.dart';
 import '../entities/route_point.dart';
 import '../repositories/route_repository.dart';
 
@@ -14,6 +15,7 @@ class OptimizeRouteUseCase {
     required List<RoutePoint> points,
     String routingMode = RoutingConfig.defaultRoutingMode,
     DateTime? departureAt,
+    RouteFinish finish = const RouteFinish.depot(),
   }) async {
     if (points.length < 2) {
       return ApiFailure(ValidationFailure(AppStrings.errMinTwoPoints));
@@ -26,6 +28,7 @@ class OptimizeRouteUseCase {
       points: points,
       routingMode: routingMode,
       departureAt: departureAt,
+      finish: finish,
     );
   }
 }

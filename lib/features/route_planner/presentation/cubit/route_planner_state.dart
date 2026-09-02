@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../../core/services/location_gate.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 
 /// Id of the departure that tracks the driver's live location. Kept here
@@ -17,7 +18,7 @@ const String kCurrentLocationDepotId = 'depot_current';
 const String kCustomDepotId = 'depot_custom';
 
 /// What the crosshair is aiming at.
-enum PlacementTarget { stop, departure }
+enum PlacementTarget { stop, departure, finish }
 
 /// Explicit lifecycle phases. Callers switch on this enum instead
 /// of destructuring multiple booleans.
@@ -178,6 +179,10 @@ class RoutePlannerState extends Equatable {
   /// since windows are clock times that have to be measured from somewhere.
   final DateTime? departureAt;
 
+  /// Where the driver's day ends. Kept out of [points] on purpose: everything
+  /// in that list is sent to the solver as a stop to visit.
+  final RouteFinish finish;
+
   const RoutePlannerState({
     this.status = RoutePlannerStatus.initial,
     this.points = const [],
@@ -211,6 +216,7 @@ class RoutePlannerState extends Equatable {
     this.placementTarget = PlacementTarget.stop,
     this.multiStopIntent = false,
     this.departureAt,
+    this.finish = const RouteFinish.depot(),
   });
 
   bool get hasOptimizedRoute => optimizedRoute != null;
@@ -299,6 +305,7 @@ class RoutePlannerState extends Equatable {
     PlacementTarget? placementTarget,
     bool? multiStopIntent,
     DateTime? departureAt,
+    RouteFinish? finish,
     bool clearOptimizedRoute = false,
     bool clearError = false,
     bool clearNavigationHeading = false,
@@ -355,6 +362,7 @@ class RoutePlannerState extends Equatable {
       placementTarget: placementTarget ?? this.placementTarget,
       multiStopIntent: multiStopIntent ?? this.multiStopIntent,
       departureAt: clearDepartureAt ? null : (departureAt ?? this.departureAt),
+      finish: finish ?? this.finish,
     );
   }
 
@@ -392,5 +400,6 @@ class RoutePlannerState extends Equatable {
     placementTarget,
     multiStopIntent,
     departureAt,
+    finish,
   ];
 }

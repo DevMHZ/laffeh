@@ -35,6 +35,7 @@ import '../../data/models/planner_draft_model.dart';
 import '../utils/route_csv_utils.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/place_suggestion.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../../domain/usecases/optimize_route_usecase.dart';
@@ -848,8 +849,21 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   /// Swaps the depot in [points] for [departure] and invalidates the route
   /// the old one produced.
+  ///
+  /// Only a depot *this app* invented is thrown away: the automatic
+  /// current-location one, or a departure the driver set earlier. With no
+  /// location fix, [_ensureSingleDepot] promotes the driver's own first pin
+  /// to depot instead — a real place they asked to be taken to. Setting a
+  /// departure used to delete it along with the depot role; it is now demoted
+  /// back to a stop and keeps its place in the trip.
   void _applyDeparture(RoutePoint departure, {required LatLng recentreOn}) {
-    final rest = state.points.where((p) => !p.isDepot);
+    final rest = _relabelGenerated([
+      for (final p in state.points)
+        if (!p.isDepot)
+          p
+        else if (p.id != kCurrentLocationDepotId && p.id != kCustomDepotId)
+          _demoteToStop(p),
+    ]);
     _cancelSimTimer();
     _cancelNavigationStream();
     emit(
@@ -909,6 +923,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// Arms [_importAsDeparture]. Called when the departure picker sends the
   /// driver out to another app.
   void expectDepartureImport() => _importAsDeparture = true;
+
+  /// Same idea for the trip's end: armed when the finish picker hands off to
+  /// Google Maps or WhatsApp, so the place that comes back becomes where the
+  /// day ends rather than another stop to visit.
+  bool _importAsFinish = false;
+
+  void expectFinishImport() => _importAsFinish = true;
+
+  void cancelFinishImport() => _importAsFinish = false;
 
   /// Disarms it — the driver backed out of that flow.
   void cancelDepartureImport() => _importAsDeparture = false;
@@ -1270,6 +1293,11 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         manualPlacement: false,
         // The intent belonged to the trip that just ended, not to the app.
         multiStopIntent: false,
+        // So does where that day was going to end, and when it set off. Both
+        // used to survive a clear, so the next trip started already carrying
+        // yesterday's finish point and departure time without saying so.
+        finish: const RouteFinish.depot(),
+        clearDepartureAt: true,
         placementTarget: PlacementTarget.stop,
         simulationActive: false,
         simulationPlaying: false,
@@ -1355,6 +1383,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           added++;
           continue;
         }
+        if (_importAsFinish) {
+          _importAsFinish = false;
+          await setRouteFinish(RouteFinish.at(latLng, label: stop.label));
+          added++;
+          continue;
+        }
         final point = await addPoint(
           latLng,
           label: stop.label,
@@ -1377,6 +1411,27 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// used for the automatic single-destination route, which the driver never
   /// asked for out loud — if it doesn't land, the card simply keeps its "Go"
   /// button and tries again, loudly, when they press it.
+  /// Change where the day ends and replan, because the answer depends on it.
+  ///
+  /// Nothing happens when the choice is unchanged, so tapping the current
+  /// option in the sheet does not throw away a perfectly good route.
+  Future<void> setRouteFinish(RouteFinish finish) async {
+    if (finish == state.finish) return;
+    // Recentre on a custom finish. Picking it on the map already leaves the
+    // camera there, but an address search, a Google link or a WhatsApp pin
+    // can land it well off screen — and a marker the driver cannot find is
+    // no better than the missing one it replaced.
+    emit(
+      state.copyWith(
+        finish: finish,
+        cameraTarget: finish.effectiveMode == RouteEndMode.custom
+            ? finish.location
+            : null,
+      ),
+    );
+    if (state.optimizedRoute != null) await optimize();
+  }
+
   Future<void> optimize({bool quiet = false}) async {
     _cancelNavigationStream();
 
@@ -1439,6 +1494,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     final result = await _optimize(
       points: routable,
       departureAt: state.departureAt,
+      finish: state.finish,
     );
 
     result.when(
@@ -1453,7 +1509,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
             // Keep deactivated optional points around (dimmed on the map,
             // not part of the route) so deactivation stays reversible.
             points: [
-              ..._stripReturnDuplicate(route.orderedPoints),
+              ..._stripTerminal(route.orderedPoints),
               ...deactivated,
             ],
             displaySegment: RouteSegment.full,
@@ -2580,7 +2636,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     emit(
       state.copyWith(
         status: RoutePlannerStatus.optimizedSuccess,
-        points: _stripReturnDuplicate(saved.orderedPoints),
+        points: _stripTerminal(saved.orderedPoints),
+        finish: _finishFromOrdered(saved.orderedPoints),
         optimizedRoute: route,
         stopFractions: _fractionsFor(route),
         maneuverFractions: _maneuverFractionsFor(route),
@@ -2849,6 +2906,62 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     );
   }
 
+  /// The inverse of the promotion in [_ensureSingleDepot]: a pin standing in
+  /// as the depot becomes an ordinary stop again. Its name is left to
+  /// [_relabelGenerated], which sees the whole list and can number it without
+  /// colliding with the stops already there.
+  RoutePoint _demoteToStop(RoutePoint depot) => depot.copyWith(
+    kind: RoutePointKind.stop,
+    optional: false,
+    active: true,
+  );
+
+  /// True when [label] is one this app generated rather than one that came
+  /// from the driver, a CSV row or a search result. [span] bounds the numbers
+  /// worth testing — no list can hold more labels than it has points.
+  bool _isGeneratedLabel(String label, int span) {
+    if (label == AppStrings.departure) return true;
+    if (label == AppStrings.destinationTitle) return true;
+    for (var i = 1; i <= span; i++) {
+      if (label == AppStrings.stopLabel(i)) return true;
+      if (label == AppStrings.optionalStopLabel(i)) return true;
+    }
+    return false;
+  }
+
+  /// [_relabel], except that a stop carrying a name of its own keeps it —
+  /// the same courtesy [_renumberIfNoLongerSole] extends. Numbering still
+  /// counts those stops, so the generated names around them stay in order
+  /// instead of repeating one the user can already see.
+  List<RoutePoint> _relabelGenerated(List<RoutePoint> points) {
+    final span = points.length;
+    final sole = points.where((p) => !p.isDepot && !p.optional).length == 1;
+    var stopCounter = 0;
+    var optionalCounter = 0;
+    final out = <RoutePoint>[];
+    for (final p in points) {
+      if (p.isDepot) {
+        out.add(p.copyWith(label: AppStrings.departure));
+        continue;
+      }
+      final n = p.optional ? ++optionalCounter : ++stopCounter;
+      if (!_isGeneratedLabel(p.label, span)) {
+        out.add(p);
+        continue;
+      }
+      out.add(
+        p.copyWith(
+          label: p.optional
+              ? AppStrings.optionalStopLabel(n)
+              : sole
+              ? AppStrings.destinationTitle
+              : AppStrings.stopLabel(n),
+        ),
+      );
+    }
+    return out;
+  }
+
   List<RoutePoint> _ensureSingleDepot(List<RoutePoint> points) {
     if (points.isEmpty) return points;
     final hasDepot = points.any((p) => p.isDepot);
@@ -2934,13 +3047,43 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     );
   }
 
-  List<RoutePoint> _stripReturnDuplicate(List<RoutePoint> ordered) {
+  /// Drops the terminal an optimised route ends on before the sequence goes
+  /// back into [points]. There are two of them and neither belongs to the
+  /// plan: the return leg of a round trip, and the driver's chosen finish.
+  ///
+  /// Both are built as depot-kind points, so leaving one in gives [points]
+  /// a second depot — and [OptimizeRouteUseCase] rejects that outright, so
+  /// every later solve failed its validation before reaching the network,
+  /// silently, while the finish came back as a numbered delivery.
+  List<RoutePoint> _stripTerminal(List<RoutePoint> ordered) {
     if (ordered.length < 2) return ordered;
-    if (ordered.first.latitude == ordered.last.latitude &&
-        ordered.first.longitude == ordered.last.longitude) {
+    final last = ordered.last;
+    final isReturnLeg =
+        last.latitude == ordered.first.latitude &&
+        last.longitude == ordered.first.longitude;
+    if (isReturnLeg || last.id.endsWith(kFinishPointIdSuffix)) {
       return ordered.sublist(0, ordered.length - 1);
     }
     return ordered;
+  }
+
+  /// Reads back the end-of-day choice an optimised sequence was built with —
+  /// the inverse of the terminal that [_stripTerminal] takes off.
+  ///
+  /// Loading a saved route has to reset this, not inherit it. The finish
+  /// belongs to a trip, and a route saved as a round trip that comes back
+  /// wearing the previous trip's "finish at home" is lying about itself on
+  /// the To row and would replan to somewhere the driver never chose.
+  RouteFinish _finishFromOrdered(List<RoutePoint> ordered) {
+    if (ordered.length < 2) return const RouteFinish.depot();
+    final last = ordered.last;
+    if (last.id.endsWith(kFinishPointIdSuffix)) {
+      return RouteFinish.at(last.latLng, label: last.label);
+    }
+    final isReturnLeg =
+        last.latitude == ordered.first.latitude &&
+        last.longitude == ordered.first.longitude;
+    return isReturnLeg ? const RouteFinish.depot() : const RouteFinish.open();
   }
 
   String _mapLocationError(LocationException e) {

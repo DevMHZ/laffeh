@@ -35,6 +35,11 @@ class OptimizedRouteModel {
       for (var i = 0; i < stopsRaw.length; i++) {
         final s = stopsRaw[i];
         if (s is Map<String, dynamic>) {
+          // Re-wrapped only to default `sequence` to the list index. Every
+          // other parsed field has to survive: dropping `kind` here made the
+          // backend's own finish node look like an ordinary delivery, so a
+          // custom end point came back as a numbered stop *and* as the
+          // finish — the same place, listed twice.
           final p = RoutePointModel.fromJson(s);
           stops.add(
             RoutePointModel(
@@ -42,7 +47,11 @@ class OptimizedRouteModel {
               lat: p.lat,
               lon: p.lon,
               weight: p.weight,
+              timeWindowStart: p.timeWindowStart,
+              timeWindowEnd: p.timeWindowEnd,
               sequence: p.sequence ?? i,
+              kind: p.kind,
+              arrivalTimeMinutes: p.arrivalTimeMinutes,
             ),
           );
         }

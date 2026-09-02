@@ -12,11 +12,13 @@ import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/trip_map_pack_tile.dart';
 import '../../../saved_routes/presentation/pages/saved_routes_page.dart';
 import '../../domain/entities/optimized_route.dart';
+import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'missed_time_window_sheet.dart';
+import 'route_finish_sheet.dart';
 import 'stop_time_window_sheet.dart';
 
 part 'route_summary_sheet_widgets.dart';
@@ -117,7 +119,19 @@ class RouteSummarySheet extends StatelessWidget {
                 children: [
                   for (var i = 0; i < order.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
-                    _orderCell(order[i], i + 1, order.length, departureMinute),
+                    _orderCell(context, order[i], i + 1, order.length,
+                        departureMinute),
+                  ],
+                  // An open route has no closing row, so the way to change
+                  // how the day ends would vanish with the row that offered
+                  // it. Keep the affordance, stated as what actually happens.
+                  if (state.finish.effectiveMode == RouteEndMode.open &&
+                      order.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _OpenFinishRow(
+                      lastStopLabel: order.last.label,
+                      onTap: () => _pickFinish(context),
+                    ),
                   ],
                 ],
               ),
@@ -180,7 +194,8 @@ class RouteSummarySheet extends StatelessWidget {
   /// One full-width row for a single stop in the optimised sequence — order
   /// number badge, label, and (when known) address. Laid out one per line for
   /// clear order reading.
-  Widget _orderCell(RoutePoint p, int index, int total, int departureMinute) {
+  Widget _orderCell(BuildContext context, RoutePoint p, int index, int total,
+      int departureMinute) {
     final i = index - 1;
     final isReturn = i == total - 1 && p.isDepot && i != 0;
     final color = p.isDeactivated
@@ -192,10 +207,12 @@ class RouteSummarySheet extends StatelessWidget {
         : p.optional
         ? AppColors.optional
         : AppColors.info;
-    final icon = p.isDepot && !isReturn
-        ? Iconsax.flag
-        : isReturn
-        ? Iconsax.home_2
+    // House for both ends of a round trip — the return leg is the departure,
+    // and drawing it as anything else invites the driver to look for a place
+    // that isn't there. The flag is reserved for a finish they chose.
+    final isChosenFinish = p.id.endsWith(kFinishPointIdSuffix);
+    final icon = p.isDepot
+        ? (isChosenFinish ? Iconsax.flag : Iconsax.home_2)
         : p.optional
         ? Iconsax.star_1
         : Iconsax.location;
@@ -206,7 +223,21 @@ class RouteSummarySheet extends StatelessWidget {
       color: color,
       icon: icon,
       departureMinute: departureMinute,
+      // Only the closing row is a choice: it is where the day ends, and the
+      // Re-optimize button sits directly beneath it.
+      onTap: isReturn ? () => _pickFinish(context) : null,
     );
+  }
+
+  /// Ask where the day should end, and replan if the answer changed.
+  Future<void> _pickFinish(BuildContext context) async {
+    final cubit = context.read<RoutePlannerCubit>();
+    final chosen = await showRouteFinishSheet(
+      context,
+      cubit,
+      current: cubit.state.finish,
+    );
+    if (chosen != null) await cubit.setRouteFinish(chosen);
   }
 
   Future<void> _handleStartNew(BuildContext context) async {
