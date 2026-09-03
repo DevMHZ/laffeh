@@ -14,8 +14,16 @@ class EnvConfig {
     fallback: 'https://back.laffa.afdal.tech/api/v1',
   );
 
-  static String get aiRouteApiKey =>
-      _read('AI_ROUTE_API_KEY', fallback: 'test-key-001');
+  /// No fallback on purpose. A key checked into the repository is a key
+  /// anyone can read, and this one was public long enough to be treated as
+  /// compromised. An unset key now fails loudly at the first request rather
+  /// than quietly signing traffic with a shared default.
+  ///
+  /// Note this is an *identifier*, not a secret: `.env` is bundled as an
+  /// asset, so whatever is here ships inside the APK and can be read out of
+  /// it. Rate limits and quotas on the server are what actually protect the
+  /// API — see the `limit` field on each key.
+  static String get aiRouteApiKey => _read('AI_ROUTE_API_KEY');
 
   static String get mapStyleUrl => _read(
     'MAP_STYLE_URL',
