@@ -124,6 +124,11 @@ class _StopTimelineState extends State<StopTimeline>
       child: ListView.builder(
         controller: _scroll,
         scrollDirection: Axis.horizontal,
+        // The active stop pulses a soft halo that is wider than the row it
+        // sits in. A ListView clips its viewport by default, which sliced
+        // that halo flat top and bottom and left a squared-off patch around
+        // the circle — the "ugly box" around the current stop.
+        clipBehavior: Clip.none,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         itemCount: points.length,
         itemExtent: _itemExtent,
@@ -209,6 +214,10 @@ class _TimelineItem extends StatelessWidget {
           height: compact ? 26 : 32,
           child: Stack(
             alignment: Alignment.center,
+            // Same reason as the ListView above: a Stack clips to its own
+            // bounds unless told not to, and the halo is deliberately
+            // bigger than the dot.
+            clipBehavior: Clip.none,
             children: [
               // Connector lines.
               Row(
@@ -262,8 +271,11 @@ class _TimelineItem extends StatelessWidget {
                                   color: color.withValues(
                                     alpha: 0.45 - pulse.value * 0.2,
                                   ),
-                                  blurRadius: 10 + pulse.value * 6,
-                                  spreadRadius: 1 + pulse.value * 2,
+                                  // Sized from the dot rather than fixed, so
+                                  // the halo stays inside the row at both
+                                  // sizes instead of reaching the label.
+                                  blurRadius: dot * (0.26 + pulse.value * 0.14),
+                                  spreadRadius: dot * (0.04 + pulse.value * 0.06),
                                 ),
                               ]
                             : null,
