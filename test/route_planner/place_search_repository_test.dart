@@ -61,6 +61,9 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
 
     photon = _MockPhoton();
+    // The repository resolves the driver's country once per area so it can
+    // keep results inside it. Syria here — these tests plan around Damascus.
+    when(() => photon.countryAt(any())).thenAnswer((_) async => 'SY');
     nominatim = _MockNominatim();
     overpass = _MockOverpass();
 
@@ -100,6 +103,7 @@ void main() {
         near: any(named: 'near'),
         radiusKm: captureAny(named: 'radiusKm'),
         limit: any(named: 'limit'),
+        countryCode: any(named: 'countryCode'),
       ),
     ).captured.cast<double?>();
   }
@@ -112,6 +116,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       ).thenAnswer(
         (_) async => List.generate(
@@ -156,6 +161,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       ).thenAnswer(
         (_) async => [
@@ -185,6 +191,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       ).thenAnswer((_) async => const []);
 
@@ -230,6 +237,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       );
     });
@@ -246,6 +254,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       );
     });
@@ -259,6 +268,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       );
     });
@@ -272,6 +282,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       ).thenAnswer(
         (_) async => List.generate(
@@ -324,6 +335,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
+          countryCode: any(named: 'countryCode'),
         ),
       ).thenAnswer(
         (_) async => List.generate(

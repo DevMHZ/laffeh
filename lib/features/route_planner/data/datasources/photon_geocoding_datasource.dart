@@ -49,6 +49,7 @@ class PhotonGeocodingDataSource {
     LatLng? near,
     double? radiusKm,
     int limit = GeocodingConfig.providerLimit,
+    String? countryCode,
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
@@ -77,7 +78,7 @@ class PhotonGeocodingDataSource {
         queryParameters: params,
         options: Options(receiveTimeout: GeocodingConfig.providerTimeout),
       );
-      return _parse(response.data);
+      return _parse(response.data, countryCode: countryCode);
     } catch (_) {
       // A provider that fails is a provider that contributes nothing this
       // keystroke. The others still have answers; the list must not empty
@@ -86,7 +87,46 @@ class PhotonGeocodingDataSource {
     }
   }
 
-  List<PlaceSuggestion> _parse(Map<String, dynamic>? body) {
+  /// [countryCode] drops anything outside the country the driver is in.
+  ///
+  /// Photon has no country parameter, so the bounding box is the only filter
+  /// it offers — and a box is a rectangle, which borders are not. Asking for
+  /// "university" inside a box around Beirut returns a college in Israel.
+  /// Every Photon feature carries `countrycode`, so the border is enforced
+  /// here instead, on the way out.
+  /// The ISO country code the given position falls in, or null.
+  ///
+  /// One request, and the answer is stable for a whole shift — a driver
+  /// crosses a border rarely and a search box does not need to notice
+  /// quickly when they do. The caller caches it; this only asks.
+  Future<String?> countryAt(LatLng position) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/reverse',
+        queryParameters: {
+          'lat': position.latitude,
+          'lon': position.longitude,
+          'limit': 1,
+        },
+        options: Options(receiveTimeout: GeocodingConfig.providerTimeout),
+      );
+      final features = response.data?['features'];
+      if (features is! List || features.isEmpty) return null;
+      final props = features.first['properties'];
+      if (props is! Map) return null;
+      final code = props['countrycode']?.toString().toUpperCase();
+      return (code != null && code.length == 2) ? code : null;
+    } catch (_) {
+      // Not knowing the country is survivable: the filter is skipped and
+      // the search behaves exactly as it did before this existed.
+      return null;
+    }
+  }
+
+  List<PlaceSuggestion> _parse(
+    Map<String, dynamic>? body, {
+    String? countryCode,
+  }) {
     final features = body?['features'];
     if (features is! List) return const [];
 
@@ -106,6 +146,14 @@ class PhotonGeocodingDataSource {
       final name = _nameOf(props);
       if (name == null) continue;
 
+      final country = props['countrycode']?.toString().toUpperCase();
+      // A result with no country is kept: absent is not the same as wrong,
+      // and dropping it would lose unlabelled places in the driver's own
+      // street.
+      if (countryCode != null && country != null && country != countryCode) {
+        continue;
+      }
+
       results.add(
         PlaceSuggestion(
           id: 'photon:${props['osm_type'] ?? ''}${props['osm_id'] ?? '$lat,$lon'}',
@@ -119,6 +167,7 @@ class PhotonGeocodingDataSource {
           prominence: props['osm_key'] == 'place'
               ? prominenceForOsmPlace(props['osm_value']?.toString())
               : null,
+          countryCode: country,
         ),
       );
     }

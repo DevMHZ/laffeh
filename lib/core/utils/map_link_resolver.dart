@@ -46,6 +46,15 @@ class MapLinkResolver {
           maxRedirects: 6,
           responseType: ResponseType.plain,
           validateStatus: (_) => true,
+          // Google serves a different redirect chain to a client that does
+          // not look like a browser, and in the EU it interposes a consent
+          // page before the real destination. Ask as a phone would, and let
+          // the parser unwrap the consent hop.
+          headers: const {
+            'User-Agent':
+                'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          },
         ),
       );
       final response = await dio.getUri<String>(uri);

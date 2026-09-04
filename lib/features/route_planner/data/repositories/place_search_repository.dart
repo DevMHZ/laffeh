@@ -53,6 +53,44 @@ class PlaceSearchRepository {
 
   final _cache = <String, _CacheEntry>{};
 
+  /// The country the driver is standing in, resolved once and kept.
+  ///
+  /// Every bounded search is filtered to it, because the bounding box the
+  /// providers take is a rectangle and borders are not: a box around Beirut
+  /// reaches into Syria and Israel, and a search for "university" inside one
+  /// really does return a college in the wrong country.
+  ///
+  /// Deliberately *not* applied to the unbounded pass. That one exists so a
+  /// driver in Damascus typing حلب finds Aleppo three hundred kilometres
+  /// away; filtering it by country would be filtering the wrong thing.
+  String? _homeCountry;
+  LatLng? _homeCountryFor;
+  Future<String?>? _homeCountryInFlight;
+
+  /// [_homeCountry], fetched if this is a new part of the world.
+  ///
+  /// Re-resolved only when the driver has moved far enough that the answer
+  /// could plausibly have changed, so a shift costs one request, not one
+  /// per keystroke. A failure yields null, and null simply means the filter
+  /// does not run — the search behaves as it did before it existed.
+  Future<String?> _countryFor(LatLng? near) {
+    if (near == null) return Future.value(null);
+
+    final known = _homeCountryFor;
+    if (known != null &&
+        DistanceUtils.haversineKm(known, near) <
+            GeocodingConfig.countryRecheckKm) {
+      return Future.value(_homeCountry);
+    }
+
+    return _homeCountryInFlight ??= _photon.countryAt(near).then((code) {
+      _homeCountry = code;
+      _homeCountryFor = near;
+      _homeCountryInFlight = null;
+      return code;
+    });
+  }
+
   /// Places the driver picked before, newest first — the list the sheet
   /// shows before a single letter is typed.
   List<PlaceSuggestion> recentPlaces({LatLng? near}) {
@@ -139,12 +177,15 @@ class PlaceSearchRepository {
     final category = PlaceCategoryLexicon.match(trimmed);
 
     // ── Pass 1: the fast provider, confined to the working area ──
+    final country = await _countryFor(near);
+
     final pool = <PlaceSuggestion>[...local];
     pool.addAll(
       await _photon.search(
         trimmed,
         near: near,
         radiusKm: near == null ? null : GeocodingConfig.nearRadiusKm,
+        countryCode: country,
       ),
     );
 
@@ -172,6 +213,7 @@ class PlaceSearchRepository {
           trimmed,
           near: near,
           radiusKm: GeocodingConfig.regionRadiusKm,
+          countryCode: country,
         ),
         // No box at all — but only for a query that names something. A
         // driver asking for fuel is not asking about a station in Yanbu,

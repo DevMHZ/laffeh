@@ -49,6 +49,12 @@ class GeocodingConfig {
   /// rural rounds and small towns.
   static const double categoryWideRadiusKm = 25;
 
+  /// How far the driver must move before the country behind the search
+  /// filter is looked up again. Comfortably larger than a shift, so the
+  /// lookup costs one request a day rather than one per search, and small
+  /// enough that a genuine border crossing is noticed within a few stops.
+  static const double countryRecheckKm = 60;
+
   // ── Ranking ──────────────────────────────────────────────
   /// Weights of the three things that make a result good. They sum to 1.
   static const double weightText = 0.38;

@@ -79,6 +79,14 @@ class PlaceSuggestion extends Equatable {
   /// provider offered nothing, in which case the kind's default stands.
   final double? prominence;
 
+  /// ISO 3166-1 alpha-2 country of the place, when the provider says.
+  ///
+  /// Kept so a result can be judged against the country the driver is
+  /// standing in. A bounding box cannot do that job: a box around Beirut
+  /// reaches into Syria and Israel, and a search for "university" inside one
+  /// really does come back with a college in the wrong country.
+  final String? countryCode;
+
   /// Stable identity for de-duplication and for the recents store.
   /// Provider ids where there is one, coordinates where there is not.
   final String id;
@@ -93,6 +101,7 @@ class PlaceSuggestion extends Equatable {
     this.distanceKm,
     this.score = 0,
     this.prominence,
+    this.countryCode,
   });
 
   /// The full label written onto the route point when this is picked —
@@ -119,6 +128,7 @@ class PlaceSuggestion extends Equatable {
       distanceKm: distanceKm ?? this.distanceKm,
       score: score ?? this.score,
       prominence: prominence,
+      countryCode: countryCode,
     );
   }
 

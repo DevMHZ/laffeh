@@ -42,6 +42,22 @@ class LinkParser {
   }
 
   static LatLng? _parseGoogleMaps(Uri uri) {
+    // Format 0: the EU consent interstitial.
+    //   https://consent.google.com/m?continue=https://www.google.com/maps/...
+    // A driver in France sharing a pin never reaches Google Maps at all —
+    // the redirect lands here first, and the address they actually shared is
+    // sitting unread in `continue`. Unwrap it and start again.
+    if (uri.host.contains('consent.google')) {
+      final onward = uri.queryParameters['continue'];
+      if (onward != null && onward.trim().isNotEmpty) {
+        final inner = Uri.tryParse(onward.trim());
+        if (inner != null && inner.host != uri.host) {
+          return tryParseMapUrl(inner.toString());
+        }
+      }
+      return null;
+    }
+
     // Format 1:  ?q=lat,lng
     //   https://maps.google.com/?q=33.5131,36.2767
     //   https://www.google.com/maps?q=33.5131,36.2767
@@ -81,7 +97,21 @@ class LinkParser {
       if (result != null) return result;
     }
 
-    // Format 4:  /maps/search/lat,lng   (short-link redirect target — no
+    // Format 4:  !3d<lat>!4d<lon> inside a `data=` blob.
+    //   .../maps/place/Name/data=!4m6!3m5!1s0x47e6…!8m2!3d49.0369!4d2.0631
+    // This is how Google encodes a *place* today. Sharing a pin gives this
+    // and often no `@lat,lng` at all — `@` is the map *view*, which a share
+    // of a specific place does not always carry.
+    final dataMatch = RegExp(
+      r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)',
+    ).firstMatch(uri.toString());
+    if (dataMatch != null) {
+      final lat = double.tryParse(dataMatch.group(1)!);
+      final lng = double.tryParse(dataMatch.group(2)!);
+      if (lat != null && lng != null) return LatLng(lat, lng);
+    }
+
+    // Format 5:  /maps/search/lat,lng   (short-link redirect target — no
     // place name, just a bare coordinate pair as its own path segment)
     //   https://www.google.com/maps/search/49.043893,+2.030417
     for (final segment in uri.pathSegments) {
