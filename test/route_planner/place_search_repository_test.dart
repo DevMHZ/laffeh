@@ -72,7 +72,7 @@ void main() {
         any(),
         near: any(named: 'near'),
         radiusKm: any(named: 'radiusKm'),
-        countryCode: any(named: 'countryCode'),
+        language: any(named: 'language'),
         limit: any(named: 'limit'),
       ),
     ).thenAnswer((_) async => const []);
@@ -103,7 +103,7 @@ void main() {
         near: any(named: 'near'),
         radiusKm: captureAny(named: 'radiusKm'),
         limit: any(named: 'limit'),
-        countryCode: any(named: 'countryCode'),
+        language: any(named: 'language'),
       ),
     ).captured.cast<double?>();
   }
@@ -116,7 +116,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       ).thenAnswer(
         (_) async => List.generate(
@@ -161,7 +161,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       ).thenAnswer(
         (_) async => [
@@ -191,7 +191,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       ).thenAnswer((_) async => const []);
 
@@ -237,7 +237,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       );
     });
@@ -254,7 +254,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       );
     });
@@ -268,7 +268,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       );
     });
@@ -282,7 +282,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       ).thenAnswer(
         (_) async => List.generate(
@@ -295,7 +295,7 @@ void main() {
           any(),
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
           limit: any(named: 'limit'),
         ),
       ).thenAnswer(
@@ -335,7 +335,7 @@ void main() {
           near: any(named: 'near'),
           radiusKm: any(named: 'radiusKm'),
           limit: any(named: 'limit'),
-          countryCode: any(named: 'countryCode'),
+          language: any(named: 'language'),
         ),
       ).thenAnswer(
         (_) async => List.generate(

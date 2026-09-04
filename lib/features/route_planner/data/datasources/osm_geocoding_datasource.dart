@@ -52,6 +52,7 @@ class OsmGeocodingDataSource {
     LatLng? near,
     double? radiusKm,
     String? countryCode,
+    String? language,
     int limit = GeocodingConfig.providerLimit,
   }) async {
     final trimmed = query.trim();
@@ -62,7 +63,7 @@ class OsmGeocodingDataSource {
       'q': trimmed,
       'limit': limit,
       'addressdetails': 1,
-      'accept-language': 'ar,en',
+      'accept-language': acceptLanguage(language),
     };
 
     if (near != null && radiusKm != null) {
@@ -262,4 +263,17 @@ class OsmGeocodingDataSource {
       return null;
     }
   }
+}
+
+
+/// The `accept-language` Nominatim should answer in.
+///
+/// Unlike Photon, Nominatim takes any BCP 47 tag, so the app's language goes
+/// through as-is. English trails it as a fallback for places that carry no
+/// name in the requested language; without that a driver gets a blank line
+/// rather than a name they merely cannot read.
+String acceptLanguage(String? appLanguage) {
+  final code = (appLanguage ?? '').trim().toLowerCase();
+  if (code.isEmpty) return 'en';
+  return code == 'en' ? 'en' : '$code,en';
 }

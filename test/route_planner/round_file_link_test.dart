@@ -6,6 +6,8 @@
 /// only skipped `sharemedia-` links, so the file URL fell through to the
 /// text path — the round never opened, and the full local path was sent to
 /// Photon and Nominatim as a search query. Broken, and a leak.
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 
 /// The classifier as the handler applies it.

@@ -53,42 +53,54 @@ class PlaceSearchRepository {
 
   final _cache = <String, _CacheEntry>{};
 
-  /// The country the driver is standing in, resolved once and kept.
+  /// Countries resolved from a position, cached so a shift costs one lookup
+  /// rather than one per keystroke.
   ///
-  /// Every bounded search is filtered to it, because the bounding box the
-  /// providers take is a rectangle and borders are not: a box around Beirut
-  /// reaches into Syria and Israel, and a search for "university" inside one
-  /// really does return a college in the wrong country.
+  /// Plural on purpose. Two places are "in play": where the driver is
+  /// standing, and where the map is currently looking. They are the same
+  /// almost always and different exactly when it matters — someone panning
+  /// across a border to plan a delivery on the other side.
   ///
-  /// Deliberately *not* applied to the unbounded pass. That one exists so a
-  /// driver in Damascus typing حلب finds Aleppo three hundred kilometres
-  /// away; filtering it by country would be filtering the wrong thing.
-  String? _homeCountry;
-  LatLng? _homeCountryFor;
-  Future<String?>? _homeCountryInFlight;
+  /// This used to be a single country used as a hard filter. That was too
+  /// blunt: it silently deleted the answer for anyone working near a border.
+  /// The countries are now a *preference* handed to the ranker.
+  final _countryCache = <String, String?>{};
+  final _countryInFlight = <String, Future<String?>>{};
 
-  /// [_homeCountry], fetched if this is a new part of the world.
+  /// The country [at] falls in, cached by a coarse grid cell.
   ///
-  /// Re-resolved only when the driver has moved far enough that the answer
-  /// could plausibly have changed, so a shift costs one request, not one
-  /// per keystroke. A failure yields null, and null simply means the filter
-  /// does not run — the search behaves as it did before it existed.
-  Future<String?> _countryFor(LatLng? near) {
-    if (near == null) return Future.value(null);
+  /// The cell is [GeocodingConfig.countryRecheckKm] across, so moving about
+  /// within a city reuses the answer and crossing a border eventually asks
+  /// again. A failure yields null, which simply means that position
+  /// contributes no preference.
+  Future<String?> _countryFor(LatLng? at) {
+    if (at == null) return Future.value(null);
 
-    final known = _homeCountryFor;
-    if (known != null &&
-        DistanceUtils.haversineKm(known, near) <
-            GeocodingConfig.countryRecheckKm) {
-      return Future.value(_homeCountry);
-    }
+    final cell = GeocodingConfig.countryRecheckKm / 111.0; // degrees, roughly
+    final key = '${(at.latitude / cell).round()}:'
+        '${(at.longitude / cell).round()}';
+    if (_countryCache.containsKey(key)) return Future.value(_countryCache[key]);
 
-    return _homeCountryInFlight ??= _photon.countryAt(near).then((code) {
-      _homeCountry = code;
-      _homeCountryFor = near;
-      _homeCountryInFlight = null;
+    return _countryInFlight.putIfAbsent(key, () async {
+      final code = await _photon.countryAt(at);
+      _countryCache[key] = code;
+      _countryInFlight.remove(key);
       return code;
     });
+  }
+
+  /// Every country worth preferring for this search.
+  Future<Set<String>> _countriesInPlay(LatLng? near, LatLng? mapCentre) async {
+    final codes = await Future.wait([
+      _countryFor(near),
+      // Only worth a second lookup when the map is genuinely somewhere else.
+      if (mapCentre != null &&
+          (near == null ||
+              DistanceUtils.haversineKm(near, mapCentre) >
+                  GeocodingConfig.countryRecheckKm))
+        _countryFor(mapCentre),
+    ]);
+    return {for (final c in codes) if (c != null) c};
   }
 
   /// Places the driver picked before, newest first — the list the sheet
@@ -123,6 +135,13 @@ class PlaceSearchRepository {
   Stream<List<PlaceSuggestion>> search(
     String query, {
     LatLng? near,
+    /// Where the map is looking, when that is somewhere other than [near].
+    /// Panning across a border to plan a delivery on the other side should
+    /// put that side's country in play too.
+    LatLng? mapCentre,
+    /// The app's language, so names come back in it. See [photonLanguage]
+    /// for why Arabic is not passed through verbatim.
+    String? language,
     List<PlaceSuggestion> routePoints = const [],
   }) async* {
     final trimmed = query.trim();
@@ -166,6 +185,9 @@ class PlaceSearchRepository {
       ...routePoints,
     ].where((p) => PlaceSearchRanker.matchesQuery(p, trimmed)).toList();
 
+    // Shown before any network call resolves, so it ranks without the
+    // country preference: making the driver wait on a reverse geocode to see
+    // their own recent places would be a poor trade.
     if (local.isNotEmpty) {
       yield PlaceSearchRanker.rank(local, query: trimmed, near: near);
     }
@@ -177,7 +199,7 @@ class PlaceSearchRepository {
     final category = PlaceCategoryLexicon.match(trimmed);
 
     // ── Pass 1: the fast provider, confined to the working area ──
-    final country = await _countryFor(near);
+    final countries = await _countriesInPlay(near, mapCentre);
 
     final pool = <PlaceSuggestion>[...local];
     pool.addAll(
@@ -185,7 +207,7 @@ class PlaceSearchRepository {
         trimmed,
         near: near,
         radiusKm: near == null ? null : GeocodingConfig.nearRadiusKm,
-        countryCode: country,
+        language: language,
       ),
     );
 
@@ -213,14 +235,14 @@ class PlaceSearchRepository {
           trimmed,
           near: near,
           radiusKm: GeocodingConfig.regionRadiusKm,
-          countryCode: country,
+          language: language,
         ),
         // No box at all — but only for a query that names something. A
         // driver asking for fuel is not asking about a station in Yanbu,
         // and letting a category query go global fills the list with
         // far-away text matches that can never be the answer.
         if (category == null)
-          _photon.search(trimmed, near: near)
+          _photon.search(trimmed, near: near, language: language)
         else
           Future.value(const <PlaceSuggestion>[]),
       ]);
@@ -230,7 +252,8 @@ class PlaceSearchRepository {
     }
 
     if (pool.isNotEmpty) {
-      yield PlaceSearchRanker.rank(pool, query: trimmed, near: near);
+      yield PlaceSearchRanker.rank(pool, query: trimmed, near: near,
+          preferredCountries: countries);
     }
 
     // ── Pass 2: the slower sources, in parallel ────────────
@@ -252,7 +275,8 @@ class PlaceSearchRepository {
       pool.addAll(batch);
     }
 
-    final ranked = PlaceSearchRanker.rank(pool, query: trimmed, near: near);
+    final ranked = PlaceSearchRanker.rank(pool, query: trimmed, near: near,
+          preferredCountries: countries);
     _store(cacheKey, ranked);
     yield ranked;
   }

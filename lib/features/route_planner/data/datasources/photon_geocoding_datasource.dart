@@ -49,7 +49,7 @@ class PhotonGeocodingDataSource {
     LatLng? near,
     double? radiusKm,
     int limit = GeocodingConfig.providerLimit,
-    String? countryCode,
+    String? language,
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
@@ -58,7 +58,7 @@ class PhotonGeocodingDataSource {
       'q': trimmed,
       'limit': limit,
       // See the class doc: `default` is how you ask for Arabic.
-      'lang': 'default',
+      'lang': photonLanguage(language),
     };
 
     if (near != null) {
@@ -78,7 +78,7 @@ class PhotonGeocodingDataSource {
         queryParameters: params,
         options: Options(receiveTimeout: GeocodingConfig.providerTimeout),
       );
-      return _parse(response.data, countryCode: countryCode);
+      return _parse(response.data);
     } catch (_) {
       // A provider that fails is a provider that contributes nothing this
       // keystroke. The others still have answers; the list must not empty
@@ -147,12 +147,6 @@ class PhotonGeocodingDataSource {
       if (name == null) continue;
 
       final country = props['countrycode']?.toString().toUpperCase();
-      // A result with no country is kept: absent is not the same as wrong,
-      // and dropping it would lose unlabelled places in the driver's own
-      // street.
-      if (countryCode != null && country != null && country != countryCode) {
-        continue;
-      }
 
       results.add(
         PlaceSuggestion(
@@ -241,4 +235,18 @@ class PhotonGeocodingDataSource {
         return PlaceKind.poi;
     }
   }
+}
+
+
+/// The `lang` value Photon accepts for an app language.
+///
+/// The public instance supports de, en, fr, it and `default`; anything else
+/// is answered with HTTP 400, which would take the search box down entirely.
+/// Arabic therefore maps to `default` — and that is not a compromise: in the
+/// Arab world the local name *is* the Arabic one, so `default` returns
+/// الحمرا where `en` would return "El Hamra".
+String photonLanguage(String? appLanguage) {
+  const supported = {'de', 'en', 'fr', 'it'};
+  final code = (appLanguage ?? '').trim().toLowerCase();
+  return supported.contains(code) ? code : 'default';
 }

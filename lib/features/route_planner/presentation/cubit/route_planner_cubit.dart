@@ -547,6 +547,11 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   Stream<List<PlaceSuggestion>> searchPlaces(String query) => _places.search(
     query,
     near: searchAnchor,
+    // Where the map is looking, which is only different from [searchAnchor]
+    // when the driver has panned away from themselves — across a border, for
+    // instance, to plan a delivery on the other side.
+    mapCentre: state.cameraTarget,
+    language: AppStrings.languageCode,
     routePoints: _routePointSuggestions(),
   );
 

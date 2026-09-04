@@ -32,6 +32,7 @@ class PlaceSearchRanker {
     required String query,
     LatLng? near,
     int limit = GeocodingConfig.maxResults,
+    Set<String> preferredCountries = const {},
   }) {
     if (candidates.isEmpty) return const [];
 
@@ -68,7 +69,12 @@ class PlaceSearchRanker {
 
       return candidate.copyWith(
         distanceKm: distanceKm,
-        score: _applySourceBonus(base, candidate.source),
+        score: _applyCountryPreference(
+          _applySourceBonus(base, candidate.source),
+          candidate,
+          distanceKm,
+          preferredCountries,
+        ),
       );
     }).toList();
 
@@ -239,6 +245,34 @@ class PlaceSearchRanker {
     PlaceKind.street => 0.55,
     PlaceKind.address => 0.50,
   };
+
+  /// Demote a result that is neither in a country in play nor nearby.
+  ///
+  /// "In play" is the country the driver is standing in *and* the country the
+  /// map is looking at, which differ the moment someone pans across a border.
+  /// Nothing is excluded — a foreign result keeps its place and simply sorts
+  /// below the local ones, which is what "show the rest, but second" means.
+  ///
+  /// The distance let-off matters as much as the country test: within
+  /// [GeocodingConfig.borderBlindRadiusKm] the penalty does not apply at all,
+  /// so a town twelve kilometres over a border still beats one two hundred
+  /// kilometres away on the driver's own side. A result whose country is
+  /// unknown is never penalised — absent is not the same as foreign.
+  static double _applyCountryPreference(
+    double base,
+    PlaceSuggestion candidate,
+    double? distanceKm,
+    Set<String> preferred,
+  ) {
+    if (preferred.isEmpty) return base;
+    final country = candidate.countryCode;
+    if (country == null || preferred.contains(country)) return base;
+    if (distanceKm != null &&
+        distanceKm <= GeocodingConfig.borderBlindRadiusKm) {
+      return base;
+    }
+    return base * GeocodingConfig.foreignPenalty;
+  }
 
   static double _applySourceBonus(double base, PlaceSource source) {
     final bonus = switch (source) {

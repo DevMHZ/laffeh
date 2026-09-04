@@ -10,6 +10,8 @@
 /// The resolver followed the redirect, landed on consent.google.com, saw a
 /// host containing "google", found no coordinates, and gave up — while the
 /// address the driver shared sat unread in `continue`.
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:laffeh/core/utils/link_parser.dart';
 

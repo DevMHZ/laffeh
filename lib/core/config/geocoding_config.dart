@@ -49,6 +49,18 @@ class GeocodingConfig {
   /// rural rounds and small towns.
   static const double categoryWideRadiusKm = 25;
 
+  /// A result outside the countries in play keeps its place in the list but
+  /// scores lower, so it sorts below the local answers instead of vanishing.
+  /// Multiplicative: 1.0 would be no preference at all, 0 would be the hard
+  /// filter this replaced.
+  static const double foreignPenalty = 0.62;
+
+  /// Inside this radius, country stops mattering. A border town twelve
+  /// kilometres away is a better answer than a same-country town two hundred
+  /// kilometres away, and a map straddling a border should simply show what
+  /// is there.
+  static const double borderBlindRadiusKm = 40;
+
   /// How far the driver must move before the country behind the search
   /// filter is looked up again. Comfortably larger than a shift, so the
   /// lookup costs one request a day rather than one per search, and small
