@@ -105,5 +105,50 @@
 		     back to the browser on a phone that has the app. -->
 		<string>comgooglemaps</string>
 	</array>
+	<!-- The .laffa round file.
+	     Declaring the type is what makes iOS offer "Open in Laffa" from Mail
+	     and Files. Note this only works once the app is installed: iOS will
+	     not offer to install an app for an unknown extension, which is why
+	     a share link stays the primary way to send a round. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>tech.afdal.laffa.route</string>
+			<key>UTTypeDescription</key>
+			<string>Laffa route</string>
+			<!-- Conforms to JSON so anything that can preview JSON still can. -->
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>laffa</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/vnd.afdal.laffa+json</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Laffa route</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>tech.afdal.laffa.route</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -1,3 +1,5 @@
+import 'package:iconsax/iconsax.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -60,6 +62,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     with WidgetsBindingObserver {
   final GlobalKey<RouteMapViewState> _mapKey = GlobalKey<RouteMapViewState>();
   StreamSubscription<String>? _shareSub;
+  StreamSubscription<String>? _roundFileSub;
 
   /// Timestamp of the last Android back press — used so the app only exits on
   /// a second back within the window, never on a single accidental tap.
@@ -86,6 +89,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _shareSub = ShareIntentHandler.stream.listen(_onSharedText);
+    _roundFileSub = ShareIntentHandler.fileStream.listen(_onRoundFile);
     // First chance to capture this launch's single location ping. Best-effort;
     // no-op once captured, or until location permission is granted.
     sl<LocationPingService>().ping();
@@ -106,6 +110,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _shareSub?.cancel();
+    _roundFileSub?.cancel();
     super.dispose();
   }
 
@@ -136,6 +141,37 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
       // while we were away, so the location chip corrects itself.
       cubit.refreshLocationAccess();
     }
+  }
+
+  /// A `.laffa` round arrived — from Mail, Files, or a file manager.
+  ///
+  /// Loading replaces the plan on the phone, so it asks first. The driver
+  /// may have been halfway through building something of their own.
+  Future<void> _onRoundFile(String path) async {
+    if (!mounted) return;
+    final cubit = context.read<RoutePlannerCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (cubit.state.hasPoints) {
+      final replace = await AppDialog.confirm(
+        context: context,
+        title: AppStrings.laffaReplaceTitle,
+        message: AppStrings.laffaReplaceMessage,
+        icon: Iconsax.document_download,
+        confirmLabel: AppStrings.laffaReplaceConfirm,
+      );
+      if (replace != true) return;
+    }
+
+    final error = await cubit.importLaffaFile(path);
+    if (!mounted) return;
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(content: Text(AppStrings.laffaImported(cubit.state.points.length))),
+    );
   }
 
   Future<void> _onSharedText(String text) async {

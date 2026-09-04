@@ -37,6 +37,28 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="text/plain"/>
             </intent-filter>
+            <!-- The .laffa round file, arriving from Gmail, Drive or a file
+                 manager. Android matches on MIME type when the sender sets
+                 one and on the path otherwise, because mail clients hand
+                 unknown extensions over as application/octet-stream. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:mimeType="application/vnd.afdal.laffa+json"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="content"/>
+                <data android:scheme="file"/>
+                <data android:host="*"/>
+                <data android:mimeType="*/*"/>
+                <data android:pathPattern=".*\\.laffa"/>
+                <data android:pathPattern=".*\\..*\\.laffa"/>
+            </intent-filter>
+
             <!-- Open map links directly from apps such as WhatsApp -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>

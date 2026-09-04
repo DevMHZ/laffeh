@@ -129,6 +129,17 @@ class AppStrings {
   static String get errInvalidResponse => _t('errInvalidResponse');
   static String get errEmptyOptimizedRoute => _t('errEmptyOptimizedRoute');
   static String get errTimeout => _t('errTimeout');
+
+  /// Shown when a .laffa round cannot be read at all — as opposed to a
+  /// format problem, which the parser describes in its own words.
+  static String get errLaffaUnreadable => _t('errLaffaUnreadable');
+  static String get laffaReplaceTitle => _t('laffaReplaceTitle');
+  static String get laffaReplaceMessage => _t('laffaReplaceMessage');
+  static String get laffaReplaceConfirm => _t('laffaReplaceConfirm');
+
+  /// Confirmation after a round file is opened.
+  static String laffaImported(int stops) =>
+      _t('laffaImported').replaceFirst('{n}', '$stops');
   static String get errServerConnection => _t('errServerConnection');
   static String get errRouteOptimizationFailed =>
       _t('errRouteOptimizationFailed');
@@ -1118,6 +1129,11 @@ const Map<String, Map<String, String>> _copy = {
     'errInvalidResponse': 'Invalid response from the server',
     'errEmptyOptimizedRoute': 'The model did not return an optimized route',
     'errTimeout': 'The server connection timed out',
+    'errLaffaUnreadable': 'This round could not be opened.',
+    'laffaReplaceTitle': 'Open this round?',
+    'laffaReplaceMessage': 'It replaces the stops currently on your phone.',
+    'laffaReplaceConfirm': 'Open it',
+    'laffaImported': 'Round loaded — {n} stops.',
     'errServerConnection': 'Could not connect to the server',
     'errRouteOptimizationFailed': 'Route optimization failed',
     'errOneDepotRequired': 'Exactly one departure point is required',
@@ -1715,6 +1731,11 @@ const Map<String, Map<String, String>> _copy = {
     'errInvalidResponse': 'استجابة غير صالحة من الخادم',
     'errEmptyOptimizedRoute': 'لم يُرجِع النموذج أي مسار مُحسَّن',
     'errTimeout': 'انتهت مهلة الاتصال بالخادم',
+    'errLaffaUnreadable': 'تعذر فتح هذه اللفة.',
+    'laffaReplaceTitle': 'هل تفتح هذه اللفة؟',
+    'laffaReplaceMessage': 'ستحل محل المحطات الموجودة على هاتفك.',
+    'laffaReplaceConfirm': 'افتحها',
+    'laffaImported': 'تم تحميل اللفة — {n} محطات.',
     'errServerConnection': 'تعذر الاتصال بالخادم',
     'errRouteOptimizationFailed': 'فشل تحسين المسار',
     'errOneDepotRequired': 'يجب تحديد نقطة انطلاق واحدة فقط',
@@ -2307,6 +2328,11 @@ const Map<String, Map<String, String>> _copy = {
     'errEmptyOptimizedRoute':
         'Le modele n\'a renvoye aucun itineraire optimise',
     'errTimeout': 'La connexion au serveur a expire',
+    'errLaffaUnreadable': 'Cette tournee n\'a pas pu etre ouverte.',
+    'laffaReplaceTitle': 'Ouvrir cette tournee ?',
+    'laffaReplaceMessage': 'Elle remplace les arrets actuellement sur le telephone.',
+    'laffaReplaceConfirm': 'Ouvrir',
+    'laffaImported': 'Tournee chargee — {n} arrets.',
     'errServerConnection': 'Impossible de se connecter au serveur',
     'errRouteOptimizationFailed': 'Echec de l\'optimisation du trajet',
     'errOneDepotRequired': 'Un seul point de depart est requis',

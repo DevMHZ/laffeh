@@ -25,6 +25,43 @@ class ShareIntentHandler {
   /// Stream of shared text or map URLs arriving while the app is running.
   static Stream<String> get stream => _controller.stream;
 
+  /// Paths of `.laffa` round files opened from Mail, Files or a file
+  /// manager. Kept separate from [stream]: a round is a whole plan to load,
+  /// not a line of text to geocode.
+  static Stream<String> get fileStream => _fileController.stream;
+
+  static final List<String> _pendingFiles = [];
+  static final StreamController<String> _fileController =
+      StreamController<String>.broadcast(onListen: _flushPendingFiles);
+
+  static void _flushPendingFiles() {
+    if (_pendingFiles.isEmpty) return;
+    final queued = List<String>.from(_pendingFiles);
+    _pendingFiles.clear();
+    for (final path in queued) {
+      _fileController.add(path);
+    }
+  }
+
+  static void _emitFile(String path) {
+    if (_fileController.hasListener) {
+      _fileController.add(path);
+    } else {
+      // The planner may not be mounted yet when a file *launches* the app.
+      _pendingFiles.add(path);
+    }
+  }
+
+  /// Round files among a share payload, by extension.
+  ///
+  /// Extension rather than MIME type on purpose: mail clients routinely
+  /// hand an unknown type over as application/octet-stream, so the name is
+  /// the only reliable signal we get.
+  static List<String> _extractRoundFiles(List<SharedMediaFile> files) => files
+      .map((f) => f.path)
+      .where((path) => path.toLowerCase().split('?').first.endsWith('.laffa'))
+      .toList();
+
   /// Call once from `main()`. Checks for initial shares/deep links that
   /// launched the app, then subscribes to live updates.
   ///
@@ -35,6 +72,9 @@ class ShareIntentHandler {
     ReceiveSharingIntent.instance
         .getInitialMedia()
         .then((List<SharedMediaFile> files) {
+          for (final path in _extractRoundFiles(files)) {
+            _emitFile(path);
+          }
           final text = _extractText(files);
           if (text != null) _emit(text);
         })
@@ -43,6 +83,9 @@ class ShareIntentHandler {
     _sub = ReceiveSharingIntent.instance.getMediaStream().listen((
       List<SharedMediaFile> files,
     ) {
+      for (final path in _extractRoundFiles(files)) {
+        _emitFile(path);
+      }
       final text = _extractText(files);
       if (text != null) _emit(text);
     });

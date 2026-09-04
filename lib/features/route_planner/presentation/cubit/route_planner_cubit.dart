@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 
@@ -35,6 +36,7 @@ import '../../data/models/planner_draft_model.dart';
 import '../utils/route_csv_utils.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/place_suggestion.dart';
+import '../../data/models/laffa_file.dart';
 import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/stop_time_window.dart';
@@ -1411,6 +1413,60 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// used for the automatic single-destination route, which the driver never
   /// asked for out loud — if it doesn't land, the card simply keeps its "Go"
   /// button and tries again, loudly, when they press it.
+  /// Load a round from a `.laffa` file the driver was emailed.
+  ///
+  /// Replaces the current plan outright rather than merging: the file is a
+  /// dispatcher's finished round, and quietly mixing it into whatever was
+  /// half-built on the phone would produce a trip neither of them asked for.
+  /// The existing draft is overwritten, so this is only reached from an
+  /// explicit "open" of a file.
+  ///
+  /// Returns null on success, or a message to show the driver.
+  Future<String?> importLaffaFile(String path) async {
+    _cancelSimTimer();
+    _cancelNavigationStream();
+
+    final String raw;
+    try {
+      raw = await File(path).readAsString();
+    } catch (_) {
+      return AppStrings.errLaffaUnreadable;
+    }
+
+    final LaffaFile round;
+    try {
+      round = LaffaFile.parse(raw);
+    } on LaffaFormatException catch (e) {
+      return e.message;
+    } catch (_) {
+      return AppStrings.errLaffaUnreadable;
+    }
+
+    emit(
+      state.copyWith(
+        points: _relabelGenerated(_ensureSingleDepot(round.points)),
+        finish: round.finish,
+        status: RoutePlannerStatus.pointsUpdated,
+        multiStopIntent: true,
+        clearOptimizedRoute: true,
+        clearError: true,
+        draftRestored: false,
+        manualPlacement: false,
+        placementTarget: PlacementTarget.stop,
+        simulationActive: false,
+        simulationPlaying: false,
+        simulationProgress: 0.0,
+        navigationActive: false,
+        navigationProgress: 0.0,
+        clearNavigationHeading: true,
+        clearNavigationSpeed: true,
+        cameraTarget: round.points.first.latLng,
+      ),
+    );
+    _schedulePersist();
+    return null;
+  }
+
   /// Change where the day ends and replan, because the answer depends on it.
   ///
   /// Nothing happens when the choice is unchanged, so tapping the current
