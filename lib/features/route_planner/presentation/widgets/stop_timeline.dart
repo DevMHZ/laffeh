@@ -43,6 +43,31 @@ class GlassPanel extends StatelessWidget {
   }
 }
 
+/// How far above and below the row the active stop's halo may paint.
+///
+/// Comfortably more than it needs, and still inside the card's padding, so
+/// the halo is never sliced and never reaches the card's own edge.
+const double _haloRoom = 20;
+
+/// Clips the sides but lets [verticalSlack] through top and bottom.
+class _HaloRoomClipper extends CustomClipper<Rect> {
+  const _HaloRoomClipper(this.verticalSlack);
+
+  final double verticalSlack;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(
+    0,
+    -verticalSlack,
+    size.width,
+    size.height + verticalSlack,
+  );
+
+  @override
+  bool shouldReclip(_HaloRoomClipper oldClipper) =>
+      oldClipper.verticalSlack != verticalSlack;
+}
+
 /// Horizontal "subway map" of the trip: one dot per stop, joined by a
 /// line. Visited stops are filled green with a check, the current
 /// target pulses, upcoming stops are outlined. Makes "where am I in
@@ -121,13 +146,21 @@ class _StopTimelineState extends State<StopTimeline>
     final points = widget.points;
     return SizedBox(
       height: widget.compact ? 46 : 58,
-      child: ListView.builder(
+      // Clip sideways but not up and down.
+      //
+      // The active stop pulses a soft halo wider than the row it sits in, and
+      // a ListView clips its whole viewport by default — which sliced that
+      // halo flat and left a squared-off patch around the circle. Turning the
+      // clip off entirely fixed that and broke something else: stops scrolled
+      // past the end then spilled out over the card's rounded edge.
+      //
+      // Both want to be true at once, so the clip keeps its horizontal edges
+      // and gives way vertically.
+      child: ClipRect(
+        clipper: const _HaloRoomClipper(_haloRoom),
+        child: ListView.builder(
         controller: _scroll,
         scrollDirection: Axis.horizontal,
-        // The active stop pulses a soft halo that is wider than the row it
-        // sits in. A ListView clips its viewport by default, which sliced
-        // that halo flat top and bottom and left a squared-off patch around
-        // the circle — the "ugly box" around the current stop.
         clipBehavior: Clip.none,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         itemCount: points.length,
@@ -156,6 +189,7 @@ class _StopTimelineState extends State<StopTimeline>
             rightDone: widget.finished || i < widget.currentTarget,
           );
         },
+        ),
       ),
     );
   }
