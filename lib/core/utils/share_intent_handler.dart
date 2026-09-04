@@ -107,9 +107,31 @@ class ShareIntentHandler {
   /// ordinary incoming link. Left alone it would reach the planner as a line
   /// of text and end up geocoded as if it were an address — while the real
   /// payload arrives separately, on the share stream. So drop it here.
+  ///
+  /// A round file tapped in Mail or Files arrives here too, and not on the
+  /// share stream: iOS copies it into `Documents/Inbox/` and opens the app
+  /// with a `file://` URL. Routing that to the planner as text meant the
+  /// round never opened — and the whole local path was sent to Photon and
+  /// Nominatim as a search query, which is both broken and a leak.
   static void _emitLink(Uri uri) {
     if (uri.scheme.toLowerCase().startsWith('sharemedia-')) return;
+    final path = _roundFilePath(uri);
+    if (path != null) {
+      _emitFile(path);
+      return;
+    }
     _emit(uri.toString());
+  }
+
+  /// The on-disk path of a round file this URI points at, or null.
+  ///
+  /// Extension rather than scheme: `file://` is the usual carrier, but a
+  /// `content://` hand-off on Android names the round the same way, and a
+  /// percent-encoded name has to decode before the suffix is visible.
+  static String? _roundFilePath(Uri uri) {
+    final decoded = Uri.decodeFull(uri.path);
+    if (!decoded.toLowerCase().split('?').first.endsWith('.laffa')) return null;
+    return uri.scheme.toLowerCase() == 'file' ? decoded : uri.toString();
   }
 
   static String? _extractText(List<SharedMediaFile> files) {
