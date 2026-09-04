@@ -47,30 +47,77 @@ void main() {
   });
 
   group('the badge keeps its size on screen', () {
-    test('padding and oversampling cancel out exactly', () {
-      // The bitmap is footprint x bigger and oversample x denser; iconSize is
-      // divided by both. Get this wrong and every badge silently changes size.
-      const logical = 34.0;
-      const dpr = 3.0;
+    /// How many device pixels across the *circle* ends up — which is the
+    /// thing a driver sees. The first version of this test measured the whole
+    /// bitmap instead, so it passed happily while every delivery point on the
+    /// map shrank by the padding footprint.
+    double circleOnScreen({
+      required double logical,
+      required double diameter,
+      required double dpr,
+    }) {
       final bitmap = logical *
           VehicleMarkerConfig.badgeFootprint *
           VehicleMarkerConfig.badgeOversample;
       final rendered = bitmap * (dpr / VehicleMarkerConfig.badgeIconDivisor);
-      expect(rendered, closeTo(logical * dpr, 1e-9),
-          reason: 'same size as before the fix, just more pixels');
+      // The circle occupies `diameter` of the padded logical box.
+      final padded = logical * VehicleMarkerConfig.badgeFootprint;
+      return diameter / padded * rendered;
+    }
+
+    /// What it was before any of this: a bitmap the size of the badge, drawn
+    /// with `iconSize: dpr`.
+    double circleBefore({
+      required double logical,
+      required double diameter,
+      required double dpr,
+    }) => diameter / logical * (logical * dpr);
+
+    test('a delivery point is exactly the size it always was', () {
+      expect(
+        circleOnScreen(logical: 34, diameter: 20, dpr: 3),
+        closeTo(circleBefore(logical: 34, diameter: 20, dpr: 3), 1e-9),
+      );
     });
 
-    test('and at any device pixel ratio', () {
+    test('and at any device pixel ratio and badge size', () {
       for (final dpr in [1.0, 2.0, 2.75, 3.0, 4.0]) {
-        for (final logical in [30.0, 34.0, 44.0, 54.0]) {
-          final bitmap = logical *
-              VehicleMarkerConfig.badgeFootprint *
-              VehicleMarkerConfig.badgeOversample;
-          final rendered =
-              bitmap * (dpr / VehicleMarkerConfig.badgeIconDivisor);
-          expect(rendered, closeTo(logical * dpr, 1e-9));
+        for (final (logical, diameter) in [
+          (30.0, 16.0),
+          (34.0, 20.0),
+          (34.0, 26.0), // the visiting badge, radius 13
+          (44.0, 28.0),
+        ]) {
+          expect(
+            circleOnScreen(logical: logical, diameter: diameter, dpr: dpr),
+            closeTo(
+              circleBefore(logical: logical, diameter: diameter, dpr: dpr),
+              1e-9,
+            ),
+            reason: 'logical $logical, diameter $diameter, dpr $dpr',
+          );
         }
       }
+    });
+
+    test('dividing by the footprint too would shrink it', () {
+      // The bug this test now guards: holding the whole bitmap to its old
+      // size squeezes the circle by exactly the footprint.
+      const logical = 34.0, diameter = 20.0, dpr = 3.0;
+      final bitmap = logical *
+          VehicleMarkerConfig.badgeFootprint *
+          VehicleMarkerConfig.badgeOversample;
+      final wrong = bitmap *
+          (dpr /
+              (VehicleMarkerConfig.badgeOversample *
+                  VehicleMarkerConfig.badgeFootprint));
+      final padded = logical * VehicleMarkerConfig.badgeFootprint;
+      final wrongCircle = diameter / padded * wrong;
+      expect(
+        wrongCircle * VehicleMarkerConfig.badgeFootprint,
+        closeTo(circleBefore(logical: logical, diameter: diameter, dpr: dpr),
+            1e-9),
+      );
     });
 
     test('the bitmap now has at least as many pixels as the screen uses', () {
@@ -98,12 +145,11 @@ void main() {
           closeTo(1 + 2 * VehicleMarkerConfig.badgePaddingRatio, 1e-9));
     });
 
-    test('the divisor is exactly what the two of them do', () {
-      expect(
-        VehicleMarkerConfig.badgeIconDivisor,
-        closeTo(VehicleMarkerConfig.badgeOversample *
-            VehicleMarkerConfig.badgeFootprint, 1e-9),
-      );
+    test('the divisor is the oversample alone', () {
+      // Not the footprint as well. The padding grows the canvas outwards for
+      // the shadow; it must not be compensated away, or the badge shrinks.
+      expect(VehicleMarkerConfig.badgeIconDivisor,
+          closeTo(VehicleMarkerConfig.badgeOversample, 1e-9));
     });
   });
 }

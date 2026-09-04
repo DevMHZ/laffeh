@@ -62,5 +62,12 @@ class VehicleMarkerConfig {
 
   /// What to divide `iconSize` by so a padded, oversampled badge lands on
   /// screen at exactly the size it always was.
-  static const double badgeIconDivisor = badgeOversample * badgeFootprint;
+  ///
+  /// The oversample only — deliberately *not* the footprint as well. Dividing
+  /// by both holds the whole *bitmap* to its old size, which shrinks the
+  /// badge inside it by exactly [badgeFootprint]: the padding is meant to
+  /// extend the canvas outwards so the shadow has room, not to squeeze the
+  /// circle into the space that was there before. Shipped that way once and
+  /// the delivery points visibly shrank.
+  static const double badgeIconDivisor = badgeOversample;
 }
