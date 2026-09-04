@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+
+import 'map_chrome_blur.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -109,8 +111,8 @@ class _MapCompassState extends State<MapCompass> {
           child: ClipOval(
             // Shares one backdrop blur pass with the other map chrome via the
             // screen's [BackdropGroup] (graceful standalone fallback otherwise).
-            child: BackdropFilter.grouped(
-              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: maybeBlurChrome(
+              sigma: 14,
               child: Material(
                 color: AppColors.white.withValues(alpha: 0.92),
                 shape: const CircleBorder(),

@@ -204,7 +204,8 @@ class MapMarkerRenderer {
     final sprite = sheet == null ? await VehicleSprites.of(kind) : null;
     final logical = halo ? 54.0 : 44.0;
     const os = VehicleMarkerConfig.iconOversample;
-    return _toPng(logical * os, logical * os, (c, _) {
+    return _toPng(logical * os, logical * os, oversample: false,
+        padded: false, (c, _) {
       c.scale(os, os);
       final sz = ui.Size(logical, logical);
       if (halo) _paintNavHalo(c, sz);
@@ -288,16 +289,46 @@ class MapMarkerRenderer {
 
   // ── Drawing primitives ───────────────────────────────────────────────
 
+  /// Rasterise [painter] into a PNG, oversampled and padded.
+  ///
+  /// Two things the naive version got wrong, both of which showed up on
+  /// Android as "a pixelated square, shaded, with the circle inside it":
+  ///
+  ///  * It rendered at the logical size, so a 34 px bitmap was stretched
+  ///    across 68 or 102 physical pixels. Oversampling by
+  ///    [VehicleMarkerConfig.badgeOversample] gives the bitmap the pixels the
+  ///    screen actually has; the caller divides `iconSize` by the same factor
+  ///    so the badge keeps its size on screen.
+  ///  * The canvas was exactly the size of the circle, so the shadow — which
+  ///    reaches about three sigma past the shape — was cut off square at the
+  ///    edge. [VehicleMarkerConfig.badgePadding] gives it somewhere to fall.
+  ///
+  /// The painter still works in the original logical coordinates: the
+  /// padding and scale are applied to the canvas, not asked of the caller.
+  /// [oversample] and [padded] are off for callers that already handle their
+  /// own scaling — the pseudo-3D nav frames scale the canvas themselves, and
+  /// oversampling them twice would produce a nine-times-too-large bitmap.
   static Future<Uint8List> _toPng(
     double w,
     double h,
-    void Function(ui.Canvas, ui.Size) painter,
-  ) async {
+    void Function(ui.Canvas, ui.Size) painter, {
+    bool oversample = true,
+    bool padded = true,
+  }) async {
+    final scale = oversample ? VehicleMarkerConfig.badgeOversample : 1.0;
+    final padX = padded ? w * VehicleMarkerConfig.badgePaddingRatio : 0.0;
+    final padY = padded ? h * VehicleMarkerConfig.badgePaddingRatio : 0.0;
+    final outW = (w + padX * 2) * scale;
+    final outH = (h + padY * 2) * scale;
+
     final rec = ui.PictureRecorder();
-    final canvas = ui.Canvas(rec, Rect.fromLTWH(0, 0, w, h));
+    final canvas = ui.Canvas(rec, Rect.fromLTWH(0, 0, outW, outH));
+    canvas.scale(scale);
+    canvas.translate(padX, padY);
     painter(canvas, ui.Size(w, h));
+
     final pic = rec.endRecording();
-    final img = await pic.toImage(w.round(), h.round());
+    final img = await pic.toImage(outW.round(), outH.round());
     final bd = await img.toByteData(format: ui.ImageByteFormat.png);
     img.dispose();
     return bd!.buffer.asUint8List();

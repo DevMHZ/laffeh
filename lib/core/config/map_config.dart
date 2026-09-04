@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/widgets.dart';
 
 /// Tuning for the map surface, camera, and route polylines.
@@ -6,6 +7,20 @@ import 'package:flutter/widgets.dart';
 /// camera animation timing, bounds-fit padding, and line widths — lives
 /// here so behaviour can be adjusted in one place.
 class MapConfig {
+  /// Whether the round map chrome (compass, the 2D/3D and locate buttons)
+  /// blurs the map behind it.
+  ///
+  /// Off on Android. A BackdropFilter samples its backdrop in a *rectangular*
+  /// layer; on older GPUs the ClipOval around it does not always constrain
+  /// that layer, and the result is a shaded square with the circle sitting
+  /// inside it — reported on an Oppo, on every round control at once.
+  ///
+  /// Little is lost. The fill in front of the blur is 92-94% opaque, so the
+  /// blur was contributing a few percent of each pixel while costing an
+  /// offscreen pass. Flip this to true to get it back on a device where it
+  /// renders correctly.
+  static final bool blurMapChrome = !Platform.isAndroid;
+
   MapConfig._();
 
   // ── Fallback location ────────────────────────────────────

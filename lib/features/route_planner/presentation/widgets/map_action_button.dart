@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'map_chrome_blur.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -36,9 +38,7 @@ class MapActionButton extends StatelessWidget {
       child: ClipOval(
         // Shares one backdrop blur pass with the other map chrome via the
         // screen's [BackdropGroup] (graceful standalone fallback otherwise).
-        child: BackdropFilter.grouped(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Material(
+        child: maybeBlurChrome(sigma: 16, child: Material(
             color:
                 color?.withValues(alpha: 0.94) ??
                 AppColors.white.withValues(alpha: 0.92),

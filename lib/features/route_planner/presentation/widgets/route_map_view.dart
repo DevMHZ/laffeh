@@ -967,7 +967,11 @@ class RouteMapViewState extends State<RouteMapView>
   SymbolOptions _optsFor(_SymbolSpec spec, double dpr) => SymbolOptions(
     geometry: LatLng(spec.position.latitude, spec.position.longitude),
     iconImage: spec.imageId,
-    iconSize: dpr,
+    // The badge is rasterised oversampled and padded (see
+    // MapMarkerRenderer._toPng), so the bitmap is bigger than the badge.
+    // Dividing here lands it on screen at exactly the size it always was,
+    // just with the pixels the screen actually has and room for its shadow.
+    iconSize: dpr / VehicleMarkerConfig.badgeIconDivisor,
     iconAnchor: 'center',
   );
 
@@ -1509,7 +1513,7 @@ class RouteMapViewState extends State<RouteMapView>
       } else {
         imgId = await _ensureImage(_vehicleImageId, MapMarkerRenderer.vehicle);
         iconRotate = bearing;
-        iconSize = _dpr;
+        iconSize = _dpr / VehicleMarkerConfig.badgeIconDivisor;
       }
       // Bailed, already created, or the user left overview while we were
       // awaiting — don't strand a native car in follow/chase.
@@ -1630,7 +1634,7 @@ class RouteMapViewState extends State<RouteMapView>
         SymbolOptions(
           geometry: LatLng(lat, lon),
           iconImage: _vehicleImageId,
-          iconSize: _dpr,
+          iconSize: _dpr / VehicleMarkerConfig.badgeIconDivisor,
           iconAnchor: 'center',
           iconRotate: iconRot,
         ),
@@ -2305,7 +2309,7 @@ class RouteMapViewState extends State<RouteMapView>
           MapMarkerRenderer.navVehicle,
         );
         iconRotate = rot;
-        iconSize = _dpr;
+        iconSize = _dpr / VehicleMarkerConfig.badgeIconDivisor;
         _exploreFrameH = null;
       }
       if (!mounted || _navExploreSymbol != null) return;

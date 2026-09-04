@@ -32,4 +32,35 @@ class VehicleMarkerConfig {
   /// size (and drawn with `iconSize: dpr / iconOversample`) so they stay
   /// crisp on high-DPR screens.
   static const double iconOversample = 3.0;
+
+  /// The same treatment for the round badges (stops, depot, finish, the
+  /// user dot). They were rasterised at their logical size — 34 px — and
+  /// then drawn with `iconSize: dpr`. That correction exists because iOS
+  /// loads an image at the screen scale; Android does not, so the same 34 px
+  /// bitmap was being blown up two or three times and arrived visibly
+  /// pixelated on an Android phone.
+  static const double badgeOversample = 3.0;
+
+  /// Room around a badge for its shadow to fall in, as a fraction of the
+  /// badge's own size.
+  ///
+  /// A Gaussian mask filter reaches roughly three sigma past the shape, and
+  /// the canvas was exactly the size of the circle: the "visiting" glow
+  /// (sigma 6, from a circle of radius 12 in a 34 px box) wanted 47 px and
+  /// got 34, so it was sliced off square on all four sides. That hard edge
+  /// is the shaded box people see around the circle.
+  ///
+  /// Proportional rather than absolute so the compensation below stays a
+  /// single number: every badge grows by the same factor, whatever its size.
+  /// 0.6 rather than something tighter because the "visiting" glow is the
+  /// hungriest: radius 15 plus three sigma of a sigma-6 blur wants 33 px
+  /// clear of the centre, and 0.4 still sliced 2 px off it.
+  static const double badgePaddingRatio = 0.6;
+
+  /// How much bigger a padded badge is than the badge itself.
+  static const double badgeFootprint = 1 + 2 * badgePaddingRatio;
+
+  /// What to divide `iconSize` by so a padded, oversampled badge lands on
+  /// screen at exactly the size it always was.
+  static const double badgeIconDivisor = badgeOversample * badgeFootprint;
 }
