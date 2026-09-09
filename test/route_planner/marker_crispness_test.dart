@@ -25,17 +25,24 @@ void main() {
       // square people were seeing.
       const canvas = 34.0;
       final reach = canvas / 2 + (13 + 2) + blurReach(6);
-      expect(reach, greaterThan(canvas),
-          reason: 'the bug: the glow wanted more room than the canvas had');
+      expect(
+        reach,
+        greaterThan(canvas),
+        reason: 'the bug: the glow wanted more room than the canvas had',
+      );
     });
 
     test('the padded canvas contains it', () {
       const logical = 34.0;
       final padded = logical * VehicleMarkerConfig.badgeFootprint;
       final reach = padded / 2 + (13 + 2) + blurReach(6);
-      expect(reach, lessThanOrEqualTo(padded),
-          reason: 'the glow must finish inside the bitmap, or it is cut '
-              'off square again');
+      expect(
+        reach,
+        lessThanOrEqualTo(padded),
+        reason:
+            'the glow must finish inside the bitmap, or it is cut '
+            'off square again',
+      );
     });
 
     test('it contains the plain drop shadow too', () {
@@ -56,7 +63,8 @@ void main() {
       required double diameter,
       required double dpr,
     }) {
-      final bitmap = logical *
+      final bitmap =
+          logical *
           VehicleMarkerConfig.badgeFootprint *
           VehicleMarkerConfig.badgeOversample;
       final rendered = bitmap * (dpr / VehicleMarkerConfig.badgeIconDivisor);
@@ -104,10 +112,12 @@ void main() {
       // The bug this test now guards: holding the whole bitmap to its old
       // size squeezes the circle by exactly the footprint.
       const logical = 34.0, diameter = 20.0, dpr = 3.0;
-      final bitmap = logical *
+      final bitmap =
+          logical *
           VehicleMarkerConfig.badgeFootprint *
           VehicleMarkerConfig.badgeOversample;
-      final wrong = bitmap *
+      final wrong =
+          bitmap *
           (dpr /
               (VehicleMarkerConfig.badgeOversample *
                   VehicleMarkerConfig.badgeFootprint));
@@ -115,8 +125,10 @@ void main() {
       final wrongCircle = diameter / padded * wrong;
       expect(
         wrongCircle * VehicleMarkerConfig.badgeFootprint,
-        closeTo(circleBefore(logical: logical, diameter: diameter, dpr: dpr),
-            1e-9),
+        closeTo(
+          circleBefore(logical: logical, diameter: diameter, dpr: dpr),
+          1e-9,
+        ),
       );
     });
 
@@ -126,7 +138,8 @@ void main() {
       const logical = 34.0;
       const dpr = 3.0;
       final screenPixels = logical * dpr;
-      final bitmap = logical *
+      final bitmap =
+          logical *
           VehicleMarkerConfig.badgeFootprint *
           VehicleMarkerConfig.badgeOversample;
       expect(bitmap, greaterThanOrEqualTo(screenPixels));
@@ -141,15 +154,19 @@ void main() {
 
     test('padding is a real margin', () {
       expect(VehicleMarkerConfig.badgePaddingRatio, greaterThan(0));
-      expect(VehicleMarkerConfig.badgeFootprint,
-          closeTo(1 + 2 * VehicleMarkerConfig.badgePaddingRatio, 1e-9));
+      expect(
+        VehicleMarkerConfig.badgeFootprint,
+        closeTo(1 + 2 * VehicleMarkerConfig.badgePaddingRatio, 1e-9),
+      );
     });
 
     test('the divisor is the oversample alone', () {
       // Not the footprint as well. The padding grows the canvas outwards for
       // the shadow; it must not be compensated away, or the badge shrinks.
-      expect(VehicleMarkerConfig.badgeIconDivisor,
-          closeTo(VehicleMarkerConfig.badgeOversample, 1e-9));
+      expect(
+        VehicleMarkerConfig.badgeIconDivisor,
+        closeTo(VehicleMarkerConfig.badgeOversample, 1e-9),
+      );
     });
   });
 }

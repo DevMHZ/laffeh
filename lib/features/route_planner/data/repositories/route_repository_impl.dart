@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/config/routing_config.dart';
+import '../../../../core/config/service_profile.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
@@ -93,6 +94,9 @@ class RouteRepositoryImpl implements RouteRepository {
       driverHours: RoutingConfig.driverHoursForHorizon(horizon),
       defaultServiceTimeMinutes: RoutingConfig.defaultServiceTimeMinutes,
       finish: finish,
+      // Read at send time rather than injected: the driver can change the
+      // profile in Settings between two solves of the same round.
+      serviceProfile: ServiceProfilePrefs.current,
       deliveries: stops.map((s) {
         final w = windows[s.id];
         return RoutePointModel(
@@ -156,6 +160,11 @@ class RouteRepositoryImpl implements RouteRepository {
           metrics: metrics,
           hasRoadGeometry: polylines.hasRoadGeometry,
           maneuvers: polylines.maneuvers,
+          // Provenance of the *ordering*, not of the drawn geometry: the two
+          // can disagree, and when they do it is exactly the case worth
+          // telling the driver about — stops sequenced on straight lines,
+          // then drawn on real roads.
+          routingMethod: response.routingMethod,
         ),
       );
     } on NetworkException catch (e) {

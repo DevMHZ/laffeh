@@ -1569,10 +1569,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
             maneuverFractions: _maneuverFractionsFor(route),
             // Keep deactivated optional points around (dimmed on the map,
             // not part of the route) so deactivation stays reversible.
-            points: [
-              ..._stripTerminal(route.orderedPoints),
-              ...deactivated,
-            ],
+            points: [..._stripTerminal(route.orderedPoints), ...deactivated],
             displaySegment: RouteSegment.full,
             isOffline: false,
             simulationActive: false,
@@ -1766,6 +1763,31 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   /// Back-compat alias for [servePoint].
   void markCurrentStopDone() => servePoint();
+
+  /// Driver gives up on the current stop — nobody in, gate locked, delivery
+  /// refused — and moves on to the next one.
+  ///
+  /// Deliberately not the same call as [servePoint]. Both advance the trip,
+  /// but only one of them means the parcel was handed over, and a round
+  /// where three customers were out should not read afterwards as a round
+  /// where everything went fine. The id is recorded before the index moves,
+  /// because afterwards the stop is behind the driver and harder to name.
+  void skipPoint() {
+    final route = state.optimizedRoute;
+    if (route == null || !state.navigationActive) return;
+    final index = state.navigationStopIndex;
+    if (index >= route.orderedPoints.length) return;
+
+    HapticFeedback.mediumImpact();
+    final skipped = route.orderedPoints[index];
+    DebugLog.nav(
+      'SKIPPED stop $index (${skipped.label}) — driver could not serve it',
+    );
+    emit(
+      state.copyWith(skippedPointIds: {...state.skippedPointIds, skipped.id}),
+    );
+    _advanceServicePoint();
+  }
 
   /// Mid-trip re-plan: the trip went sideways (wrong turns, traffic, a
   /// manual detour) — re-run the optimizer for the *unserved* stops from
@@ -2971,11 +2993,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// as the depot becomes an ordinary stop again. Its name is left to
   /// [_relabelGenerated], which sees the whole list and can number it without
   /// colliding with the stops already there.
-  RoutePoint _demoteToStop(RoutePoint depot) => depot.copyWith(
-    kind: RoutePointKind.stop,
-    optional: false,
-    active: true,
-  );
+  RoutePoint _demoteToStop(RoutePoint depot) =>
+      depot.copyWith(kind: RoutePointKind.stop, optional: false, active: true);
 
   /// True when [label] is one this app generated rather than one that came
   /// from the driver, a CSV row or a search result. [span] bounds the numbers

@@ -213,27 +213,29 @@ void main() {
       expect(cubit.state.finish, const RouteFinish.depot());
     });
 
-    test('loading a saved route that ended somewhere else restores it',
-        () async {
-      final depot = _pt('depot', 33.89, 35.50, depot: true);
-      cubit.loadSavedRoute(
-        _saved([
-          depot,
-          _pt('a', 33.90, 35.51),
-          RoutePoint(
-            id: 'depot$kFinishPointIdSuffix',
-            latitude: 33.95,
-            longitude: 35.60,
-            label: 'Finish',
-            weight: 0,
-            kind: RoutePointKind.depot,
-          ),
-        ]),
-      );
+    test(
+      'loading a saved route that ended somewhere else restores it',
+      () async {
+        final depot = _pt('depot', 33.89, 35.50, depot: true);
+        cubit.loadSavedRoute(
+          _saved([
+            depot,
+            _pt('a', 33.90, 35.51),
+            RoutePoint(
+              id: 'depot$kFinishPointIdSuffix',
+              latitude: 33.95,
+              longitude: 35.60,
+              label: 'Finish',
+              weight: 0,
+              kind: RoutePointKind.depot,
+            ),
+          ]),
+        );
 
-      expect(cubit.state.finish.effectiveMode, RouteEndMode.custom);
-      expect(cubit.state.finish.location, const LatLng(33.95, 35.60));
-    });
+        expect(cubit.state.finish.effectiveMode, RouteEndMode.custom);
+        expect(cubit.state.finish.location, const LatLng(33.95, 35.60));
+      },
+    );
 
     test('loading a saved open route comes back as an open route', () async {
       final depot = _pt('depot', 33.89, 35.50, depot: true);

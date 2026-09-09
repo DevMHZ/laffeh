@@ -237,7 +237,6 @@ class PhotonGeocodingDataSource {
   }
 }
 
-
 /// The `lang` value Photon accepts for an app language.
 ///
 /// The public instance supports de, en, fr, it and `default`; anything else

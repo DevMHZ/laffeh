@@ -170,7 +170,8 @@ class RoutePointsSheet extends StatelessWidget {
               // result sheet.
               _EndAtRow(
                 finish: state.finish,
-                onTap: () => RoutePlannerActions.showFinishPicker(context, cubit),
+                onTap: () =>
+                    RoutePlannerActions.showFinishPicker(context, cubit),
               ),
               const SizedBox(height: 6),
 

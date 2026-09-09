@@ -407,6 +407,17 @@ class AppStrings {
 
   // Small labels
   static String get arrivedHere => _t('arrivedHere');
+  static String get closeStopEarly => _t('closeStopEarly');
+  static String get orderedOnStraightLines => _t('orderedOnStraightLines');
+  static String get serviceProfile => _t('serviceProfile');
+  static String get serviceProfileDelivery => _t('serviceProfileDelivery');
+  static String get serviceProfileDeliveryHint =>
+      _t('serviceProfileDeliveryHint');
+  static String get serviceProfilePickup => _t('serviceProfilePickup');
+  static String get serviceProfilePickupHint => _t('serviceProfilePickupHint');
+  static String get servedEarly => _t('servedEarly');
+  static String get couldNotServe => _t('couldNotServe');
+  static String get stopSkipped => _t('stopSkipped');
   static String get departureBadge => _t('departureBadge');
   static String get returnBadge => _t('returnBadge');
   static String get routeOrder => _t('routeOrder');
@@ -1374,6 +1385,18 @@ const Map<String, Map<String, String>> _copy = {
     'startFresh': 'Delete trip & start fresh',
     'replay': 'Replay',
     'arrivedHere': 'Arrived',
+    'closeStopEarly': 'Close this stop early',
+    'orderedOnStraightLines':
+        'Road data was unavailable, so this order was worked out on straight-line distances. The sequence may be poor where the direct line is not drivable.',
+    'serviceProfile': 'Round type',
+    'serviceProfileDelivery': 'Deliveries',
+    'serviceProfileDeliveryHint':
+        'You set off loaded. Heaviest drops go first.',
+    'serviceProfilePickup': 'Pickups',
+    'serviceProfilePickupHint': 'You set off empty. Heaviest pickups go last.',
+    'servedEarly': 'Delivered',
+    'couldNotServe': "Couldn't deliver",
+    'stopSkipped': 'Stop skipped',
     'pointServed': 'Point served',
     'rerouting': 'Recalculating route…',
     'reoptimize': 'Re-optimize',
@@ -1973,6 +1996,17 @@ const Map<String, Map<String, String>> _copy = {
     'startFresh': 'احذف اللفة وابدأ من جديد',
     'replay': 'إعادة التشغيل',
     'arrivedHere': 'تم الوصول',
+    'closeStopEarly': 'إنهاء هذه النقطة مبكرًا',
+    'orderedOnStraightLines':
+        'تعذّر الحصول على بيانات الطرق، لذلك رُتّبت النقاط بالمسافات المستقيمة. قد يكون الترتيب غير مناسب حيث لا يمكن سلوك الخط المباشر.',
+    'serviceProfile': 'نوع اللفة',
+    'serviceProfileDelivery': 'توصيل',
+    'serviceProfileDeliveryHint': 'تنطلق محمّلًا. الأثقل يُسلَّم أولًا.',
+    'serviceProfilePickup': 'استلام',
+    'serviceProfilePickupHint': 'تنطلق فارغًا. الأثقل يُستلم أخيرًا.',
+    'servedEarly': 'تم التسليم',
+    'couldNotServe': 'تعذّر التسليم',
+    'stopSkipped': 'تم تخطي النقطة',
     'pointServed': 'تمت الخدمة',
     'rerouting': 'جارٍ إعادة حساب المسار…',
     'reoptimize': 'إعادة التحسين',
@@ -2330,7 +2364,8 @@ const Map<String, Map<String, String>> _copy = {
     'errTimeout': 'La connexion au serveur a expire',
     'errLaffaUnreadable': 'Cette tournee n\'a pas pu etre ouverte.',
     'laffaReplaceTitle': 'Ouvrir cette tournee ?',
-    'laffaReplaceMessage': 'Elle remplace les arrets actuellement sur le telephone.',
+    'laffaReplaceMessage':
+        'Elle remplace les arrets actuellement sur le telephone.',
     'laffaReplaceConfirm': 'Ouvrir',
     'laffaImported': 'Tournee chargee — {n} arrets.',
     'errServerConnection': 'Impossible de se connecter au serveur',
@@ -2582,6 +2617,19 @@ const Map<String, Map<String, String>> _copy = {
     'startFresh': 'Supprimer le trajet et recommencer',
     'replay': 'Rejouer',
     'arrivedHere': 'Arrive',
+    'closeStopEarly': 'Terminer ce point maintenant',
+    'orderedOnStraightLines':
+        'Les donnees routieres etaient indisponibles : cet ordre a ete calcule a vol d\'oiseau. La sequence peut etre mauvaise la ou la ligne directe n\'est pas praticable.',
+    'serviceProfile': 'Type de tournee',
+    'serviceProfileDelivery': 'Livraisons',
+    'serviceProfileDeliveryHint':
+        'Vous partez charge. Le plus lourd part en premier.',
+    'serviceProfilePickup': 'Collectes',
+    'serviceProfilePickupHint':
+        'Vous partez a vide. Le plus lourd est pris en dernier.',
+    'servedEarly': 'Livre',
+    'couldNotServe': 'Livraison impossible',
+    'stopSkipped': 'Point ignore',
     'pointServed': 'Point servi',
     'rerouting': 'Recalcul de l\'itineraire…',
     'reoptimize': 'Reoptimiser',
@@ -2591,7 +2639,8 @@ const Map<String, Map<String, String>> _copy = {
     'finishOpen': 'Arret au dernier point',
     'finishOpenHint': 'Pas de retour. La journee finit au dernier point.',
     'finishCustom': 'Ailleurs',
-    'finishCustomHint': 'Terminez a un endroit de votre choix, comme chez vous.',
+    'finishCustomHint':
+        'Terminez a un endroit de votre choix, comme chez vous.',
     'finishPointLabel': 'Arrivee',
     'finishPickPlace': 'Choisir le lieu',
     'toLabel': 'Vers',

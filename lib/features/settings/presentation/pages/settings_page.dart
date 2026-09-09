@@ -6,6 +6,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/config/service_profile.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -252,11 +253,13 @@ class _SettingsGroups extends StatelessWidget {
         // and where, as a row with a heading and a subtitle, it cost the map
         // more than the feature is worth to most of them. A driver who has a
         // file came looking for this; the rest never have to see it.
-        if (onImportCsv != null)
-          _SettingsGroup(
-            label: AppStrings.settingsGroupTrip,
-            children: [_ImportCsvRow(onTap: onImportCsv!)],
-          ),
+        _SettingsGroup(
+          label: AppStrings.settingsGroupTrip,
+          children: [
+            _ServiceProfileSection(),
+            if (onImportCsv != null) _ImportCsvRow(onTap: onImportCsv!),
+          ],
+        ),
         _SettingsGroup(
           label: AppStrings.settingsGroupMap,
           // Only the hand-picked area. The square the app keeps around the
@@ -539,6 +542,152 @@ class _ThemeSectionState extends State<_ThemeSection> {
 /// Playback/drive vehicle icon picker. Each tile previews the actual
 /// top-down painter (rotated 45° so it visibly reads as facing forward),
 /// and applies it live on tap via [VehiclePrefs.setVehicle].
+
+/// Delivery or pickup — which way the load moves over the day.
+///
+/// A setting rather than a per-round question because a courier is one or the
+/// other for months at a time, and asking every morning would be asking for
+/// the same answer. It changes nothing the driver can see on the map; it
+/// tells the optimiser which end of the round the weight should leave from,
+/// so the van runs light for as much of the day as the distance allows.
+class _ServiceProfileSection extends StatefulWidget {
+  const _ServiceProfileSection();
+
+  @override
+  State<_ServiceProfileSection> createState() => _ServiceProfileSectionState();
+}
+
+class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
+  bool _expanded = false;
+
+  void _toggle() {
+    HapticFeedback.selectionClick();
+    setState(() => _expanded = !_expanded);
+  }
+
+  static String _nameFor(ServiceProfile p) => switch (p) {
+    ServiceProfile.delivery => AppStrings.serviceProfileDelivery,
+    ServiceProfile.pickup => AppStrings.serviceProfilePickup,
+  };
+
+  static String _hintFor(ServiceProfile p) => switch (p) {
+    ServiceProfile.delivery => AppStrings.serviceProfileDeliveryHint,
+    ServiceProfile.pickup => AppStrings.serviceProfilePickupHint,
+  };
+
+  static IconData _iconFor(ServiceProfile p) => switch (p) {
+    ServiceProfile.delivery => Iconsax.box_remove,
+    ServiceProfile.pickup => Iconsax.box_add,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ServiceProfile>(
+      valueListenable: ServiceProfilePrefs.notifier,
+      builder: (context, active, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _CollapsibleHeader(
+              icon: Iconsax.box,
+              title: AppStrings.serviceProfile,
+              valueLabel: _nameFor(active),
+              expanded: _expanded,
+              onTap: _toggle,
+            ),
+            _CollapsibleBody(
+              expanded: _expanded,
+              child: !_expanded
+                  ? const SizedBox.shrink()
+                  : Column(
+                      children: [
+                        for (final profile in ServiceProfile.values)
+                          _ServiceProfileOption(
+                            icon: _iconFor(profile),
+                            title: _nameFor(profile),
+                            hint: _hintFor(profile),
+                            selected: profile == active,
+                            onTap: () =>
+                                ServiceProfilePrefs.setProfile(profile),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ServiceProfileOption extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String hint;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ServiceProfileOption({
+    required this.icon,
+    required this.title,
+    required this.hint,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: selected
+            ? AppColors.primary.withValues(alpha: 0.08)
+            : AppColors.surfaceAlt.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? AppColors.primary : AppColors.border,
+                width: selected ? 1.4 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: selected ? AppColors.primary : AppColors.textMuted,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: AppTextStyles.bodyMd),
+                      const SizedBox(height: 2),
+                      Text(hint, style: AppTextStyles.mutedSm),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Icon(Iconsax.tick_circle, size: 18, color: AppColors.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _VehicleSection extends StatefulWidget {
   const _VehicleSection();
 

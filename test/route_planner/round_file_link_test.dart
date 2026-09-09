@@ -21,7 +21,9 @@ void main() {
   group('a tapped round file is not a search query', () {
     test('the iOS Inbox path is recognised', () {
       expect(
-        roundFilePath(Uri.parse('file:///var/mobile/.../Documents/Inbox/Ali.laffa')),
+        roundFilePath(
+          Uri.parse('file:///var/mobile/.../Documents/Inbox/Ali.laffa'),
+        ),
         endsWith('/Documents/Inbox/Ali.laffa'),
       );
     });
@@ -39,7 +41,10 @@ void main() {
       // Not a filesystem path — the platform resolves it, so it must be
       // passed through whole rather than reduced to uri.path.
       final uri = Uri.parse('content://com.android.providers/doc/Ali.laffa');
-      expect(roundFilePath(uri), 'content://com.android.providers/doc/Ali.laffa');
+      expect(
+        roundFilePath(uri),
+        'content://com.android.providers/doc/Ali.laffa',
+      );
     });
 
     test('a query string after the name does not hide it', () {

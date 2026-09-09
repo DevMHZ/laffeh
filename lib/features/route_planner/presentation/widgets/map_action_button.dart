@@ -38,7 +38,9 @@ class MapActionButton extends StatelessWidget {
       child: ClipOval(
         // Shares one backdrop blur pass with the other map chrome via the
         // screen's [BackdropGroup] (graceful standalone fallback otherwise).
-        child: maybeBlurChrome(sigma: 16, child: Material(
+        child: maybeBlurChrome(
+          sigma: 16,
+          child: Material(
             color:
                 color?.withValues(alpha: 0.94) ??
                 AppColors.white.withValues(alpha: 0.92),

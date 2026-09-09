@@ -77,7 +77,8 @@ class PlaceSearchRepository {
     if (at == null) return Future.value(null);
 
     final cell = GeocodingConfig.countryRecheckKm / 111.0; // degrees, roughly
-    final key = '${(at.latitude / cell).round()}:'
+    final key =
+        '${(at.latitude / cell).round()}:'
         '${(at.longitude / cell).round()}';
     if (_countryCache.containsKey(key)) return Future.value(_countryCache[key]);
 
@@ -100,7 +101,10 @@ class PlaceSearchRepository {
                   GeocodingConfig.countryRecheckKm))
         _countryFor(mapCentre),
     ]);
-    return {for (final c in codes) if (c != null) c};
+    return {
+      for (final c in codes)
+        if (c != null) c,
+    };
   }
 
   /// Places the driver picked before, newest first — the list the sheet
@@ -135,10 +139,12 @@ class PlaceSearchRepository {
   Stream<List<PlaceSuggestion>> search(
     String query, {
     LatLng? near,
+
     /// Where the map is looking, when that is somewhere other than [near].
     /// Panning across a border to plan a delivery on the other side should
     /// put that side's country in play too.
     LatLng? mapCentre,
+
     /// The app's language, so names come back in it. See [photonLanguage]
     /// for why Arabic is not passed through verbatim.
     String? language,
@@ -252,8 +258,12 @@ class PlaceSearchRepository {
     }
 
     if (pool.isNotEmpty) {
-      yield PlaceSearchRanker.rank(pool, query: trimmed, near: near,
-          preferredCountries: countries);
+      yield PlaceSearchRanker.rank(
+        pool,
+        query: trimmed,
+        near: near,
+        preferredCountries: countries,
+      );
     }
 
     // ── Pass 2: the slower sources, in parallel ────────────
@@ -275,8 +285,12 @@ class PlaceSearchRepository {
       pool.addAll(batch);
     }
 
-    final ranked = PlaceSearchRanker.rank(pool, query: trimmed, near: near,
-          preferredCountries: countries);
+    final ranked = PlaceSearchRanker.rank(
+      pool,
+      query: trimmed,
+      near: near,
+      preferredCountries: countries,
+    );
     _store(cacheKey, ranked);
     yield ranked;
   }

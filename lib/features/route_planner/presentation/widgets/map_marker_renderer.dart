@@ -204,22 +204,27 @@ class MapMarkerRenderer {
     final sprite = sheet == null ? await VehicleSprites.of(kind) : null;
     final logical = halo ? 54.0 : 44.0;
     const os = VehicleMarkerConfig.iconOversample;
-    return _toPng(logical * os, logical * os, oversample: false,
-        padded: false, (c, _) {
-      c.scale(os, os);
-      final sz = ui.Size(logical, logical);
-      if (halo) _paintNavHalo(c, sz);
-      if (sheet == null) {
-        _paintVehicle(c, sz, kind, sprite);
-        return;
-      }
-      c.drawImageRect(
-        sheet,
-        VehicleNavSheet.frameRect(sheet, heading, phase),
-        Rect.fromLTWH(0, 0, sz.width, sz.height),
-        ui.Paint()..filterQuality = ui.FilterQuality.high,
-      );
-    });
+    return _toPng(
+      logical * os,
+      logical * os,
+      oversample: false,
+      padded: false,
+      (c, _) {
+        c.scale(os, os);
+        final sz = ui.Size(logical, logical);
+        if (halo) _paintNavHalo(c, sz);
+        if (sheet == null) {
+          _paintVehicle(c, sz, kind, sprite);
+          return;
+        }
+        c.drawImageRect(
+          sheet,
+          VehicleNavSheet.frameRect(sheet, heading, phase),
+          Rect.fromLTWH(0, 0, sz.width, sz.height),
+          ui.Paint()..filterQuality = ui.FilterQuality.high,
+        );
+      },
+    );
   }
 
   /// Halo + soft ground shadow under the drive avatar (shared by

@@ -265,7 +265,6 @@ class OsmGeocodingDataSource {
   }
 }
 
-
 /// The `accept-language` Nominatim should answer in.
 ///
 /// Unlike Photon, Nominatim takes any BCP 47 tag, so the app's language goes

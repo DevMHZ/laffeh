@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/config/navigation_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -199,6 +200,16 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         // The pill gives them up while arrived rather than showing both: one
         // pair of buttons on screen, always the pair for right now.
         final arrived = state.navigationArrived;
+        // Close enough to know how this stop will go, too far for the
+        // arrival bar. Straight-line on purpose: the question is "am I near
+        // this customer", not "how far must I still drive", and a driver who
+        // has just been told nobody is home does not care about the one-way
+        // system between here and there.
+        final distanceOut = state.navigationStopDistanceMeters;
+        final nearStop =
+            !arrived &&
+            distanceOut != null &&
+            distanceOut <= NavigationConfig.earlyActionRadiusMeters;
         final phone = target.hasPhone ? target.phone! : null;
 
         VoidCallback? reach(Future<void> Function(BuildContext, String) via) =>
@@ -301,6 +312,11 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                         ),
                         _ReroutingNotice(visible: state.isRerouting),
                         const Spacer(),
+                        _EarlyActionChips(
+                          visible: nearStop,
+                          onServe: cubit.servePoint,
+                          onSkip: () => _confirmSkip(context, cubit),
+                        ),
                         _ArrivedBar(
                           visible: arrived,
                           label: serveLabel,
@@ -388,6 +404,11 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       // Everything arriving needs, on one line: the button
                       // that closes the leg, and — only if there is somebody
                       // to reach — the two ways to reach them.
+                      _EarlyActionChips(
+                        visible: nearStop,
+                        onServe: cubit.servePoint,
+                        onSkip: () => _confirmSkip(context, cubit),
+                      ),
                       _ArrivedBar(
                         visible: arrived,
                         label: serveLabel,
@@ -793,6 +814,153 @@ class _ReroutingNotice extends StatelessWidget {
 /// It appears once the driver is at the stop and does not leave again
 /// until they press it. Serving is theirs to declare now: the app no
 /// longer decides a point was done because the vehicle drove away from it.
+/// The small twin of [_ArrivedBar], offered from a couple of kilometres out.
+///
+/// A driver often knows a stop is finished before they reach it: the customer
+/// rang to say they are out, the yard is shut, the delivery was refused at the
+/// door of the last one on the same street. Making them drive the final two
+/// kilometres to press a button they already know they need is theatre, and
+/// the alternative they resort to — abandoning the trip and re-planning — is
+/// much worse.
+///
+/// It is deliberately *small* and deliberately two-sided. Small, because the
+/// full-width primary bar belongs to the ordinary case of actually arriving,
+/// and this must not be mistaken for it or hit by accident at 50 km/h. Two
+/// sided, because "delivered" and "could not deliver" are different facts,
+/// and a round that lost three customers should not read afterwards as a
+/// round that went perfectly.
+/// Confirm before writing off a customer.
+///
+/// The serve chip needs no confirmation — pressing it early is a decision the
+/// driver has already made, and the worst case is a stop marked done a minute
+/// sooner. Skipping is the other kind of mistake: it records a delivery that
+/// never happened, at a distance where the driver cannot yet see the door.
+/// One tap to think about it is cheap.
+Future<void> _confirmSkip(BuildContext context, RoutePlannerCubit cubit) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(AppStrings.couldNotServe, style: AppTextStyles.titleMd),
+      content: Text(AppStrings.closeStopEarly, style: AppTextStyles.bodySm),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: Text(AppStrings.cancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+          child: Text(AppStrings.couldNotServe),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true) cubit.skipPoint();
+}
+
+class _EarlyActionChips extends StatelessWidget {
+  final bool visible;
+  final VoidCallback onServe;
+  final VoidCallback onSkip;
+
+  const _EarlyActionChips({
+    required this.visible,
+    required this.onServe,
+    required this.onSkip,
+  });
+
+  static const double _height = 38;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      child: !visible
+          ? const SizedBox(width: double.infinity)
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _EarlyChip(
+                    icon: Iconsax.tick_circle,
+                    label: AppStrings.servedEarly,
+                    foreground: AppColors.primary,
+                    onTap: onServe,
+                    height: _height,
+                  ),
+                  const SizedBox(width: 8),
+                  _EarlyChip(
+                    icon: Iconsax.close_circle,
+                    label: AppStrings.couldNotServe,
+                    foreground: AppColors.danger,
+                    onTap: onSkip,
+                    height: _height,
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class _EarlyChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color foreground;
+  final VoidCallback onTap;
+  final double height;
+
+  const _EarlyChip({
+    required this.icon,
+    required this.label,
+    required this.foreground,
+    required this.onTap,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(height / 2),
+      elevation: 4,
+      shadowColor: AppColors.shadow,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(height / 2),
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onTap();
+        },
+        child: Container(
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(height / 2),
+            border: Border.all(color: foreground.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: foreground),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                maxLines: 1,
+                style: AppTextStyles.bodySm.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ArrivedBar extends StatelessWidget {
   final bool visible;
   final String label;

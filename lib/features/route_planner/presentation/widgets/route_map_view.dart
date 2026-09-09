@@ -34,6 +34,7 @@ import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'map_action_button.dart';
+import 'sheet_extent.dart';
 import 'map_compass.dart';
 import 'map_geometry.dart';
 import 'map_marker_renderer.dart';
@@ -73,6 +74,17 @@ class _SymbolSpec {
 /// registered with [MapLibreMapController.addImage]) so they stay perfectly
 /// anchored to their geographic positions regardless of map movement — no
 /// Flutter widget overlay lag.
+/// Where the map chrome (compass, 2D/3D) sits above the bottom sheet.
+///
+/// The floor is the summary sheet's smallest snap, which is also roughly the
+/// height of the preview scrubber and the single-destination card — neither
+/// of those publishes an extent, so the chrome needs somewhere sensible to
+/// rest when nothing is reporting. The ceiling stops the buttons climbing
+/// into the top bar when the sheet is dragged fully open.
+const double _mapChromeFloor = 0.28;
+const double _mapChromeCeiling = 0.55;
+const double _mapChromeGap = 14;
+
 class RouteMapView extends StatefulWidget {
   const RouteMapView({super.key});
 
@@ -2667,11 +2679,26 @@ class RouteMapViewState extends State<RouteMapView>
             buildWhen: (a, b) => a.navigationActive != b.navigationActive,
             builder: (context, state) {
               if (state.navigationActive) return const SizedBox.shrink();
+              // Sits just above the bottom sheet rather than halfway up the
+              // map: these are map controls, and a driver reaches for them
+              // with the same thumb that drags the sheet. The floor keeps
+              // them clear of the preview scrubber and the single-destination
+              // card, neither of which reports an extent; the ceiling stops
+              // them climbing into the top bar when the sheet is dragged
+              // fully open.
+              final extent = SheetExtent.of(
+                context,
+              ).clamp(_mapChromeFloor, _mapChromeCeiling);
               return Align(
-                alignment: const Alignment(-1, -0.15),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 14),
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 14,
+                    bottom:
+                        MediaQuery.sizeOf(context).height * extent +
+                        _mapChromeGap,
+                  ),
+                  child: SafeArea(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2707,12 +2734,21 @@ class RouteMapViewState extends State<RouteMapView>
           ),
           // "Return to my location" — appears on the right (mirroring the
           // compass) only while planning, once the user has panned away from
-          // their current position. Sized to clear the bottom sheet.
+          // their current position. Rides above the sheet on the same rail as
+          // the compass, so the pair stays level as the sheet moves.
           Align(
-            alignment: const Alignment(1, -0.15),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 14),
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: 14,
+                bottom:
+                    MediaQuery.sizeOf(context).height *
+                        SheetExtent.of(
+                          context,
+                        ).clamp(_mapChromeFloor, _mapChromeCeiling) +
+                    _mapChromeGap,
+              ),
+              child: SafeArea(
                 child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
                   buildWhen: (a, b) =>
                       a.simulationActive != b.simulationActive ||

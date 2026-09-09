@@ -12,6 +12,7 @@ import '../widgets/route_drive_action_bar.dart';
 import '../widgets/route_plan_action_bar.dart';
 import '../widgets/route_points_sheet.dart';
 import '../widgets/route_summary_sheet.dart';
+import '../widgets/sheet_extent.dart';
 import 'route_planner_actions.dart';
 
 /// The bottom half of the planner screen, in whichever shape the trip is in.
@@ -49,6 +50,7 @@ class BottomSheetHost extends StatelessWidget {
             state.navigationActive ||
             state.manualPlacement ||
             state.movingPointId != null) {
+          SheetExtent.publish(context, 0);
           return const SizedBox.shrink();
         }
         // One place to go: the navigator card, docked rather than draggable.
@@ -83,6 +85,7 @@ class BottomSheetHost extends StatelessWidget {
         // Empty state is owned by the screen-level AddOptionsHost, not a
         // bottom sheet — so the sheet only appears once a point exists.
         if (!showSummary && !state.hasPoints) {
+          SheetExtent.publish(context, 0);
           return const SizedBox.shrink();
         }
 
@@ -111,6 +114,10 @@ class BottomSheetHost extends StatelessWidget {
                 max: 0.80,
                 snaps: [0.40, 0.60, 0.80],
               );
+
+        // Seed the extent before the first drag: a driver who never touches
+        // the sheet still needs the map chrome sitting above it.
+        SheetExtent.publish(context, config.initial);
 
         return DraggableScrollableSheet(
           key: ValueKey(key),

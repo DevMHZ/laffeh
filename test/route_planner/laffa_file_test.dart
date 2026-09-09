@@ -92,7 +92,9 @@ void main() {
         () => LaffaFile.parse('{not json'),
         throwsA(
           isA<LaffaFormatException>().having(
-            (e) => e.message, 'message', contains('damaged'),
+            (e) => e.message,
+            'message',
+            contains('damaged'),
           ),
         ),
       );
@@ -171,13 +173,15 @@ void main() {
       expect(file.points.length, 2);
     });
 
-    test('a custom finish missing its coordinates degrades to a round trip',
-        () {
-      const broken = '''
+    test(
+      'a custom finish missing its coordinates degrades to a round trip',
+      () {
+        const broken = '''
       {"laffa":1,"finish":{"mode":"custom","label":"Home"},"stops":[
         {"kind":"depot","lat":33.89,"lon":35.50},
         {"kind":"delivery","lat":33.87,"lon":35.52}]}''';
-      expect(LaffaFile.parse(broken).finish, const RouteFinish.depot());
-    });
+        expect(LaffaFile.parse(broken).finish, const RouteFinish.depot());
+      },
+    );
   });
 }

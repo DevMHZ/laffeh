@@ -100,6 +100,17 @@ class NavigationConfig {
   /// phone that only ever reports 15–25 m accuracy.
   static const double serviceRadiusAccuracySlack = 15.0;
 
+  /// How far out the driver may close a stop early, in metres, straight line.
+  ///
+  /// A customer who is not there, a gate that is locked, a delivery refused
+  /// at the door — the driver knows before they arrive, and making them drive
+  /// the last two kilometres to press a button they already know they need is
+  /// theatre. Past this the small early-action chip appears; the full arrival
+  /// bar still waits for [serviceRadiusMeters], so the ordinary case is
+  /// unchanged and the early exit stays deliberate rather than easy to hit by
+  /// accident.
+  static const double earlyActionRadiusMeters = 2000.0;
+
   /// Chord length (metres) used to read the road tangent under the car for
   /// the avatar's rotation — long enough to smooth polyline vertex kinks,
   /// short enough to still be "the road under the car" (unlike the camera,

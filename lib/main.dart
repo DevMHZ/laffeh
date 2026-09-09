@@ -12,6 +12,7 @@ import 'core/services/map_cache_service.dart';
 import 'core/services/saved_routes_sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/vehicle_prefs.dart';
+import 'core/config/service_profile.dart';
 import 'core/utils/debug_log.dart';
 import 'core/utils/share_intent_handler.dart';
 
@@ -41,6 +42,7 @@ Future<void> main() async {
 
   await AppTheme.init();
   await VehiclePrefs.init();
+  await ServiceProfilePrefs.init();
 
   await setupServiceLocator();
 

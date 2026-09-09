@@ -41,6 +41,21 @@ class OptimizedRoute extends Equatable {
   /// — drive mode degrades to distance-to-stop guidance in that case.
   final List<RouteManeuver> maneuvers;
 
+  /// Which distance matrix the optimiser ordered these stops with, as
+  /// reported by the backend: `local_osrm`, `lebanon_ch`, `public_osrm` or
+  /// `haversine`. Null for a route solved before the field existed, or for
+  /// one restored from a saved file.
+  ///
+  /// It matters because the last value is a different product. Straight-line
+  /// distances order stops badly wherever the short way is not the drivable
+  /// way — across a canal, a railway, a motorway with few crossings — and the
+  /// result is then drawn on real roads, so it reaches the driver looking
+  /// like a zigzag with no explanation for it.
+  final String? routingMethod;
+
+  /// Whether the order came from straight-line distances rather than roads.
+  bool get orderedOnStraightLines => routingMethod == 'haversine';
+
   const OptimizedRoute({
     required this.orderedPoints,
     required this.fullPolyline,
@@ -49,6 +64,7 @@ class OptimizedRoute extends Equatable {
     required this.metrics,
     required this.hasRoadGeometry,
     this.maneuvers = const [],
+    this.routingMethod,
   });
 
   bool get isEmpty => orderedPoints.isEmpty;
@@ -68,6 +84,7 @@ class OptimizedRoute extends Equatable {
     metrics: metrics,
     hasRoadGeometry: hasRoadGeometry,
     maneuvers: maneuvers,
+    routingMethod: routingMethod,
   );
 
   @override
@@ -79,5 +96,6 @@ class OptimizedRoute extends Equatable {
     metrics,
     hasRoadGeometry,
     maneuvers,
+    routingMethod,
   ];
 }

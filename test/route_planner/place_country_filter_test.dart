@@ -33,29 +33,39 @@ PlaceSuggestion place(
 );
 
 List<String> order(List<PlaceSuggestion> input, Set<String> preferred) =>
-    PlaceSearchRanker.rank(input, query: 'hamra', near: _beirut,
-            preferredCountries: preferred)
-        .map((p) => p.name)
-        .toList();
+    PlaceSearchRanker.rank(
+      input,
+      query: 'hamra',
+      near: _beirut,
+      preferredCountries: preferred,
+    ).map((p) => p.name).toList();
 
 void main() {
   group('the rest is shown, just second', () {
     test('a foreign result is kept, not dropped', () {
       // The whole point of the rewrite: nothing disappears. Distinct names,
       // or the de-duplicator folds them together and the test proves nothing.
-      final ranked = order([
-        place('Hamra Beirut', country: 'LB'),
-        place('Hamra Sweden', country: 'SE', lat: 61.6, lon: 14.9),
-      ], {'LB'});
+      final ranked = order(
+        [
+          place('Hamra Beirut', country: 'LB'),
+          place('Hamra Sweden', country: 'SE', lat: 61.6, lon: 14.9),
+        ],
+        {'LB'},
+      );
       expect(ranked.length, 2);
       expect(ranked, contains('Hamra Sweden'));
     });
 
     test('but it sorts below the local one', () {
-      final ranked = PlaceSearchRanker.rank([
-        place('Hamra Sweden', country: 'SE', lat: 61.6, lon: 14.9),
-        place('Hamra Beirut', country: 'LB'),
-      ], query: 'hamra', near: _beirut, preferredCountries: {'LB'});
+      final ranked = PlaceSearchRanker.rank(
+        [
+          place('Hamra Sweden', country: 'SE', lat: 61.6, lon: 14.9),
+          place('Hamra Beirut', country: 'LB'),
+        ],
+        query: 'hamra',
+        near: _beirut,
+        preferredCountries: {'LB'},
+      );
       expect(ranked.first.name, 'Hamra Beirut');
     });
 
@@ -65,19 +75,35 @@ void main() {
       // Far away, or the border let-off spares it and the penalty never
       // applies in the first place.
       final sweden = place('x', country: 'SE', lat: 61.6, lon: 14.9);
-      final a = PlaceSearchRanker.rank([sweden],
-          query: 'x', near: _beirut, preferredCountries: {});
-      final b = PlaceSearchRanker.rank([sweden],
-          query: 'x', near: _beirut, preferredCountries: {'LB'});
+      final a = PlaceSearchRanker.rank(
+        [sweden],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {},
+      );
+      final b = PlaceSearchRanker.rank(
+        [sweden],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {'LB'},
+      );
       expect(a.single.score, greaterThan(b.single.score));
     });
 
     test('an unknown country is never penalised', () {
       // Absent is not the same as foreign.
-      final unknown = PlaceSearchRanker.rank([place('x')],
-          query: 'x', near: _beirut, preferredCountries: {'LB'});
-      final local = PlaceSearchRanker.rank([place('x', country: 'LB')],
-          query: 'x', near: _beirut, preferredCountries: {'LB'});
+      final unknown = PlaceSearchRanker.rank(
+        [place('x')],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {'LB'},
+      );
+      final local = PlaceSearchRanker.rank(
+        [place('x', country: 'LB')],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {'LB'},
+      );
       expect(unknown.single.score, closeTo(local.single.score, 1e-9));
     });
   });
@@ -85,21 +111,32 @@ void main() {
   group('a border is not a wall', () {
     test('a nearby foreign place is not demoted at all', () {
       // Twelve kilometres over a border beats two hundred on your own side.
-      final near = PlaceSearchRanker.rank([
-        place('just across', country: 'SY', lat: 33.98, lon: 35.55),
-      ], query: 'x', near: _beirut, preferredCountries: {'LB'});
-      final far = PlaceSearchRanker.rank([
-        place('just across', country: 'SY', lat: 36.20, lon: 37.16),
-      ], query: 'x', near: _beirut, preferredCountries: {'LB'});
+      final near = PlaceSearchRanker.rank(
+        [place('just across', country: 'SY', lat: 33.98, lon: 35.55)],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {'LB'},
+      );
+      final far = PlaceSearchRanker.rank(
+        [place('just across', country: 'SY', lat: 36.20, lon: 37.16)],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {'LB'},
+      );
       expect(near.single.score, greaterThan(far.single.score));
     });
 
     test('several countries in play are all preferred', () {
       // Panned across a border: both sides rank as local.
-      final ranked = PlaceSearchRanker.rank([
-        place('a', country: 'LB'),
-        place('b', country: 'SY', lat: 36.20, lon: 37.16),
-      ], query: 'x', near: _beirut, preferredCountries: {'LB', 'SY'});
+      final ranked = PlaceSearchRanker.rank(
+        [
+          place('a', country: 'LB'),
+          place('b', country: 'SY', lat: 36.20, lon: 37.16),
+        ],
+        query: 'x',
+        near: _beirut,
+        preferredCountries: {'LB', 'SY'},
+      );
       // Neither carries the foreign penalty, so distance alone separates them.
       expect(ranked.map((p) => p.countryCode), containsAll(['LB', 'SY']));
     });

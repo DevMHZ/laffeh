@@ -1,3 +1,4 @@
+import '../../../../core/config/service_profile.dart';
 import '../../domain/entities/route_finish.dart';
 import 'route_point_model.dart';
 
@@ -34,6 +35,10 @@ class RouteRequestModel {
   /// in `driver_endpoints` when the policy is `custom`.
   final RouteFinish finish;
 
+  /// Which way the load moves, so the backend can break a distance tie toward
+  /// shedding weight early (delivery) or taking it on late (pickup).
+  final ServiceProfile serviceProfile;
+
   const RouteRequestModel({
     required this.numVehicles,
     required this.vehicleCapacity,
@@ -45,6 +50,7 @@ class RouteRequestModel {
     required this.defaultServiceTimeMinutes,
     required this.deliveries,
     this.finish = const RouteFinish.depot(),
+    this.serviceProfile = ServiceProfile.delivery,
   });
 
   Map<String, dynamic> toJson() => {
@@ -58,6 +64,7 @@ class RouteRequestModel {
     'default_service_time': defaultServiceTimeMinutes,
     'deliveries': deliveries.map((d) => d.toJson()).toList(),
     'end_policy': finish.effectiveMode.wireValue,
+    'service_profile': serviceProfile.wireValue,
     if (finish.toEndpointJson() != null)
       'driver_endpoints': [finish.toEndpointJson()!],
   };

@@ -113,6 +113,12 @@ class RoutePlannerState extends Equatable {
   /// target stop — the "Point Served" button is shown only in this phase.
   final bool navigationArrived;
 
+  /// Stops the driver closed without serving — nobody in, gate locked,
+  /// delivery refused. Kept by point id rather than by index so the record
+  /// survives a mid-trip re-optimise, and kept at all so a skipped stop can
+  /// be told apart from a served one when the day is reviewed.
+  final Set<String> skippedPointIds;
+
   /// Live GPS distance (metres) to the current target stop; null before
   /// the first fix. Straight-line — this is the figure the service-radius
   /// machine compares against, since "am I standing at the stop?" is a
@@ -204,6 +210,7 @@ class RoutePlannerState extends Equatable {
     this.navigationHeading,
     this.navigationSpeedMps,
     this.navigationArrived = false,
+    this.skippedPointIds = const <String>{},
     this.navigationStopDistanceMeters,
     this.navigationStopRouteDistanceMeters,
     this.maneuverFractions = const [],
@@ -293,6 +300,7 @@ class RoutePlannerState extends Equatable {
     double? navigationHeading,
     double? navigationSpeedMps,
     bool? navigationArrived,
+    Set<String>? skippedPointIds,
     double? navigationStopDistanceMeters,
     double? navigationStopRouteDistanceMeters,
     List<double>? maneuverFractions,
@@ -342,6 +350,7 @@ class RoutePlannerState extends Equatable {
           ? null
           : (navigationSpeedMps ?? this.navigationSpeedMps),
       navigationArrived: navigationArrived ?? this.navigationArrived,
+      skippedPointIds: skippedPointIds ?? this.skippedPointIds,
       navigationStopDistanceMeters: clearNavigationStopDistance
           ? null
           : (navigationStopDistanceMeters ?? this.navigationStopDistanceMeters),
@@ -388,6 +397,7 @@ class RoutePlannerState extends Equatable {
     navigationHeading,
     navigationSpeedMps,
     navigationArrived,
+    skippedPointIds,
     navigationStopDistanceMeters,
     navigationStopRouteDistanceMeters,
     maneuverFractions,

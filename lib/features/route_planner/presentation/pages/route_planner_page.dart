@@ -19,6 +19,7 @@ import '../cubit/route_planner_cubit.dart';
 import '../widgets/route_map_view.dart';
 import 'route_add_options_host.dart';
 import 'route_planner_actions.dart';
+import '../widgets/sheet_extent.dart';
 import 'route_planner_add_overlay.dart';
 import 'route_planner_bottom_sheet.dart';
 import 'route_planner_move_overlay.dart';
@@ -63,6 +64,11 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   final GlobalKey<RouteMapViewState> _mapKey = GlobalKey<RouteMapViewState>();
   StreamSubscription<String>? _shareSub;
   StreamSubscription<String>? _roundFileSub;
+
+  /// How much of the screen the bottom sheet covers right now. Published by
+  /// the sheet, read by the map chrome so the compass and the 2D/3D toggle
+  /// sit just above it instead of floating over its middle.
+  final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0);
 
   /// Timestamp of the last Android back press — used so the app only exits on
   /// a second back within the window, never on a single accidental tap.
@@ -111,6 +117,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     WidgetsBinding.instance.removeObserver(this);
     _shareSub?.cancel();
     _roundFileSub?.cancel();
+    _sheetExtent.dispose();
     super.dispose();
   }
 
@@ -170,7 +177,9 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
       return;
     }
     messenger.showSnackBar(
-      SnackBar(content: Text(AppStrings.laffaImported(cubit.state.points.length))),
+      SnackBar(
+        content: Text(AppStrings.laffaImported(cubit.state.points.length)),
+      ),
     );
   }
 
@@ -206,22 +215,34 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
         // of one per widget — a large GPU saving while the map pans, zooms and
         // rotates. Each panel opts in via `BackdropFilter.grouped`.
         body: BackdropGroup(
-          child: Stack(
-            children: [
-              // Keeps the Stack full-screen even when every other child
-              // collapses to SizedBox.shrink during preview/drive.
-              const SizedBox.expand(),
-              Positioned.fill(child: RouteMapView(key: _mapKey)),
-              const TopBar(),
-              const LocationAccessChip(),
-              CenterPin(mapKey: _mapKey),
-              const BottomSheetHost(),
-              const AddOptionsHost(),
-              ManualPlacementHost(mapKey: _mapKey),
-              MovePointHost(mapKey: _mapKey),
-              const TripOverlayHost(),
-              const LoadingOverlay(),
-            ],
+          child: SheetExtent(
+            extent: _sheetExtent,
+            child: NotificationListener<DraggableScrollableNotification>(
+              // The sheet reports every frame of a drag. Writing straight to
+              // the notifier (rather than setState) keeps the rebuild to the
+              // handful of widgets that actually follow it.
+              onNotification: (note) {
+                _sheetExtent.value = note.extent;
+                return false;
+              },
+              child: Stack(
+                children: [
+                  // Keeps the Stack full-screen even when every other child
+                  // collapses to SizedBox.shrink during preview/drive.
+                  const SizedBox.expand(),
+                  Positioned.fill(child: RouteMapView(key: _mapKey)),
+                  const TopBar(),
+                  const LocationAccessChip(),
+                  CenterPin(mapKey: _mapKey),
+                  const BottomSheetHost(),
+                  const AddOptionsHost(),
+                  ManualPlacementHost(mapKey: _mapKey),
+                  MovePointHost(mapKey: _mapKey),
+                  const TripOverlayHost(),
+                  const LoadingOverlay(),
+                ],
+              ),
+            ),
           ),
         ),
       ),

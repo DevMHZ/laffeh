@@ -72,6 +72,16 @@ class RouteSummarySheet extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
 
+              // Road distances were unavailable, so the order came from
+              // straight lines. Said out loud because the driver has no other
+              // way to tell: the route is still drawn on real roads, so a bad
+              // sequence arrives looking like a rendering fault rather than a
+              // plan made without the map.
+              if (route.orderedOnStraightLines) ...[
+                const _StraightLineNotice(),
+                const SizedBox(height: 12),
+              ],
+
               // ── The whole trip in one line ─────────────────────────
               //    Time, distance and how many stops used to be a card with
               //    two labelled tiles and a lot of air in it, plus a third
@@ -119,8 +129,13 @@ class RouteSummarySheet extends StatelessWidget {
                 children: [
                   for (var i = 0; i < order.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
-                    _orderCell(context, order[i], i + 1, order.length,
-                        departureMinute),
+                    _orderCell(
+                      context,
+                      order[i],
+                      i + 1,
+                      order.length,
+                      departureMinute,
+                    ),
                   ],
                   // An open route has no closing row, so the way to change
                   // how the day ends would vanish with the row that offered
@@ -194,8 +209,13 @@ class RouteSummarySheet extends StatelessWidget {
   /// One full-width row for a single stop in the optimised sequence — order
   /// number badge, label, and (when known) address. Laid out one per line for
   /// clear order reading.
-  Widget _orderCell(BuildContext context, RoutePoint p, int index, int total,
-      int departureMinute) {
+  Widget _orderCell(
+    BuildContext context,
+    RoutePoint p,
+    int index,
+    int total,
+    int departureMinute,
+  ) {
     final i = index - 1;
     final isReturn = i == total - 1 && p.isDepot && i != 0;
     final color = p.isDeactivated
@@ -312,5 +332,35 @@ class RouteSummarySheet extends StatelessWidget {
   String _shortDate(DateTime d) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${d.year}/${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
+  }
+}
+
+/// Quiet warning that this plan was ordered without road data.
+class _StraightLineNotice extends StatelessWidget {
+  const _StraightLineNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Iconsax.info_circle, size: 18, color: AppColors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              AppStrings.orderedOnStraightLines,
+              style: AppTextStyles.mutedSm,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

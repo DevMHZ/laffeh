@@ -66,8 +66,7 @@ class RouteFinish extends Equatable {
   /// matching what the backend does with an endpoint it cannot use.
   bool get isUsable => mode != RouteEndMode.custom || location != null;
 
-  RouteEndMode get effectiveMode =>
-      isUsable ? mode : RouteEndMode.depot;
+  RouteEndMode get effectiveMode => isUsable ? mode : RouteEndMode.depot;
 
   /// `driver_endpoints` payload, or null when the policy needs none.
   ///

@@ -58,8 +58,7 @@ class _RouteFinishBody extends StatelessWidget {
               title: AppStrings.finishRoundTrip,
               subtitle: AppStrings.finishRoundTripHint,
               selected: current.mode == RouteEndMode.depot,
-              onTap: () =>
-                  Navigator.of(context).pop(const RouteFinish.depot()),
+              onTap: () => Navigator.of(context).pop(const RouteFinish.depot()),
             ),
             const SizedBox(height: 8),
             _Option(
@@ -75,16 +74,15 @@ class _RouteFinishBody extends StatelessWidget {
               title: AppStrings.finishCustom,
               // Once a place is chosen, show it instead of the generic hint:
               // the row then answers "finish where?" on its own.
-              subtitle: current.mode == RouteEndMode.custom &&
+              subtitle:
+                  current.mode == RouteEndMode.custom &&
                       current.label?.isNotEmpty == true
                   ? current.label!
                   : AppStrings.finishCustomHint,
               selected: current.mode == RouteEndMode.custom,
               trailing: Text(
                 AppStrings.finishPickPlace,
-                style: AppTextStyles.mutedSm.copyWith(
-                  color: AppColors.primary,
-                ),
+                style: AppTextStyles.mutedSm.copyWith(color: AppColors.primary),
               ),
               // Hands off to the full place picker: typing an address, the
               // map, Google Maps and WhatsApp, the same four ways any other
@@ -122,7 +120,9 @@ class _Option extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceAlt,
+      color: selected
+          ? AppColors.primary.withValues(alpha: 0.08)
+          : AppColors.surfaceAlt,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -163,8 +163,7 @@ class _Option extends StatelessWidget {
               if (trailing != null) ...[const SizedBox(width: 8), trailing!],
               if (selected) ...[
                 const SizedBox(width: 8),
-                Icon(Iconsax.tick_circle,
-                    size: 20, color: AppColors.primary),
+                Icon(Iconsax.tick_circle, size: 20, color: AppColors.primary),
               ],
             ],
           ),

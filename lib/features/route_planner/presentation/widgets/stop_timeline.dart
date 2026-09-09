@@ -56,12 +56,8 @@ class _HaloRoomClipper extends CustomClipper<Rect> {
   final double verticalSlack;
 
   @override
-  Rect getClip(Size size) => Rect.fromLTRB(
-    0,
-    -verticalSlack,
-    size.width,
-    size.height + verticalSlack,
-  );
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -verticalSlack, size.width, size.height + verticalSlack);
 
   @override
   bool shouldReclip(_HaloRoomClipper oldClipper) =>
@@ -159,36 +155,36 @@ class _StopTimelineState extends State<StopTimeline>
       child: ClipRect(
         clipper: const _HaloRoomClipper(_haloRoom),
         child: ListView.builder(
-        controller: _scroll,
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: points.length,
-        itemExtent: _itemExtent,
-        itemBuilder: (context, i) {
-          final p = points[i];
-          final isReturn = i == points.length - 1 && p.isDepot && i != 0;
-          final done = widget.finished || i < widget.currentTarget;
-          final active = !widget.finished && i == widget.currentTarget;
+          controller: _scroll,
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          itemCount: points.length,
+          itemExtent: _itemExtent,
+          itemBuilder: (context, i) {
+            final p = points[i];
+            final isReturn = i == points.length - 1 && p.isDepot && i != 0;
+            final done = widget.finished || i < widget.currentTarget;
+            final active = !widget.finished && i == widget.currentTarget;
 
-          return _TimelineItem(
-            label: isReturn
-                ? Iconsax.repeat
-                : p.isDepot
-                ? Iconsax.flag
-                : null,
-            number: p.isDepot ? null : _stopNumber(points, i),
-            caption: p.label,
-            done: done,
-            active: active,
-            pulse: _pulse,
-            compact: widget.compact,
-            drawLeftLine: i > 0,
-            drawRightLine: i < points.length - 1,
-            leftDone: widget.finished || i <= widget.currentTarget,
-            rightDone: widget.finished || i < widget.currentTarget,
-          );
-        },
+            return _TimelineItem(
+              label: isReturn
+                  ? Iconsax.repeat
+                  : p.isDepot
+                  ? Iconsax.flag
+                  : null,
+              number: p.isDepot ? null : _stopNumber(points, i),
+              caption: p.label,
+              done: done,
+              active: active,
+              pulse: _pulse,
+              compact: widget.compact,
+              drawLeftLine: i > 0,
+              drawRightLine: i < points.length - 1,
+              leftDone: widget.finished || i <= widget.currentTarget,
+              rightDone: widget.finished || i < widget.currentTarget,
+            );
+          },
         ),
       ),
     );
@@ -309,7 +305,8 @@ class _TimelineItem extends StatelessWidget {
                                   // the halo stays inside the row at both
                                   // sizes instead of reaching the label.
                                   blurRadius: dot * (0.26 + pulse.value * 0.14),
-                                  spreadRadius: dot * (0.04 + pulse.value * 0.06),
+                                  spreadRadius:
+                                      dot * (0.04 + pulse.value * 0.06),
                                 ),
                               ]
                             : null,
