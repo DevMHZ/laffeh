@@ -416,6 +416,8 @@ class AppStrings {
       _t('serviceProfileDeliveryHint');
   static String get serviceProfilePickup => _t('serviceProfilePickup');
   static String get serviceProfilePickupHint => _t('serviceProfilePickupHint');
+  static String get serviceProfileNone => _t('serviceProfileNone');
+  static String get serviceProfileNoneHint => _t('serviceProfileNoneHint');
   static String get servedEarly => _t('servedEarly');
   static String get couldNotServe => _t('couldNotServe');
   static String get stopSkipped => _t('stopSkipped');
@@ -1387,7 +1389,8 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'Replay',
     'arrivedHere': 'Arrived',
     'closeStopEarly': 'Close this stop early',
-    'couldNotServeConfirm': 'Mark this stop as not delivered and move on to the next one?',
+    'couldNotServeConfirm':
+        'Mark this stop as not delivered and move on to the next one?',
     'orderedOnStraightLines':
         'Road data was unavailable, so this order was worked out on straight-line distances. The sequence may be poor where the direct line is not drivable.',
     'serviceProfile': 'Round type',
@@ -1396,6 +1399,8 @@ const Map<String, Map<String, String>> _copy = {
         'You set off loaded. Heaviest drops go first.',
     'serviceProfilePickup': 'Pickups',
     'serviceProfilePickupHint': 'You set off empty. Heaviest pickups go last.',
+    'serviceProfileNone': 'No preference',
+    'serviceProfileNoneHint': 'Keep the order the optimiser found, untouched.',
     'servedEarly': 'Delivered',
     'couldNotServe': "Couldn't deliver",
     'stopSkipped': 'Stop skipped',
@@ -1999,7 +2004,8 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'إعادة التشغيل',
     'arrivedHere': 'تم الوصول',
     'closeStopEarly': 'إنهاء هذه النقطة مبكرًا',
-    'couldNotServeConfirm': 'هل تريد تسجيل هذه النقطة كغير مُسلَّمة والانتقال إلى التالية؟',
+    'couldNotServeConfirm':
+        'هل تريد تسجيل هذه النقطة كغير مُسلَّمة والانتقال إلى التالية؟',
     'orderedOnStraightLines':
         'تعذّر الحصول على بيانات الطرق، لذلك رُتّبت النقاط بالمسافات المستقيمة. قد يكون الترتيب غير مناسب حيث لا يمكن سلوك الخط المباشر.',
     'serviceProfile': 'نوع اللفة',
@@ -2007,6 +2013,8 @@ const Map<String, Map<String, String>> _copy = {
     'serviceProfileDeliveryHint': 'تنطلق محمّلًا. الأثقل يُسلَّم أولًا.',
     'serviceProfilePickup': 'استلام',
     'serviceProfilePickupHint': 'تنطلق فارغًا. الأثقل يُستلم أخيرًا.',
+    'serviceProfileNone': 'بدون تفضيل',
+    'serviceProfileNoneHint': 'أبقِ الترتيب كما وجده المحسِّن، دون تغيير.',
     'servedEarly': 'تم التسليم',
     'couldNotServe': 'تعذّر التسليم',
     'stopSkipped': 'تم تخطي النقطة',
@@ -2621,7 +2629,8 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'Rejouer',
     'arrivedHere': 'Arrive',
     'closeStopEarly': 'Terminer ce point maintenant',
-    'couldNotServeConfirm': 'Marquer ce point comme non livre et passer au suivant ?',
+    'couldNotServeConfirm':
+        'Marquer ce point comme non livre et passer au suivant ?',
     'orderedOnStraightLines':
         'Les donnees routieres etaient indisponibles : cet ordre a ete calcule a vol d\'oiseau. La sequence peut etre mauvaise la ou la ligne directe n\'est pas praticable.',
     'serviceProfile': 'Type de tournee',
@@ -2631,6 +2640,9 @@ const Map<String, Map<String, String>> _copy = {
     'serviceProfilePickup': 'Collectes',
     'serviceProfilePickupHint':
         'Vous partez a vide. Le plus lourd est pris en dernier.',
+    'serviceProfileNone': 'Sans preference',
+    'serviceProfileNoneHint':
+        'Gardez l\'ordre trouve par l\'optimiseur, tel quel.',
     'servedEarly': 'Livre',
     'couldNotServe': 'Livraison impossible',
     'stopSkipped': 'Point ignore',

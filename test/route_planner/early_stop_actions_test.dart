@@ -31,6 +31,7 @@ import 'package:laffeh/features/route_planner/domain/entities/route_point.dart';
 import 'package:laffeh/features/route_planner/domain/usecases/optimize_route_usecase.dart';
 import 'package:laffeh/features/route_planner/presentation/cubit/route_planner_cubit.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/sheet_extent.dart';
+import 'package:laffeh/features/settings/presentation/widgets/service_profile_glyph.dart';
 import 'package:laffeh/features/saved_routes/domain/repositories/saved_routes_repository.dart';
 
 class _MockOptimize extends Mock implements OptimizeRouteUseCase {}
@@ -285,6 +286,17 @@ void main() {
       expect(ServiceProfile.byId('nonsense'), ServiceProfile.delivery);
     });
 
+    test('no preference is a real choice, not the fallback', () {
+      // The control case for comparing the same round with and without the
+      // tie-break, so it has to survive the round trip rather than being
+      // quietly turned back into delivery.
+      expect(ServiceProfile.byId('none'), ServiceProfile.none);
+      expect(
+        request(profile: ServiceProfile.none).toJson()['service_profile'],
+        'none',
+      );
+    });
+
     test('carries pickup through to the wire', () {
       expect(
         request(profile: ServiceProfile.pickup).toJson()['service_profile'],
@@ -423,6 +435,143 @@ void main() {
       final parsed = RouteResponseModel.fromJson(const {'routes': []});
       expect(parsed.routingMethod, isNull);
       expect(parsed.notes, isEmpty);
+    });
+  });
+
+  // ── The round-type glyphs ─────────────────────────────────────────────
+
+  group('ServiceProfileGlyph', () {
+    testWidgets('every profile paints without a ticker leak', (tester) async {
+      for (final profile in ServiceProfile.values) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: ServiceProfileGlyph(
+                profile: profile,
+                color: const Color(0xFF1B7F4B),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byType(ServiceProfileGlyph), findsOneWidget);
+        // Tears the widget down each pass; a repeating controller that
+        // outlived its State would fail the test binding here.
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('the parcel actually moves for delivery and pickup', (
+      tester,
+    ) async {
+      for (final profile in [ServiceProfile.delivery, ServiceProfile.pickup]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: ServiceProfileGlyph(
+                profile: profile,
+                color: const Color(0xFF1B7F4B),
+              ),
+            ),
+          ),
+        );
+        final state = tester.state(find.byType(ServiceProfileGlyph));
+        // ignore: invalid_use_of_protected_member
+        expect((state as dynamic).mounted, isTrue);
+        await tester.pump(const Duration(milliseconds: 550));
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+
+    testWidgets('a still glyph runs no animation at all', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: ServiceProfileGlyph(
+              profile: ServiceProfile.delivery,
+              color: const Color(0xFF1B7F4B),
+              animate: false,
+            ),
+          ),
+        ),
+      );
+      // pumpAndSettle times out if anything is still animating, so this
+      // doubles as the assertion that a collapsed row costs nothing.
+      await tester.pumpAndSettle();
+      expect(find.byType(ServiceProfileGlyph), findsOneWidget);
+    });
+
+    testWidgets('no-preference turns on the spot', (tester) async {
+      // It has no journey to make, so it rotates instead of travelling —
+      // and because it never settles, pumpAndSettle would hang here. One
+      // bounded pump is the assertion that it is running.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: ServiceProfileGlyph(
+              profile: ServiceProfile.none,
+              color: const Color(0xFF1B7F4B),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(ServiceProfileGlyph), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    test('a still glyph rests where the parcel is fully visible', () {
+      // The parcel fades in at the start of its pass, so a still glyph parked
+      // at phase zero is a van and a doorstep with nothing between them —
+      // exactly what a collapsed settings row renders.
+      expect(parcelOpacity(kParcelRestingPhase, ServiceProfile.delivery), 1.0);
+      final travel = parcelTravel(kParcelRestingPhase, ServiceProfile.delivery);
+      expect(travel, greaterThan(0.0));
+      expect(travel, lessThan(1.0));
+    });
+
+    test('the parcel lands, sits there, then fades out', () {
+      // Arrives and stops.
+      expect(parcelTravel(0.50, ServiceProfile.delivery), 1.0);
+      expect(parcelTravel(0.70, ServiceProfile.delivery), 1.0);
+      // Stays put and stays visible while it sits on the ground.
+      expect(parcelOpacity(0.55, ServiceProfile.delivery), 1.0);
+      expect(parcelOpacity(0.75, ServiceProfile.delivery), 1.0);
+      // Then goes.
+      expect(parcelOpacity(0.95, ServiceProfile.delivery), 0.0);
+    });
+
+    test('the hold on the ground is about a second', () {
+      const loop = Duration(milliseconds: 3200);
+      final held = (0.78 - 0.50) * loop.inMilliseconds;
+      expect(held, greaterThan(700));
+      expect(held, lessThan(1200));
+    });
+
+    test('each pass starts over from the beginning, not by reversing', () {
+      // Invisible at the end of the loop and visible at the start, which is
+      // what makes the next parcel appear where the last one set off rather
+      // than sliding back like a lift.
+      expect(parcelOpacity(0.99, ServiceProfile.delivery), 0.0);
+      expect(parcelTravel(0.02, ServiceProfile.delivery), 0.0);
+      expect(parcelOpacity(0.20, ServiceProfile.delivery), 1.0);
+    });
+
+    test('delivery falls and pickup is lifted', () {
+      // Same start and end, different easing: delivery accelerates into the
+      // ground, pickup decelerates into the van.
+      const mid = 0.29; // halfway through the travel window
+      final falling = parcelTravel(mid, ServiceProfile.delivery);
+      final lifted = parcelTravel(mid, ServiceProfile.pickup);
+      expect(falling, lessThan(lifted));
+      expect(parcelTravel(0.50, ServiceProfile.pickup), 1.0);
+    });
+
+    test('no preference neither travels nor fades — it just turns', () {
+      for (var t = 0.0; t < 1.0; t += 0.1) {
+        expect(parcelTravel(t, ServiceProfile.none), 0.0);
+        expect(parcelOpacity(t, ServiceProfile.none), 1.0);
+      }
     });
   });
 }

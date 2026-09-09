@@ -21,6 +21,7 @@ import '../../../../core/widgets/legal_links_sheet.dart';
 import '../../../../core/widgets/offline_area_section.dart';
 import '../../../../core/widgets/vehicle_turntable.dart';
 import '../widgets/account_section.dart';
+import '../widgets/service_profile_glyph.dart';
 
 class SettingsPage extends StatelessWidget {
   /// Picks a spreadsheet of stops for the trip behind this page, and reports
@@ -568,16 +569,13 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
   static String _nameFor(ServiceProfile p) => switch (p) {
     ServiceProfile.delivery => AppStrings.serviceProfileDelivery,
     ServiceProfile.pickup => AppStrings.serviceProfilePickup,
+    ServiceProfile.none => AppStrings.serviceProfileNone,
   };
 
   static String _hintFor(ServiceProfile p) => switch (p) {
     ServiceProfile.delivery => AppStrings.serviceProfileDeliveryHint,
     ServiceProfile.pickup => AppStrings.serviceProfilePickupHint,
-  };
-
-  static IconData _iconFor(ServiceProfile p) => switch (p) {
-    ServiceProfile.delivery => Iconsax.box_remove,
-    ServiceProfile.pickup => Iconsax.box_add,
+    ServiceProfile.none => AppStrings.serviceProfileNoneHint,
   };
 
   @override
@@ -592,6 +590,25 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
               icon: Iconsax.box,
               title: AppStrings.serviceProfile,
               valueLabel: _nameFor(active),
+              // Still frame while collapsed: a looping parcel in a settings
+              // list is a distraction, and the row is only a reminder of
+              // what is set. It comes alive in the options below.
+              preview: Container(
+                width: 30,
+                height: 30,
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: ServiceProfileGlyph(
+                  profile: active,
+                  size: 26,
+                  color: AppColors.primary,
+                  animate: false,
+                ),
+              ),
               expanded: _expanded,
               onTap: _toggle,
             ),
@@ -603,7 +620,7 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
                       children: [
                         for (final profile in ServiceProfile.values)
                           _ServiceProfileOption(
-                            icon: _iconFor(profile),
+                            profile: profile,
                             title: _nameFor(profile),
                             hint: _hintFor(profile),
                             selected: profile == active,
@@ -621,14 +638,14 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
 }
 
 class _ServiceProfileOption extends StatelessWidget {
-  final IconData icon;
+  final ServiceProfile profile;
   final String title;
   final String hint;
   final bool selected;
   final VoidCallback onTap;
 
   const _ServiceProfileOption({
-    required this.icon,
+    required this.profile,
     required this.title,
     required this.hint,
     required this.selected,
@@ -661,10 +678,14 @@ class _ServiceProfileOption extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  size: 20,
+                // Only the chosen row animates. Three parcels shuttling at
+                // once is a fairground, and it makes the selected option
+                // harder to find rather than easier.
+                ServiceProfileGlyph(
+                  profile: profile,
+                  size: 32,
                   color: selected ? AppColors.primary : AppColors.textMuted,
+                  animate: selected,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

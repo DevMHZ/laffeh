@@ -34,6 +34,7 @@ import '../../domain/entities/route_point.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'map_action_button.dart';
+import '../utils/sim_visit_states.dart';
 import 'sheet_extent.dart';
 import 'map_compass.dart';
 import 'map_geometry.dart';
@@ -74,15 +75,20 @@ class _SymbolSpec {
 /// registered with [MapLibreMapController.addImage]) so they stay perfectly
 /// anchored to their geographic positions regardless of map movement — no
 /// Flutter widget overlay lag.
-/// Where the map chrome (compass, 2D/3D) sits above the bottom sheet.
+/// Where the map chrome (compass, 2D/3D) sits above whatever is on the
+/// bottom edge — a sheet, the preview scrubber, or a destination card.
 ///
-/// The floor is the summary sheet's smallest snap, which is also roughly the
-/// height of the preview scrubber and the single-destination card — neither
-/// of those publishes an extent, so the chrome needs somewhere sensible to
-/// rest when nothing is reporting. The ceiling stops the buttons climbing
-/// into the top bar when the sheet is dragged fully open.
-const double _mapChromeFloor = 0.28;
-const double _mapChromeCeiling = 0.55;
+/// Every one of those now reports its own height, so this is not a guess
+/// about their sizes; the clamp only bounds the result.
+///
+/// The floor matches the sheet's bottom snap, so the chrome follows the sheet
+/// all the way down when the driver parks it to look at the map, and stops
+/// where the sheet stops. The ceiling keeps the buttons out of the top bar
+/// when the sheet is dragged fully open — past it the sheet covers the map
+/// anyway, and chrome floating over a sheet nobody can see through is worse
+/// than chrome tucked behind it.
+const double _mapChromeFloor = 0.10;
+const double _mapChromeCeiling = 0.70;
 const double _mapChromeGap = 14;
 
 class RouteMapView extends StatefulWidget {
@@ -1019,18 +1025,18 @@ class RouteMapViewState extends State<RouteMapView>
     final simProgress = state.simulationProgress;
     final simFinished = state.simulationActive && simProgress >= 1.0;
 
-    double? simNextAheadFrac;
-    if (simActive && !simFinished) {
-      for (var i = 0; i < state.points.length && i < fractions.length; i++) {
-        final p = state.points[i];
-        if (p.isDepot || p.isDeactivated) continue;
-        final f = fractions[i];
-        if (f > simProgress &&
-            (simNextAheadFrac == null || f < simNextAheadFrac)) {
-          simNextAheadFrac = f;
-        }
-      }
-    }
+    // Playback visit states, worked out in one place and tested there —
+    // see simVisitStates() for why this is an index and not a fraction.
+    final simStates = simActive
+        ? simVisitStates(
+            fractions: fractions,
+            progress: simProgress,
+            finished: simFinished,
+            isStop: [
+              for (final p in state.points) !p.isDepot && !p.isDeactivated,
+            ],
+          )
+        : const <StopVisitState?>[];
 
     // Navigation visit state — navigationStopIndex is an index into
     // orderedPoints. Since state.points may differ (deactivated points,
@@ -1084,14 +1090,7 @@ class RouteMapViewState extends State<RouteMapView>
         // sim/drive visit state.
         StopVisitState? visit;
         if (simActive) {
-          final f = i < fractions.length ? fractions[i] : 1.0;
-          if (simFinished || simProgress >= f) {
-            visit = StopVisitState.visited;
-          } else if (simNextAheadFrac != null && f == simNextAheadFrac) {
-            visit = StopVisitState.visiting;
-          } else {
-            visit = StopVisitState.upcoming;
-          }
+          visit = i < simStates.length ? simStates[i] : null;
         } else if (navTarget != null) {
           final oi = orderedIndex(orderedIndexById, p.id);
           if (oi != null) {

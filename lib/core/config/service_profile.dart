@@ -12,11 +12,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///     driven light.
 ///   * [pickup] — the vehicle leaves empty and fills. Collect late, for the
 ///     same reason read from the other end.
+///   * [none] — express no preference. The solver's own order is shipped
+///     untouched, which is the control case: pick this to see what the tie
+///     break is actually doing by comparing the same round both ways.
 ///
 /// Delivery is the default because it is what almost every round is.
 enum ServiceProfile {
   delivery('delivery'),
-  pickup('pickup');
+  pickup('pickup'),
+  none('none');
 
   const ServiceProfile(this.wireValue);
 

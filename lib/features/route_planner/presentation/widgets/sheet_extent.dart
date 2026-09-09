@@ -45,3 +45,67 @@ class SheetExtent extends InheritedNotifier<ValueNotifier<double>> {
     });
   }
 }
+
+/// Publishes its child's height to [SheetExtent], as a fraction of the screen.
+///
+/// The draggable planner sheet reports its own extent for free, because that
+/// is what a [DraggableScrollableSheet] does. Every *other* thing that sits
+/// along the bottom edge — the preview scrubber, the single-destination card
+/// — is an ordinary widget of whatever height its content came to, and
+/// reports nothing. Wrapping one in this makes it speak the same language,
+/// so the map chrome clears it too instead of guessing with a constant.
+///
+/// Measured rather than hard-coded because these bars change height with
+/// their content and with the device's bottom inset, and a constant that is
+/// right on one phone is wrong on the next.
+class ReportsExtent extends StatefulWidget {
+  final Widget child;
+
+  const ReportsExtent({super.key, required this.child});
+
+  @override
+  State<ReportsExtent> createState() => _ReportsExtentState();
+}
+
+class _ReportsExtentState extends State<ReportsExtent> {
+  final GlobalKey _key = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(ReportsExtent old) {
+    super.didUpdateWidget(old);
+    _schedule();
+  }
+
+  @override
+  void dispose() {
+    // The bar is leaving the screen; anything still reading the extent
+    // should fall back to its own floor rather than hold this bar's height.
+    final notifier = SheetExtent.writerOf(context);
+    if (notifier != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => notifier.value = 0);
+    }
+    super.dispose();
+  }
+
+  void _schedule() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _key.currentContext?.findRenderObject() as RenderBox?;
+      final screen = MediaQuery.maybeSizeOf(context)?.height ?? 0;
+      if (box == null || !box.hasSize || screen <= 0) return;
+      SheetExtent.publish(context, box.size.height / screen);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _schedule();
+    return KeyedSubtree(key: _key, child: widget.child);
+  }
+}

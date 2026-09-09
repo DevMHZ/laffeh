@@ -14,6 +14,7 @@ import '../../domain/entities/optimized_route.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'stop_timeline.dart';
+import 'sheet_extent.dart';
 
 part 'route_simulation_overlay_widgets.dart';
 
@@ -209,39 +210,45 @@ class RouteSimulationOverlay extends StatelessWidget {
               const Spacer(),
 
               // ── Bottom: one obvious control bar ──
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                  child: GlassPanel(
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                    radius: 26,
-                    child: Row(
-                      children: [
-                        _SmallControl(
-                          icon: Iconsax.refresh,
-                          tooltip: AppStrings.replay,
-                          onPressed: cubit.resetSimulation,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _TripScrubber(
-                            progress: progress,
-                            stops: _scrubberTicks(fractions, route),
-                            totalMinutes:
-                                (route.metrics.estimatedDurationMinutes ?? 0)
-                                    .toDouble(),
-                            onSeek: cubit.seekSimulation,
+              // Reports its height so the compass and the 2D/3D toggle clear
+              // it: preview is the one mode where the map chrome and a bottom
+              // bar are on screen together without a draggable sheet between
+              // them to publish an extent.
+              ReportsExtent(
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                    child: GlassPanel(
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                      radius: 26,
+                      child: Row(
+                        children: [
+                          _SmallControl(
+                            icon: Iconsax.refresh,
+                            tooltip: AppStrings.replay,
+                            onPressed: cubit.resetSimulation,
                           ),
-                        ),
-                        const SizedBox(width: 14),
-                        _PlayPauseButton(
-                          playing: state.simulationPlaying,
-                          finished: finished,
-                          onPlay: cubit.resumeSimulation,
-                          onPause: cubit.pauseSimulation,
-                        ),
-                      ],
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _TripScrubber(
+                              progress: progress,
+                              stops: _scrubberTicks(fractions, route),
+                              totalMinutes:
+                                  (route.metrics.estimatedDurationMinutes ?? 0)
+                                      .toDouble(),
+                              onSeek: cubit.seekSimulation,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          _PlayPauseButton(
+                            playing: state.simulationPlaying,
+                            finished: finished,
+                            onPlay: cubit.resumeSimulation,
+                            onPause: cubit.pauseSimulation,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

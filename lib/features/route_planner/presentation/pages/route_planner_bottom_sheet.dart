@@ -25,6 +25,27 @@ import 'route_planner_actions.dart';
 ///     it sells, and it appears because the driver asked for it.
 ///
 /// Hidden while a full-screen flow is active.
+/// The sheet's bottom snap, in logical pixels: barely there, so the map is.
+///
+/// A height rather than a fraction, because what has to fit is a fixed thing
+/// — the grab handle and the pinned action bar — and a fraction that clears
+/// them on a large phone overflows a small one. Measured against the screen
+/// at build time and clamped, so a very short or very tall device still gets
+/// something sane.
+///
+/// Large enough that the handle stays under a thumb: a sheet that can be
+/// pushed away but not pulled back is a trap, and nothing else on screen
+/// brings it back.
+const double _peekHeight = 146;
+
+/// Bounds for the computed peek, as a fraction of the screen.
+const double _peekMin = 0.10;
+const double _peekMax = 0.34;
+
+/// The bottom snap for a screen [height] logical pixels tall.
+double _peekFraction(double height) =>
+    height <= 0 ? _peekMin : (_peekHeight / height).clamp(_peekMin, _peekMax);
+
 class BottomSheetHost extends StatelessWidget {
   const BottomSheetHost({super.key});
 
@@ -59,23 +80,25 @@ class BottomSheetHost extends StatelessWidget {
         if (state.isSingleDestination) {
           return Align(
             alignment: Alignment.bottomCenter,
-            child: DestinationCard(
-              destination: state.points.firstWhere((p) => !p.isDepot),
-              route: state.optimizedRoute,
-              routing: state.quietRouting || state.isOptimizing,
-              departureAt: state.departureAt,
-              // Null while the trip starts from wherever the driver is —
-              // the card says so in its own words rather than naming a
-              // place that will have moved by the time they set off.
-              departureFrom: state.departureIsCurrentLocation
-                  ? null
-                  : state.departurePoint,
-              onGo: cubit.driveToDestination,
-              onAddAnotherStop: () =>
-                  RoutePlannerActions.showAddMethodChooser(context, cubit),
-              onChangeDestination: cubit.clearDestination,
-              onChangeDeparture: () =>
-                  RoutePlannerActions.showDeparturePicker(context, cubit),
+            child: ReportsExtent(
+              child: DestinationCard(
+                destination: state.points.firstWhere((p) => !p.isDepot),
+                route: state.optimizedRoute,
+                routing: state.quietRouting || state.isOptimizing,
+                departureAt: state.departureAt,
+                // Null while the trip starts from wherever the driver is —
+                // the card says so in its own words rather than naming a
+                // place that will have moved by the time they set off.
+                departureFrom: state.departureIsCurrentLocation
+                    ? null
+                    : state.departurePoint,
+                onGo: cubit.driveToDestination,
+                onAddAnotherStop: () =>
+                    RoutePlannerActions.showAddMethodChooser(context, cubit),
+                onChangeDestination: cubit.clearDestination,
+                onChangeDeparture: () =>
+                    RoutePlannerActions.showDeparturePicker(context, cubit),
+              ),
             ),
           );
         }
@@ -93,12 +116,18 @@ class BottomSheetHost extends StatelessWidget {
 
         // Snap sizes are capped per sheet so the user can't drag past where
         // there's actually content.
+        // [_peek] is the bottom snap on both sheets: the handle and a sliver
+        // of card, and nothing else. It is not a size anyone plans a round in
+        // — it is the driver saying "let me look at the map", and dragging
+        // back up is how they come out of it. Everything the sheet used to
+        // open at is still there above it, so the ordinary path is unchanged.
+        final peek = _peekFraction(MediaQuery.sizeOf(context).height);
         final config = showSummary
-            ? const _SheetConfig(
-                min: 0.28,
+            ? _SheetConfig(
+                min: peek,
                 initial: 0.55,
                 max: 0.85,
-                snaps: [0.28, 0.55, 0.85],
+                snaps: [peek, 0.28, 0.55, 0.85],
               )
             // Opens collapsed, but never below its own action bar: the peek
             // has to show the handle, every way of adding a place, and the
@@ -108,11 +137,11 @@ class BottomSheetHost extends StatelessWidget {
             // then the four methods taking the place of one button, now the
             // CSV row, which at 0.33 was sliced in half by the CTA and read
             // as a rendering fault rather than as "there is more below".
-            : const _SheetConfig(
-                min: 0.40,
+            : _SheetConfig(
+                min: peek,
                 initial: 0.40,
                 max: 0.80,
-                snaps: [0.40, 0.60, 0.80],
+                snaps: [peek, 0.40, 0.60, 0.80],
               );
 
         // Seed the extent before the first drag: a driver who never touches
