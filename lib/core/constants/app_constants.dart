@@ -408,6 +408,7 @@ class AppStrings {
   // Small labels
   static String get arrivedHere => _t('arrivedHere');
   static String get closeStopEarly => _t('closeStopEarly');
+  static String get couldNotServeConfirm => _t('couldNotServeConfirm');
   static String get orderedOnStraightLines => _t('orderedOnStraightLines');
   static String get serviceProfile => _t('serviceProfile');
   static String get serviceProfileDelivery => _t('serviceProfileDelivery');
@@ -1386,6 +1387,7 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'Replay',
     'arrivedHere': 'Arrived',
     'closeStopEarly': 'Close this stop early',
+    'couldNotServeConfirm': 'Mark this stop as not delivered and move on to the next one?',
     'orderedOnStraightLines':
         'Road data was unavailable, so this order was worked out on straight-line distances. The sequence may be poor where the direct line is not drivable.',
     'serviceProfile': 'Round type',
@@ -1997,6 +1999,7 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'إعادة التشغيل',
     'arrivedHere': 'تم الوصول',
     'closeStopEarly': 'إنهاء هذه النقطة مبكرًا',
+    'couldNotServeConfirm': 'هل تريد تسجيل هذه النقطة كغير مُسلَّمة والانتقال إلى التالية؟',
     'orderedOnStraightLines':
         'تعذّر الحصول على بيانات الطرق، لذلك رُتّبت النقاط بالمسافات المستقيمة. قد يكون الترتيب غير مناسب حيث لا يمكن سلوك الخط المباشر.',
     'serviceProfile': 'نوع اللفة',
@@ -2618,6 +2621,7 @@ const Map<String, Map<String, String>> _copy = {
     'replay': 'Rejouer',
     'arrivedHere': 'Arrive',
     'closeStopEarly': 'Terminer ce point maintenant',
+    'couldNotServeConfirm': 'Marquer ce point comme non livre et passer au suivant ?',
     'orderedOnStraightLines':
         'Les donnees routieres etaient indisponibles : cet ordre a ete calcule a vol d\'oiseau. La sequence peut etre mauvaise la ou la ligne directe n\'est pas praticable.',
     'serviceProfile': 'Type de tournee',

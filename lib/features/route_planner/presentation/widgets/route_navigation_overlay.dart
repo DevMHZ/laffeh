@@ -841,7 +841,10 @@ Future<void> _confirmSkip(BuildContext context, RoutePlannerCubit cubit) async {
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: Text(AppStrings.couldNotServe, style: AppTextStyles.titleMd),
-      content: Text(AppStrings.closeStopEarly, style: AppTextStyles.bodySm),
+      content: Text(
+        AppStrings.couldNotServeConfirm,
+        style: AppTextStyles.bodySm,
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
