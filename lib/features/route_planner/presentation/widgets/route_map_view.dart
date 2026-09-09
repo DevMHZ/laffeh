@@ -1030,6 +1030,10 @@ class RouteMapViewState extends State<RouteMapView>
     final simStates = simActive
         ? simVisitStates(
             fractions: fractions,
+            // Counted from the route, not from state.points: points has the
+            // terminal stripped, and the fraction list is only trustworthy
+            // when it has exactly one entry per *ordered* point.
+            orderedCount: state.optimizedRoute?.orderedPoints.length ?? 0,
             progress: simProgress,
             finished: simFinished,
             isStop: [

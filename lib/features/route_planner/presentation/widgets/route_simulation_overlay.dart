@@ -14,6 +14,7 @@ import '../../domain/entities/optimized_route.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'stop_timeline.dart';
+import '../utils/sim_visit_states.dart';
 import 'sheet_extent.dart';
 
 part 'route_simulation_overlay_widgets.dart';
@@ -267,18 +268,7 @@ class RouteSimulationOverlay extends StatelessWidget {
     List<double> fractions,
     OptimizedRoute route,
     double progress,
-  ) {
-    final count = route.orderedPoints.length;
-    if (count < 2) return 0;
-    if (fractions.length == count) {
-      for (var i = 1; i < count; i++) {
-        if (fractions[i] > progress) return i;
-      }
-      return count - 1;
-    }
-    final segments = count - 1;
-    return ((progress * segments).floor() + 1).clamp(1, count - 1);
-  }
+  ) => simTargetIndex(fractions, route.orderedPoints.length, progress);
 
   /// Stops visited when arriving at [targetIndex] (1-based, depot
   /// entries excluded).

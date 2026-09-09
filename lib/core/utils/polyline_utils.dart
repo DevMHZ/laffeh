@@ -147,13 +147,29 @@ class PolylineUtils {
     if (total <= 0) return List.filled(stops.length, 0.0);
 
     // Phase 1 — nearest vertex at or after the previous stop's.
+    //
+    // Each stop leaves a vertex behind for every stop still to be matched: a
+    // route with n stops needs n positions along the path, in order. Without
+    // that floor a single stop can swallow the whole polyline, and because
+    // the search pointer only moves forward, everything after it is pinned to
+    // the end.
+    //
+    // A round trip is where this bites. Its polyline finishes where it began,
+    // so the depot — the *first* stop — is near both ends of it, and when the
+    // return leg snaps a metre closer to the depot than the outbound did, the
+    // nearest vertex to the first stop is the last vertex. Observed in the
+    // field as a whole round of fractions reading 1.000: nothing completed
+    // during preview and the lot flipped at once when the car got home.
     final idx = <int>[];
     final nearestKm = <double>[];
     var from = 0;
-    for (final s in stops) {
+    for (var k = 0; k < stops.length; k++) {
+      final s = stops[k];
+      final reserve = stops.length - 1 - k;
+      final ceiling = math.max(from + 1, path.length - reserve);
       var best = double.infinity;
       var bestIdx = from;
-      for (var i = from; i < path.length; i++) {
+      for (var i = from; i < ceiling; i++) {
         final d = DistanceUtils.haversineKm(path[i], s);
         if (d < best) {
           best = d;

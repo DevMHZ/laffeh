@@ -1,50 +1,53 @@
 import '../../../../core/utils/marker_factory.dart';
 
-/// Which stop is done, which is being driven to, and which are still ahead,
-/// during preview playback.
+/// Which stop the vehicle is heading to during preview playback, as an index
+/// into `orderedPoints`.
 ///
-/// Extracted from the map so it can be tested without a map. The rule it
-/// encodes is small but was got wrong in a way no golden would catch: the
-/// *current* stop is the first one still ahead **by index**, never "every
-/// stop whose arc-length fraction equals the smallest one ahead".
+/// Arc-length fractions are the good answer: they put a stop's completion at
+/// the instant the car actually passes it, rather than at an even split of the
+/// clock. But they are only usable when there is exactly one per ordered
+/// point. A route restored from a draft, re-solved into a different shape, or
+/// drawn on a straight-line fallback can arrive with a fraction list that does
+/// not match, and reading it anyway produces nonsense — every stop pushed past
+/// the playhead, so none of them ever completes and the whole round flips at
+/// the depot.
 ///
-/// Fractions tie. [PolylineUtils.stopFractions] separates stops by walking a
-/// polyline, and when that polyline is too short or too coarse to tell them
-/// apart — a straight-line fallback, a restored draft with clipped geometry —
-/// several stops land on the same value, usually 1.0. Matching on the value
-/// then marks all of them at once, so the whole round shows as "driving to
-/// this one" and nothing completes until playback ends and they all flip
-/// together at the depot.
+/// So the length is checked, and an even split stands in when it fails. The
+/// preview timeline has always done this; the map did not, which is why the
+/// two disagreed about the same trip.
+int simTargetIndex(List<double> fractions, int orderedCount, double progress) {
+  if (orderedCount < 2) return 0;
+  if (fractions.length == orderedCount) {
+    for (var i = 1; i < orderedCount; i++) {
+      if (fractions[i] > progress) return i;
+    }
+    return orderedCount - 1;
+  }
+  final segments = orderedCount - 1;
+  return ((progress * segments).floor() + 1).clamp(1, orderedCount - 1);
+}
+
+/// Which stops are done, which one is being driven to, and which are still
+/// ahead — keyed off [simTargetIndex] so the map and the timeline cannot
+/// disagree about the same moment of the same trip.
+///
+/// [isStop] marks which entries are real stops; depots and deactivated points
+/// get no state and are drawn as themselves.
 List<StopVisitState?> simVisitStates({
   required List<double> fractions,
+  required int orderedCount,
   required double progress,
   required bool finished,
   required List<bool> isStop,
 }) {
-  final n = isStop.length;
-  final states = List<StopVisitState?>.filled(n, null);
-  if (fractions.isEmpty) return states;
+  final states = List<StopVisitState?>.filled(isStop.length, null);
+  final target = simTargetIndex(fractions, orderedCount, progress);
 
-  // The first stop still ahead of the vehicle. One index, so one stop.
-  int? nextAhead;
-  if (!finished) {
-    var best = double.infinity;
-    for (var i = 0; i < n && i < fractions.length; i++) {
-      if (!isStop[i]) continue;
-      final f = fractions[i];
-      if (f > progress && f < best) {
-        best = f;
-        nextAhead = i;
-      }
-    }
-  }
-
-  for (var i = 0; i < n; i++) {
+  for (var i = 0; i < isStop.length; i++) {
     if (!isStop[i]) continue;
-    final f = i < fractions.length ? fractions[i] : 1.0;
-    if (finished || progress >= f) {
+    if (finished || i < target) {
       states[i] = StopVisitState.visited;
-    } else if (nextAhead == i) {
+    } else if (i == target) {
       states[i] = StopVisitState.visiting;
     } else {
       states[i] = StopVisitState.upcoming;

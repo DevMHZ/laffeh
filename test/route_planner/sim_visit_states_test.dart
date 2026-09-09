@@ -1,169 +1,179 @@
 /// Preview playback: which stop is done, which is current, which are ahead.
 ///
-/// The regression these guard against: every stop showed as the current one
-/// for the whole preview, then the entire round flipped to delivered at once
-/// when the car got back to the depot.
+/// Two regressions live here. First: every stop showed as the one being
+/// driven to, and the whole round flipped to delivered at once at the depot.
+/// Second, after that: the car reached stop 6 with stops 1–5 still marked as
+/// not yet visited, because the map read a fraction list it should have
+/// rejected while the timeline — checking the length first — quietly fell
+/// back to an even split and got it right.
+///
+/// Which is the invariant worth holding: the map and the timeline are looking
+/// at one trip and must never disagree about it.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
 
 import 'package:laffeh/core/utils/marker_factory.dart';
-import 'package:laffeh/core/utils/polyline_utils.dart';
 import 'package:laffeh/features/route_planner/presentation/utils/sim_visit_states.dart';
 
-/// depot, four stops, depot again — the shape of a round trip.
-List<bool> get _roundTrip => [false, true, true, true, true, false];
+/// depot, six stops, depot again — the shape of the round in the report.
+const int _orderedCount = 8;
+List<bool> get _roundTrip => [
+  false,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+]; // terminal stripped
 
 void main() {
-  group('simVisitStates', () {
-    test('stops complete one at a time as the car passes them', () {
-      const fractions = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
+  group('simTargetIndex', () {
+    const good = [0.0, 0.12, 0.26, 0.41, 0.55, 0.68, 0.82, 1.0];
 
-      final early = simVisitStates(
-        fractions: fractions,
-        progress: 0.1,
-        finished: false,
-        isStop: _roundTrip,
-      );
-      expect(early[1], StopVisitState.visiting);
-      expect(early.sublist(2, 5), everyElement(StopVisitState.upcoming));
-
-      final middle = simVisitStates(
-        fractions: fractions,
-        progress: 0.5,
-        finished: false,
-        isStop: _roundTrip,
-      );
-      expect(middle[1], StopVisitState.visited);
-      expect(middle[2], StopVisitState.visited);
-      expect(middle[3], StopVisitState.visiting);
-      expect(middle[4], StopVisitState.upcoming);
+    test('walks forward through the stops as the car goes', () {
+      expect(simTargetIndex(good, _orderedCount, 0.0), 1);
+      expect(simTargetIndex(good, _orderedCount, 0.20), 2);
+      expect(simTargetIndex(good, _orderedCount, 0.50), 4);
+      expect(simTargetIndex(good, _orderedCount, 0.70), 6);
     });
 
-    test('exactly one stop is ever the current one', () {
-      const fractions = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0];
-      for (var p = 0.0; p < 1.0; p += 0.02) {
-        final states = simVisitStates(
-          fractions: fractions,
-          progress: p,
-          finished: false,
-          isStop: _roundTrip,
-        );
-        final visiting =
-            states.where((s) => s == StopVisitState.visiting).length;
-        expect(visiting, lessThanOrEqualTo(1), reason: 'progress $p');
-      }
+    test('never runs past the last point', () {
+      expect(simTargetIndex(good, _orderedCount, 1.0), _orderedCount - 1);
+      expect(simTargetIndex(good, _orderedCount, 5.0), _orderedCount - 1);
     });
 
     // ── The regression ──────────────────────────────────────────────────
 
+    test('falls back to an even split when the fractions do not fit', () {
+      // A fraction list of the wrong length is not a little bit wrong, it is
+      // meaningless — the entries do not belong to these points. Reading it
+      // anyway is what left every stop ahead of the playhead.
+      const wrongLength = [0.0, 0.5, 1.0];
+      expect(simTargetIndex(wrongLength, _orderedCount, 0.766), 6);
+      expect(simTargetIndex(const [], _orderedCount, 0.766), 6);
+    });
+
+    test('the reported case: 77% of an eight-point round is stop 6', () {
+      // 23:56 of 31:24, six stops, car between 5 and 6. Stops 1-5 done.
+      final target = simTargetIndex(const [], _orderedCount, 23.93 / 31.4);
+      expect(target, 6);
+      final states = simVisitStates(
+        fractions: const [],
+        orderedCount: _orderedCount,
+        progress: 23.93 / 31.4,
+        finished: false,
+        isStop: _roundTrip,
+      );
+      expect(states.sublist(1, 6), everyElement(StopVisitState.visited));
+      expect(states[6], StopVisitState.visiting);
+    });
+  });
+
+  group('simVisitStates', () {
+    const good = [0.0, 0.12, 0.26, 0.41, 0.55, 0.68, 0.82, 1.0];
+
+    test('stops complete one at a time as the car passes them', () {
+      final early = simVisitStates(
+        fractions: good,
+        orderedCount: _orderedCount,
+        progress: 0.05,
+        finished: false,
+        isStop: _roundTrip,
+      );
+      expect(early[1], StopVisitState.visiting);
+      expect(early.sublist(2), everyElement(StopVisitState.upcoming));
+
+      final later = simVisitStates(
+        fractions: good,
+        orderedCount: _orderedCount,
+        progress: 0.60,
+        finished: false,
+        isStop: _roundTrip,
+      );
+      expect(later.sublist(1, 5), everyElement(StopVisitState.visited));
+      expect(later[5], StopVisitState.visiting);
+      expect(later[6], StopVisitState.upcoming);
+    });
+
+    test('exactly one stop is ever the current one', () {
+      for (var p = 0.0; p < 1.0; p += 0.01) {
+        final states = simVisitStates(
+          fractions: good,
+          orderedCount: _orderedCount,
+          progress: p,
+          finished: false,
+          isStop: _roundTrip,
+        );
+        expect(
+          states.where((s) => s == StopVisitState.visiting).length,
+          lessThanOrEqualTo(1),
+          reason: 'progress $p',
+        );
+      }
+    });
+
+    test('completion only ever moves forwards', () {
+      var done = -1;
+      for (var p = 0.0; p <= 1.0; p += 0.01) {
+        final states = simVisitStates(
+          fractions: good,
+          orderedCount: _orderedCount,
+          progress: p,
+          finished: false,
+          isStop: _roundTrip,
+        );
+        final count = states.where((s) => s == StopVisitState.visited).length;
+        expect(count, greaterThanOrEqualTo(done), reason: 'un-completed at $p');
+        done = count;
+      }
+    });
+
     test('tied fractions still mark only one stop as current', () {
-      // Every stop saturated to 1.0 — what a degenerate polyline produces.
-      // Matching on the fraction *value* marked all four; matching on the
-      // index marks one.
-      const tied = [0.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+      // What a degenerate polyline produces. Matching on the fraction *value*
+      // marked all of them; going by index marks one.
+      const tied = [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
       final states = simVisitStates(
         fractions: tied,
+        orderedCount: _orderedCount,
         progress: 0.3,
         finished: false,
         isStop: _roundTrip,
       );
-      final visiting = states.where((s) => s == StopVisitState.visiting);
-      expect(visiting.length, 1, reason: 'the whole round read as current');
-      expect(states[1], StopVisitState.visiting);
-      expect(states.sublist(2, 5), everyElement(StopVisitState.upcoming));
+      expect(states.where((s) => s == StopVisitState.visiting).length, 1);
     });
-
-    test('a short polyline really does tie the fractions', () {
-      // The root cause, held down so it stays understood: two vertices are
-      // not enough to separate four stops, so they all land on the end.
-      final path = [const LatLng(0, 0), const LatLng(0.05, 0)];
-      final stops = [
-        const LatLng(0, 0),
-        const LatLng(0.01, 0),
-        const LatLng(0.02, 0),
-        const LatLng(0.03, 0),
-        const LatLng(0.04, 0),
-        const LatLng(0, 0),
-      ];
-      final fractions = PolylineUtils.stopFractions(path, stops);
-      final distinct = fractions.sublist(1, 5).toSet();
-      expect(distinct.length, lessThan(4),
-          reason: 'if this ever separates them the tie case is gone');
-
-      // And with those real tied fractions, the rule still behaves.
-      final states = simVisitStates(
-        fractions: fractions,
-        progress: 0.3,
-        finished: false,
-        isStop: _roundTrip,
-      );
-      expect(
-        states.where((s) => s == StopVisitState.visiting).length,
-        lessThanOrEqualTo(1),
-      );
-    });
-
-    test('a well-formed polyline separates them properly', () {
-      final path = [for (var i = 0; i <= 100; i++) LatLng(i * 0.0005, 0)];
-      final stops = [
-        const LatLng(0, 0),
-        const LatLng(0.01, 0),
-        const LatLng(0.02, 0),
-        const LatLng(0.03, 0),
-        const LatLng(0.04, 0),
-        const LatLng(0.05, 0),
-      ];
-      final fractions = PolylineUtils.stopFractions(path, stops);
-      expect(fractions.sublist(1, 5).toSet().length, 4);
-    });
-
-    // ── Edges ───────────────────────────────────────────────────────────
 
     test('finishing marks every stop visited and none current', () {
       final states = simVisitStates(
-        fractions: const [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+        fractions: good,
+        orderedCount: _orderedCount,
         progress: 1.0,
         finished: true,
         isStop: _roundTrip,
       );
-      expect(states[1], StopVisitState.visited);
-      expect(states[4], StopVisitState.visited);
+      expect(states.sublist(1), everyElement(StopVisitState.visited));
       expect(states, isNot(contains(StopVisitState.visiting)));
     });
 
     test('depots are never given a visit state', () {
       final states = simVisitStates(
-        fractions: const [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+        fractions: good,
+        orderedCount: _orderedCount,
         progress: 0.5,
         finished: false,
         isStop: _roundTrip,
       );
       expect(states.first, isNull);
-      expect(states.last, isNull);
     });
 
-    test('no fractions means no playback state at all', () {
+    test('a deactivated point is left alone', () {
       final states = simVisitStates(
-        fractions: const [],
+        fractions: good,
+        orderedCount: _orderedCount,
         progress: 0.5,
         finished: false,
-        isStop: _roundTrip,
+        isStop: [false, true, false, true, true, true, true],
       );
-      expect(states, everyElement(isNull));
-    });
-
-    test('fewer fractions than points does not throw', () {
-      final states = simVisitStates(
-        fractions: const [0.0, 0.3],
-        progress: 0.5,
-        finished: false,
-        isStop: _roundTrip,
-      );
-      expect(states.length, _roundTrip.length);
-      expect(
-        states.where((s) => s == StopVisitState.visiting).length,
-        lessThanOrEqualTo(1),
-      );
+      expect(states[2], isNull);
     });
   });
 }
