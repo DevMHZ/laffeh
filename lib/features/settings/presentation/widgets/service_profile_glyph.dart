@@ -184,13 +184,7 @@ class _ServiceProfilePainter extends CustomPainter {
     // pose a question this profile declines to answer. Just the parcel,
     // turning on the spot.
     if (profile == ServiceProfile.none) {
-      final centre = Offset(w / 2, h / 2);
-      canvas.save();
-      canvas.translate(centre.dx, centre.dy);
-      canvas.rotate(2 * math.pi * t);
-      canvas.translate(-centre.dx, -centre.dy);
-      _paintParcel(canvas, w, centre, 1, grounded: false);
-      canvas.restore();
+      _paintTurningParcel(canvas, w, Offset(w / 2, h / 2), 2 * math.pi * t);
       return;
     }
 
@@ -236,13 +230,7 @@ class _ServiceProfilePainter extends CustomPainter {
   }
 
   /// An isometric cardboard box, centred on [c].
-  void _paintParcel(
-    Canvas canvas,
-    double w,
-    Offset c,
-    double opacity, {
-    bool grounded = true,
-  }) {
+  void _paintParcel(Canvas canvas, double w, Offset c, double opacity) {
     if (opacity <= 0.01) return;
     final half = w * 0.23; // half-width of the footprint
     final lidH = w * 0.135; // vertical extent of the lid rhombus
@@ -278,20 +266,17 @@ class _ServiceProfilePainter extends CustomPainter {
       ..close();
 
     // A soft contact shadow, so the parcel sits in the scene rather than on
-    // top of it. Skipped when the parcel is not on a surface: a tumbling box
-    // casting a shadow that tumbles with it reads as a mistake.
-    if (grounded) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(c.dx, bottom + w * 0.05),
-          width: half * 1.5,
-          height: w * 0.05,
-        ),
-        Paint()
-          ..color = Colors.black.withValues(alpha: 0.13 * opacity)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
-      );
-    }
+    // top of it.
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(c.dx, bottom + w * 0.05),
+        width: half * 1.5,
+        height: w * 0.05,
+      ),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.13 * opacity)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
+    );
 
     canvas.drawPath(leftFace, fill(_left));
     canvas.drawPath(rightFace, fill(_right));
@@ -308,6 +293,90 @@ class _ServiceProfilePainter extends CustomPainter {
       tape,
     );
     canvas.drawLine(Offset(c.dx, shoulder), Offset(c.dx, bottom), tape);
+  }
+
+  /// The parcel seen turning about its vertical axis, as if on a turntable.
+  ///
+  /// Rotating the finished glyph on the canvas would spin it in the picture
+  /// plane — the box would tumble end over end, which is a box falling, not a
+  /// box being considered. Turning it *horizontally* means the faces have to
+  /// actually swap places, so the four top corners are carried round in world
+  /// space and projected each frame, and the walls are drawn back to front.
+  ///
+  /// This is the whole reason `none` is drawn separately rather than reusing
+  /// [_paintParcel]: that one is a fixed three-quarter view, which is right
+  /// for a parcel being carried and cannot be turned.
+  void _paintTurningParcel(Canvas canvas, double w, Offset centre, double yaw) {
+    const kDepth = 0.5; // foreshortening of the depth axis
+    final r = w * 0.165 * math.sqrt2; // half-diagonal of the top square
+    final sideH = w * 0.20;
+
+    // Four top corners, carried round together.
+    final angles = [
+      for (var k = 0; k < 4; k++) yaw + math.pi / 4 + k * math.pi / 2,
+    ];
+    final topY = centre.dy - sideH / 2;
+    final top = [
+      for (final a in angles)
+        Offset(centre.dx + r * math.cos(a), topY + r * math.sin(a) * kDepth),
+    ];
+    final bottom = [for (final p in top) p.translate(0, sideH)];
+
+    // Walls, painted back to front. A wall's depth is how far down the screen
+    // its two top corners sit: further down is nearer the viewer.
+    final walls = [
+      for (var k = 0; k < 4; k++)
+        (
+          depth: (top[k].dy + top[(k + 1) % 4].dy) / 2,
+          // Outward normal of the wall between corner k and k+1.
+          normal: angles[k] + math.pi / 4,
+          path: Path()
+            ..moveTo(top[k].dx, top[k].dy)
+            ..lineTo(top[(k + 1) % 4].dx, top[(k + 1) % 4].dy)
+            ..lineTo(bottom[(k + 1) % 4].dx, bottom[(k + 1) % 4].dy)
+            ..lineTo(bottom[k].dx, bottom[k].dy)
+            ..close(),
+        ),
+    ]..sort((a, b) => a.depth.compareTo(b.depth));
+
+    for (final wall in walls) {
+      // Lit from the left, so a wall turning away darkens as it goes. Keeps
+      // the box reading as one solid object through the whole turn instead
+      // of four panels that happen to touch.
+      final lit = (1 - math.cos(wall.normal)) / 2;
+      canvas.drawPath(
+        wall.path,
+        Paint()
+          ..color = Color.lerp(_left, _right, lit)!
+          ..isAntiAlias = true,
+      );
+    }
+
+    // Lid last: seen from above, it is never occluded.
+    final lid = Path()..moveTo(top[0].dx, top[0].dy);
+    for (var k = 1; k < 4; k++) {
+      lid.lineTo(top[k].dx, top[k].dy);
+    }
+    lid.close();
+    canvas.drawPath(
+      lid,
+      Paint()
+        ..color = _lid
+        ..isAntiAlias = true,
+    );
+
+    // Tape across the lid, between the midpoints of opposite edges — it turns
+    // with the box, which is what sells the rotation as horizontal.
+    Offset mid(int a, int b) =>
+        Offset((top[a].dx + top[b].dx) / 2, (top[a].dy + top[b].dy) / 2);
+    canvas.drawLine(
+      mid(0, 1),
+      mid(2, 3),
+      Paint()
+        ..color = _tape.withValues(alpha: 0.55)
+        ..strokeWidth = math.max(1.0, w * 0.035)
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
   @override
