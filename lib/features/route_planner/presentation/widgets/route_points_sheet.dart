@@ -37,7 +37,10 @@ class RoutePointsSheet extends StatelessWidget {
           a.errorMessage != b.errorMessage ||
           a.isOffline != b.isOffline ||
           a.draftRestored != b.draftRestored ||
-          a.departureAt != b.departureAt,
+          a.departureAt != b.departureAt ||
+          // The "To ·" row reads this; without it the label never moves
+          // off whatever the sheet first happened to build with.
+          a.finish != b.finish,
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
 

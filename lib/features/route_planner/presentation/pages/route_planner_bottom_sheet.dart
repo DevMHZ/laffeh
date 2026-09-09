@@ -62,7 +62,11 @@ class BottomSheetHost extends StatelessWidget {
           a.quietRouting != b.quietRouting ||
           a.departureAt != b.departureAt ||
           a.multiStopIntent != b.multiStopIntent ||
-          a.movingPointId != b.movingPointId,
+          a.movingPointId != b.movingPointId ||
+          // Where the day ends is named on both sheets this host builds.
+          // Left out, picking a new ending updated the state and nothing
+          // on screen: the row went on reading "Back to the start".
+          a.finish != b.finish,
       builder: (context, state) {
         final cubit = context.read<RoutePlannerCubit>();
         // Preview, drive, move-a-point, and manual pin-placement all use the

@@ -35,7 +35,9 @@ class RouteSummarySheet extends StatelessWidget {
       buildWhen: (a, b) =>
           a.optimizedRoute != b.optimizedRoute ||
           a.departureAt != b.departureAt ||
-          a.points != b.points,
+          a.points != b.points ||
+          // The open-route row and the finish picker both read it.
+          a.finish != b.finish,
       builder: (context, state) {
         final route = state.optimizedRoute;
         if (route == null) return const SizedBox.shrink();
