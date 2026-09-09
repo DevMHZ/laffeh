@@ -165,9 +165,13 @@ class _ServiceProfilePainter extends CustomPainter {
   static const Color _right = Color(0xFFB08853);
   static const Color _tape = Color(0xFF8A6A3E);
 
-  // Where the parcel sits at each end of its travel, as a fraction of height.
-  static const double _atVan = 0.44;
-  static const double _atDoor = 0.70;
+  // Where the parcel's centre sits at each end of its travel, as a fraction
+  // of height. Set against the parcel's own size rather than chosen for
+  // looks: at _atVan its lid clears the van's underside, and at _atDoor its
+  // base meets the doorstep line — otherwise a delivery lands in mid-air and
+  // a pickup stops short of the van it is being loaded into.
+  static const double _atVan = 0.40;
+  static const double _atDoor = 0.76;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -240,9 +244,9 @@ class _ServiceProfilePainter extends CustomPainter {
     bool grounded = true,
   }) {
     if (opacity <= 0.01) return;
-    final half = w * 0.17; // half-width of the footprint
-    final lidH = w * 0.10; // vertical extent of the lid rhombus
-    final sideH = w * 0.15; // height of the vertical faces
+    final half = w * 0.23; // half-width of the footprint
+    final lidH = w * 0.135; // vertical extent of the lid rhombus
+    final sideH = w * 0.20; // height of the vertical faces
 
     final top = c.dy - (lidH + sideH) / 2;
     final shoulder = top + lidH; // where the lid meets the walls
