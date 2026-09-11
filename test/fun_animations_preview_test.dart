@@ -1,5 +1,7 @@
 // Visual previews of the optimization-overlay animations.
 // Run: flutter test test/fun_animations_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +19,7 @@ Future<void> _loadFonts() async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   testWidgets('optimization animation variants', (tester) async {
     await _loadFonts();

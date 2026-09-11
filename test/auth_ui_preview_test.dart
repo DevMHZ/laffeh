@@ -2,6 +2,8 @@
 // Arabic RTL and English LTR and saves them as goldens — a visual preview,
 // not a regression gate.
 // Run: flutter test test/auth_ui_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -89,6 +91,7 @@ Widget _app(Widget home, String lang) => MaterialApp(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUpAll(() async {
     sl.registerSingleton<AuthRepository>(_StubAuthRepository());
@@ -116,8 +119,13 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(_app(page, lang));
+    // Wait for decoding, rather than racing a fixed 50 ms delay on a busy
+    // simulator host. Otherwise the welcome golden sometimes loses its logo.
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      () => precacheImage(
+        const AssetImage('assets/laffeh_logo.png'),
+        tester.element(find.byType(MaterialApp)),
+      ),
     );
     await tester.pumpAndSettle();
     await expectLater(

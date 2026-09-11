@@ -38,12 +38,12 @@ class SavedRouteCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.white.withValues(alpha: 0.72)),
+        border: Border.all(color: AppColors.border),
         boxShadow: const [
           BoxShadow(
             color: AppColors.shadowSoft,
-            blurRadius: 18,
-            offset: Offset(0, 8),
+            blurRadius: 12,
+            offset: Offset(0, 3),
           ),
         ],
       ),

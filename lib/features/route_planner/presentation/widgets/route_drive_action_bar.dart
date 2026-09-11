@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -41,88 +40,93 @@ class RouteDriveActionBar extends StatelessWidget {
         ? Icons.arrow_back_rounded
         : Icons.arrow_forward_rounded;
 
-    return DecoratedBox(
-      // Only a hairline: the bar shares the sheet's surface, so anything
-      // heavier would read as a second sheet stacked on the first.
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 10, 20, 10 + safeBottom),
-        child: Material(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              HapticFeedback.mediumImpact();
-              onDrive();
-            },
-            onLongPress: onDebugLongPress == null
-                ? null
-                : () {
-                    HapticFeedback.heavyImpact();
-                    onDebugLongPress!();
-                  },
+    return Semantics(
+      button: true,
+      label: '${AppStrings.startNavigation}. ${AppStrings.navigationSubtitle}',
+      onTap: onDrive,
+      excludeSemantics: true,
+      child: DecoratedBox(
+        // Only a hairline: the bar shares the sheet's surface, so anything
+        // heavier would read as a second sheet stacked on the first.
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: AppColors.divider)),
+        ),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, 10, 20, 10 + safeBottom),
+          child: Material(
             borderRadius: BorderRadius.circular(16),
-            child: Ink(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: [AppColors.accent, AppColors.accentDark],
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                onDrive();
+              },
+              onLongPress: onDebugLongPress == null
+                  ? null
+                  : () {
+                      HapticFeedback.heavyImpact();
+                      onDebugLongPress!();
+                    },
+              borderRadius: BorderRadius.circular(16),
+              child: Ink(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.action,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.accent.withValues(alpha: 0.30),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppColors.onAction.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.navigation_rounded,
+                        color: AppColors.onAction,
+                        size: 20,
+                      ),
                     ),
-                    child: const Icon(
-                      Iconsax.play,
-                      color: AppColors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          AppStrings.startNavigation,
-                          style: AppTextStyles.titleLg.copyWith(
-                            color: AppColors.white,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppStrings.startNavigation,
+                            style: AppTextStyles.titleLg.copyWith(
+                              color: AppColors.onAction,
+                            ),
                           ),
-                        ),
-                        // The line that says which of the two green buttons
-                        // this is: the one that follows the driver's real
-                        // position, not the one that plays the route back.
-                        Text(
-                          AppStrings.navigationSubtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.bodySm.copyWith(
-                            color: Colors.white.withValues(alpha: 0.82),
+                          // The line that says which of the two green buttons
+                          // this is: the one that follows the driver's real
+                          // position, not the one that plays the route back.
+                          Text(
+                            AppStrings.navigationSubtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.onAction.withValues(alpha: 0.75),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Icon(arrowIcon, color: AppColors.white, size: 22),
-                ],
+                    Icon(arrowIcon, color: AppColors.onAction, size: 22),
+                  ],
+                ),
               ),
             ),
           ),

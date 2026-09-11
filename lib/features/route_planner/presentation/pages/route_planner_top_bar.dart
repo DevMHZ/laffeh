@@ -46,10 +46,10 @@ class TopBar extends StatelessWidget {
                 children: [
                   GlassPanel(
                     padding: EdgeInsets.zero,
-                    radius: 22,
+                    radius: 16,
                     child: TopIconButton(
                       tooltip: AppStrings.savedRoutes,
-                      icon: Iconsax.archive_book,
+                      icon: Iconsax.routing_2,
                       onPressed: () =>
                           RoutePlannerActions.openSavedRoutes(context),
                     ),
@@ -62,7 +62,7 @@ class TopBar extends StatelessWidget {
                     const SizedBox(width: 8),
                     GlassPanel(
                       padding: EdgeInsets.zero,
-                      radius: 22,
+                      radius: 16,
                       child: _DebugTestButton(
                         onPressed: () {
                           HapticFeedback.heavyImpact();
@@ -108,7 +108,7 @@ class TopBar extends StatelessWidget {
                   ),
                   GlassPanel(
                     padding: EdgeInsets.zero,
-                    radius: 22,
+                    radius: 16,
                     child: TopIconButton(
                       tooltip: AppStrings.settings,
                       icon: Iconsax.setting_2,
@@ -156,7 +156,7 @@ class StepIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassPanel(
-      radius: 22,
+      radius: 16,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,

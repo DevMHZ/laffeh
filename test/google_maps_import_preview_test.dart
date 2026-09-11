@@ -1,6 +1,8 @@
 // Visual preview of the "add a stop from Google Maps" demo, beat by beat —
 // the animation behind the Google Maps chip.
 // Run: flutter test test/google_maps_import_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +23,7 @@ Future<void> _loadFonts() async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUp(_loadFonts);
   tearDown(() => AppStrings.setLocale(const Locale('en')));

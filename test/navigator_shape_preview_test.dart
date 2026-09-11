@@ -1,6 +1,8 @@
 // Visual previews of the single-destination (navigator) shape — the screen a
 // driver sees when they just want to get to one place.
 // Run: flutter test test/navigator_shape_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,6 +77,7 @@ Widget _overMap(Widget child, {required TextDirection direction}) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUp(() async {
     await _loadFonts();

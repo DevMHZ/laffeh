@@ -189,25 +189,21 @@ class _SearchField extends StatelessWidget {
     return _Skin(
       // Near enough to a stadium at this height, which no card in the app is:
       // the shape alone says "type here" before a word is read.
-      radius: 24,
+      radius: 18,
       floating: floating,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(18),
           onTap: () {
             HapticFeedback.lightImpact();
             onTap();
           },
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             child: Row(
               children: [
-                Icon(
-                  Iconsax.search_normal,
-                  size: 19,
-                  color: AppColors.textMuted,
-                ),
+                Icon(Iconsax.search_normal, size: 21, color: AppColors.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

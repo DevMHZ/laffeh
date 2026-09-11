@@ -5,6 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:laffeh/core/services/location_ping_service.dart';
+import 'package:laffeh/features/auth/presentation/cubit/auth_cubit.dart';
 
 import 'package:laffeh/core/di/service_locator.dart';
 import 'package:laffeh/core/theme/app_theme.dart';
@@ -17,12 +20,27 @@ import 'package:laffeh/features/route_planner/presentation/pages/route_planner_p
 import 'package:laffeh/features/route_planner/presentation/widgets/route_navigation_overlay.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/route_simulation_overlay.dart';
 
+class _MockPing extends Mock implements LocationPingService {}
+
+class _AuthenticatedCubit extends Cubit<AuthState> implements AuthCubit {
+  _AuthenticatedCubit() : super(const AuthUnauthenticated());
+
+  @override
+  bool get isAuthenticated => true;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 class _FakeRouteCubit extends Cubit<RoutePlannerState>
     implements RoutePlannerCubit {
   _FakeRouteCubit(super.initialState);
 
   @override
   Future<void> initialize() async {}
+
+  @override
+  bool get debugDriveSimActive => false;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
@@ -79,11 +97,19 @@ void main() {
   Future<void> pumpPage(WidgetTester tester, RoutePlannerState state) async {
     final cubit = _FakeRouteCubit(state);
     sl.registerFactory<RoutePlannerCubit>(() => cubit);
+    final ping = _MockPing();
+    when(() => ping.ping()).thenAnswer((_) async {});
+    sl.registerSingleton<LocationPingService>(ping);
+    final auth = _AuthenticatedCubit();
+    addTearDown(auth.close);
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.data,
-        home: const RoutePlannerPage(),
+        home: BlocProvider<AuthCubit>.value(
+          value: auth,
+          child: const RoutePlannerPage(),
+        ),
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));

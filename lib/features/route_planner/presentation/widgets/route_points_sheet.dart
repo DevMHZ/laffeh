@@ -149,9 +149,13 @@ class RoutePointsSheet extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 padding: EdgeInsets.zero,
                 itemCount: destinations.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  mainAxisExtent: 54,
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent:
+                      MediaQuery.textScalerOf(context).scale(13) > 18
+                      ? MediaQuery.sizeOf(context).width
+                      : 260,
+                  mainAxisExtent:
+                      36 + MediaQuery.textScalerOf(context).scale(13) * 2.7,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),

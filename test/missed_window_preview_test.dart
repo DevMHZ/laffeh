@@ -1,5 +1,7 @@
 // Visual preview of the missed-availability warning (not a regression gate).
 // Run: flutter test test/missed_window_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -125,6 +127,7 @@ Widget _bannerHarness(Widget child, TextDirection dir) => MaterialApp(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUpAll(() => registerFallbackValue(_FakeDraft()));
 

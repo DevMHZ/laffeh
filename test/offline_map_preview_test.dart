@@ -1,5 +1,7 @@
 // Visual previews of the offline-map flow (not regression gates).
 // Run: flutter test test/offline_map_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,6 +62,7 @@ Widget _harness(Widget child) => MaterialApp(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUp(() async {
     await _loadFonts();

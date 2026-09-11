@@ -23,9 +23,9 @@ class _PointGridCell extends StatelessWidget {
         ? AppColors.primary
         : point.optional
         ? AppColors.optional
-        : AppColors.info;
+        : AppColors.primary;
     final icon = point.isDepot
-        ? Iconsax.flag
+        ? Iconsax.home_2
         : point.optional
         ? Iconsax.star_1
         : Iconsax.location;
@@ -48,14 +48,14 @@ class _PointGridCell extends StatelessWidget {
               border: Border.all(
                 color: point.optional && !dimmed
                     ? AppColors.optional.withValues(alpha: 0.35)
-                    : AppColors.white.withValues(alpha: 0.72),
+                    : AppColors.border,
               ),
             ),
             child: Row(
               children: [
                 _CellBadge(
                   color: dimmed ? AppColors.optionalOff : color,
-                  icon: icon,
+                  icon: point.isDepot || point.optional ? icon : null,
                   index: index,
                 ),
                 const SizedBox(width: 7),
@@ -98,7 +98,7 @@ class _CellTimeLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final missed = point.timeWindowMissed;
-    final color = missed ? AppColors.danger : AppColors.info;
+    final color = missed ? AppColors.danger : AppColors.primary;
     return Padding(
       padding: const EdgeInsets.only(top: 1),
       child: Row(
@@ -127,11 +127,10 @@ class _CellTimeLine extends StatelessWidget {
   }
 }
 
-/// Small round icon badge with the point's order number tucked at its
-/// corner — the grid-cell counterpart of the list tile's leading avatar.
+/// A readable stop number, or a distinct home/star for special stops.
 class _CellBadge extends StatelessWidget {
   final Color color;
-  final IconData icon;
+  final IconData? icon;
   final int index;
 
   const _CellBadge({
@@ -142,40 +141,17 @@ class _CellBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Container(
+      width: 32,
+      height: 32,
       alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, color: color, size: 16),
-        ),
-        Positioned(
-          bottom: -3,
-          right: -3,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Text(
-              '$index',
-              style: AppTextStyles.bodySm.copyWith(
-                color: AppColors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-      ],
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: icon == null
+          ? Text('$index', style: AppTextStyles.titleSm.copyWith(color: color))
+          : Icon(icon, color: color, size: 18),
     );
   }
 }
@@ -216,7 +192,7 @@ class _StartFromRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.divider),
           ),
           child: Row(
             children: [
@@ -295,7 +271,7 @@ class _DepartureRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
@@ -525,7 +501,8 @@ class _ClearAllButton extends StatelessWidget {
             onPressed();
           },
           child: Container(
-            height: 48,
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
@@ -539,10 +516,13 @@ class _ClearAllButton extends StatelessWidget {
               children: [
                 Icon(Iconsax.trash, color: AppColors.danger, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  AppStrings.clearAll,
-                  style: AppTextStyles.titleMd.copyWith(
-                    color: AppColors.danger,
+                Flexible(
+                  child: Text(
+                    AppStrings.clearAll,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.titleMd.copyWith(
+                      color: AppColors.danger,
+                    ),
                   ),
                 ),
               ],
@@ -615,7 +595,7 @@ class _EndAtRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.divider),
           ),
           child: Row(
             children: [

@@ -13,8 +13,19 @@ class AppColors {
   AppColors._();
 
   /// The palette currently driving every dynamic colour below. Swapped by
-  /// `AppTheme.setPalette`. Defaults to the high-contrast Daylight theme.
-  static DriverPalette active = DriverPalette.daylight;
+  /// `AppTheme.setPalette`. Defaults to the light Laffah Leaf theme.
+  static DriverPalette active = DriverPalette.laffah;
+
+  /// A light leaf fill for the brand theme; other palettes keep their own
+  /// primary action color. Text chooses the higher-contrast black/white ink.
+  static Color get action =>
+      active.id == DriverPalette.laffah.id ? active.leaf : active.primary;
+  static Color get onAction => foregroundFor(action);
+  static Color get onPrimary => foregroundFor(primary);
+  static Color get onAccent => foregroundFor(accent);
+
+  static Color foregroundFor(Color background) =>
+      background.computeLuminance() > 0.179 ? black : white;
 
   // ── Brand ─────────────────────────────────────────────────
   static Color get leaf => active.leaf;

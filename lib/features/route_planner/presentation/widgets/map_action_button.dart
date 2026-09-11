@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'map_chrome_blur.dart';
 
 import 'package:flutter/material.dart';
@@ -27,58 +25,62 @@ class MapActionButton extends StatelessWidget {
     this.color,
     this.iconColor,
     this.tooltip,
-    this.size = 46,
+    this.size = 48,
   });
 
   @override
   Widget build(BuildContext context) {
     final disabled = onPressed == null;
-    return Tooltip(
-      message: tooltip ?? '',
-      child: ClipOval(
-        // Shares one backdrop blur pass with the other map chrome via the
-        // screen's [BackdropGroup] (graceful standalone fallback otherwise).
-        child: maybeBlurChrome(
-          sigma: 16,
-          child: Material(
-            color:
-                color?.withValues(alpha: 0.94) ??
-                AppColors.white.withValues(alpha: 0.92),
-            shape: const CircleBorder(),
-            elevation: 5,
-            shadowColor: AppColors.shadow,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: disabled
-                  ? null
-                  : () {
-                      HapticFeedback.selectionClick();
-                      onPressed?.call();
-                    },
-              child: SizedBox(
-                width: size,
-                height: size,
-                child: label != null
-                    ? Center(
-                        child: Text(
-                          label!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
-                            color: disabled
-                                ? AppColors.textMuted
-                                : (iconColor ?? AppColors.primary),
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      child: Tooltip(
+        message: tooltip ?? '',
+        child: ClipOval(
+          // Shares one backdrop blur pass with the other map chrome via the
+          // screen's [BackdropGroup] (graceful standalone fallback otherwise).
+          child: maybeBlurChrome(
+            sigma: 16,
+            child: Material(
+              color:
+                  color?.withValues(alpha: 0.94) ??
+                  AppColors.surface.withValues(alpha: 0.96),
+              shape: const CircleBorder(),
+              elevation: 0,
+              shadowColor: AppColors.shadow,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: disabled
+                    ? null
+                    : () {
+                        HapticFeedback.selectionClick();
+                        onPressed?.call();
+                      },
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: label != null
+                      ? Center(
+                          child: Text(
+                            label!,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.2,
+                              color: disabled
+                                  ? AppColors.textMuted
+                                  : (iconColor ?? AppColors.primary),
+                            ),
                           ),
+                        )
+                      : Icon(
+                          icon,
+                          size: 22,
+                          color: disabled
+                              ? AppColors.textMuted
+                              : (iconColor ?? AppColors.primary),
                         ),
-                      )
-                    : Icon(
-                        icon,
-                        size: 22,
-                        color: disabled
-                            ? AppColors.textMuted
-                            : (iconColor ?? AppColors.primary),
-                      ),
+                ),
               ),
             ),
           ),

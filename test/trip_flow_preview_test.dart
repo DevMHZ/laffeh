@@ -1,5 +1,7 @@
 // Visual previews of the redesigned trip flow (not regression gates).
 // Run: flutter test test/trip_flow_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -53,7 +55,7 @@ RoutePoint _pt(
   );
 }
 
-OptimizedRoute _fixtureRoute() {
+OptimizedRoute _fixtureRoute({bool includeDuration = true}) {
   final depot = _pt(
     'd',
     'Departure',
@@ -82,9 +84,9 @@ OptimizedRoute _fixtureRoute() {
     fullPolyline: line,
     goPolyline: line,
     returnPolyline: line,
-    metrics: const RouteMetrics(
+    metrics: RouteMetrics(
       totalDistanceKm: 24.6,
-      estimatedDurationMinutes: 38,
+      estimatedDurationMinutes: includeDuration ? 38 : null,
     ),
     hasRoadGeometry: true,
   );
@@ -135,6 +137,7 @@ Widget _harness(RoutePlannerState state, Widget child, {bool inStack = false}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUp(() async {
     await _loadFonts();
@@ -171,7 +174,7 @@ void main() {
 
     final state = RoutePlannerState(
       status: RoutePlannerStatus.optimizedSuccess,
-      optimizedRoute: _fixtureRoute(),
+      optimizedRoute: _fixtureRoute(includeDuration: false),
       navigationActive: true,
       navigationProgress: 0.42,
       userLocation: const LatLng(33.532, 36.292),
@@ -210,9 +213,8 @@ void main() {
       returnPolyline: route.returnPolyline,
       // No duration, so the panel shows "--" instead of an arrival clock.
       // The clock is `DateTime.now()` plus the remaining minutes, which
-      // makes any golden containing it drift by a pixel every minute — see
-      // `drive_hud_overlay`, which does. Nothing about this preview is
-      // asking about the clock.
+      // makes any golden containing it change each minute. Both HUD
+      // previews omit duration to keep that live clock out of the reference.
       metrics: const RouteMetrics(totalDistanceKm: 24.6),
       hasRoadGeometry: true,
     );

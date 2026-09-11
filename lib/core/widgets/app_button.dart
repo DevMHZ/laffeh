@@ -51,7 +51,7 @@ class _AppButtonState extends State<AppButton> {
   @override
   Widget build(BuildContext context) {
     final disabled = onPressed == null || loading;
-    final style = _styleFor(variant, disabled: disabled);
+    final style = _styleFor(variant, disabled: onPressed == null && !loading);
 
     final child = loading
         ? SizedBox(
@@ -76,7 +76,7 @@ class _AppButtonState extends State<AppButton> {
               Flexible(
                 child: Text(
                   label,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.button.copyWith(color: style.foreground),
                 ),
@@ -110,16 +110,17 @@ class _AppButtonState extends State<AppButton> {
           onHighlightChanged: (v) => setState(() => _pressed = v),
           borderRadius: BorderRadius.circular(radius),
           child: Container(
-            height: height,
-            padding: const EdgeInsets.symmetric(horizontal: 18),
+            constraints: BoxConstraints(minHeight: height),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius),
               border: style.border == null
                   ? null
                   : Border.all(color: style.border!, width: 1.2),
             ),
-            alignment: Alignment.center,
-            child: child,
+            // Shrink to the label even when the parent offers a full screen
+            // of height; still grow for larger text instead of clipping it.
+            child: Align(heightFactor: 1, child: child),
           ),
         ),
       ),
@@ -134,20 +135,25 @@ class _AppButtonState extends State<AppButton> {
       child: button,
     );
 
-    return expand
-        ? SizedBox(width: double.infinity, child: animated)
-        : animated;
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      onTap: disabled ? null : onPressed,
+      label: label,
+      excludeSemantics: true,
+      child: expand
+          ? SizedBox(width: double.infinity, child: animated)
+          : animated,
+    );
   }
 
   _ButtonStyle _styleFor(AppButtonVariant v, {required bool disabled}) {
     switch (v) {
       case AppButtonVariant.primary:
         return _ButtonStyle(
-          background: disabled
-              ? AppColors.primary.withValues(alpha: 0.55)
-              : AppColors.primary,
-          foreground: AppColors.white,
-          shadow: AppColors.primary.withValues(alpha: 0.30),
+          background: disabled ? AppColors.surfaceDim : AppColors.action,
+          foreground: disabled ? AppColors.textMuted : AppColors.onAction,
+          shadow: AppColors.primary.withValues(alpha: 0.12),
         );
       case AppButtonVariant.secondary:
         return _ButtonStyle(

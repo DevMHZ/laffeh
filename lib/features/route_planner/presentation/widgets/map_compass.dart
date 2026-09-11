@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'map_chrome_blur.dart';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -114,7 +113,7 @@ class _MapCompassState extends State<MapCompass> {
             child: maybeBlurChrome(
               sigma: 14,
               child: Material(
-                color: AppColors.white.withValues(alpha: 0.92),
+                color: AppColors.surface.withValues(alpha: 0.96),
                 shape: const CircleBorder(),
                 elevation: 5,
                 shadowColor: AppColors.shadow,

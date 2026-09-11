@@ -41,7 +41,7 @@ class SheetExtent extends InheritedNotifier<ValueNotifier<double>> {
     final notifier = writerOf(context);
     if (notifier == null || notifier.value == value) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (notifier.value != value) notifier.value = value;
+      if (context.mounted && notifier.value != value) notifier.value = value;
     });
   }
 }
@@ -69,6 +69,13 @@ class ReportsExtent extends StatefulWidget {
 
 class _ReportsExtentState extends State<ReportsExtent> {
   final GlobalKey _key = GlobalKey();
+  InheritedElement? _scope;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scope = context.getElementForInheritedWidgetOfExactType<SheetExtent>();
+  }
 
   @override
   void initState() {
@@ -86,9 +93,14 @@ class _ReportsExtentState extends State<ReportsExtent> {
   void dispose() {
     // The bar is leaving the screen; anything still reading the extent
     // should fall back to its own floor rather than hold this bar's height.
-    final notifier = SheetExtent.writerOf(context);
+    // Cache the scope while mounted: ancestor lookups during dispose are
+    // invalid, and the planner may dispose its notifier in this same frame.
+    final scope = _scope;
+    final notifier = (scope?.widget as SheetExtent?)?.notifier;
     if (notifier != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => notifier.value = 0);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (scope!.mounted) notifier.value = 0;
+      });
     }
     super.dispose();
   }

@@ -3,6 +3,8 @@
 // optimize button. These are the pieces a driver meets between the big
 // screens, and each one used to be styled by whoever wrote it last.
 // Run: flutter test test/planner_chrome_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -73,6 +75,7 @@ Widget _screen(Widget child, {RoutePlannerState? state}) => MaterialApp(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUp(() async {
     await _loadFonts();

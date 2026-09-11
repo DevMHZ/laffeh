@@ -29,9 +29,9 @@ class AppTheme {
     final scheme = ColorScheme(
       brightness: AppColors.active.brightness,
       primary: AppColors.primary,
-      onPrimary: AppColors.white,
+      onPrimary: AppColors.onPrimary,
       secondary: AppColors.accent,
-      onSecondary: AppColors.white,
+      onSecondary: AppColors.onAccent,
       surface: AppColors.surface,
       onSurface: AppColors.textPrimary,
       surfaceContainerHighest: AppColors.surfaceAlt,
@@ -86,8 +86,8 @@ class AppTheme {
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.white,
+          backgroundColor: AppColors.action,
+          foregroundColor: AppColors.onAction,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22),
           shape: RoundedRectangleBorder(

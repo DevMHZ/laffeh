@@ -28,7 +28,7 @@ class _TripStrip extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.divider),
       ),
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: IntrinsicHeight(
@@ -47,7 +47,7 @@ class _TripStrip extends StatelessWidget {
             Expanded(
               child: _StatCell(
                 icon: Iconsax.routing,
-                color: AppColors.info,
+                color: AppColors.primary,
                 value: m.totalDistanceKm == null
                     ? AppStrings.unavailable
                     : MetricFormat.distance(m.totalDistanceKm!),
@@ -57,7 +57,7 @@ class _TripStrip extends StatelessWidget {
             Expanded(
               child: _StatCell(
                 icon: Iconsax.location,
-                color: AppColors.accent,
+                color: AppColors.primary,
                 value: AppStrings.pointsCount(stops),
               ),
             ),
@@ -135,13 +135,13 @@ class _SecondaryAction extends StatelessWidget {
                 onTap!();
               },
         child: Container(
-          height: 46,
+          constraints: const BoxConstraints(minHeight: 48),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.divider),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -296,7 +296,7 @@ class _SummaryGridCell extends StatelessWidget {
           border: Border.all(
             color: point.optional && !point.isDeactivated
                 ? AppColors.optional.withValues(alpha: 0.35)
-                : AppColors.white.withValues(alpha: 0.72),
+                : AppColors.border,
           ),
         ),
         child: Row(

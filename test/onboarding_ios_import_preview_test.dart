@@ -1,4 +1,5 @@
 // Visual preview of the iPhone WhatsApp-import walkthrough, beat by beat.
+import 'support/preview_fonts.dart';
 // The Android flow shares straight into Laffeh; iOS goes out through a map
 // app, so the slide has four screens to show instead of two.
 // Run: flutter test test/onboarding_ios_import_preview_test.dart --update-goldens
@@ -23,6 +24,7 @@ Future<void> _loadFonts() async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   setUp(_loadFonts);
   tearDown(() => AppStrings.setLocale(const Locale('en')));

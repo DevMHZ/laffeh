@@ -1,6 +1,8 @@
 // Renders the new splash + loader at several animation timestamps and
 // saves them as goldens — used as a visual preview, not a regression
 // gate. Run: flutter test test/splash_preview_test.dart --update-goldens
+import 'support/preview_fonts.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -23,6 +25,7 @@ Future<void> _loadFonts() async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(loadPreviewIconFonts);
 
   testWidgets('splash frames', (tester) async {
     await _loadFonts();
