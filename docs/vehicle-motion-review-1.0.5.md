@@ -29,3 +29,11 @@ The automated drag tool entered exploration and showed Re-center in preview but 
 - Eleven new regression tests cover preview playback and rewinds, driving joins, start/arrival/end boundaries, looped routes, duplicate vertices, camera-independent geometry, missing paths, out-of-range progress, serialized writes, exit races, error recovery and disposal.
 - `flutter analyze --no-pub`: only the same five existing findings (one unused optional parameter and four dangling test documentation comments). No new findings.
 - Store version remains `1.0.4+5`.
+
+## Preview controls follow-up
+
+The 2D/3D button's camera change was overwritten by the next playback tick. Preview now retains the selected tilt until the camera mode changes. Camera updates also run one animation at a time, coalesce to the latest target, and discard queued targets on a mode change, map touch or exit. Exiting immediately cancels the follow camera, while stale style/symbol updates are ignored after the mode changes.
+
+Exit, camera-mode selection and play/pause now keep stable control subtrees during progress updates. Exit has a 48-point target; play/pause has an accessibility label. The changed preview visual reference was inspected and refreshed.
+
+Verification: **502 tests passed**, including three new tests on the real planner widget with a recorded native camera. They cover tilt persistence, one Exit tap while an animation is held open, and repeated mode taps with playback updates between pointer-down and pointer-up. Full static analysis has only the same five existing findings. The rebuilt iPhone simulator was checked through 2D/3D changes, replay, and one-tap exits from Overview and Cinematic playback; no new map/camera runtime errors were logged.

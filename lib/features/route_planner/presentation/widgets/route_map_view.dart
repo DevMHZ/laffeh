@@ -276,6 +276,27 @@ class RouteMapViewState extends State<RouteMapView>
   double _targetProgress = 0;
   OptimizedRoute? _simRoute;
   SimulationCameraMode _simMode = SimulationCameraMode.follow;
+  double? _previewTiltOverride;
+  int _previewCameraGeneration = 0;
+  late final _previewCameraWriter =
+      LatestFrameWriter<({int generation, CameraPosition position})>((
+        frame,
+      ) async {
+        if (_disposed ||
+            frame.generation != _previewCameraGeneration ||
+            !_simRunning ||
+            _navExploring.value) {
+          return;
+        }
+        // One animation at a time. A tick replaces only the pending target;
+        // it cannot start another native animation over a user's tap.
+        await _controller
+            ?.animateCamera(
+              CameraUpdate.newCameraPosition(frame.position),
+              duration: const Duration(milliseconds: 100),
+            )
+            .timeout(const Duration(milliseconds: 500));
+      }, onError: (error, _) => DebugLog.cam('preview camera: $error'));
   double _dpr = 1;
   Duration _lastSimTick = Duration.zero;
   RoutePlannerState? _motionState;
@@ -410,6 +431,7 @@ class RouteMapViewState extends State<RouteMapView>
       ?..stop()
       ..dispose();
     _motionWriter.dispose();
+    _previewCameraWriter.dispose();
     _exploreResumeTimer?.cancel();
     _navExploring.dispose();
     _controller?.onSymbolTapped.remove(_onSymbolTapped);
@@ -1384,6 +1406,29 @@ class RouteMapViewState extends State<RouteMapView>
   /// already running, the new state just replaces the pending one — so we
   /// always converge on the newest frame instead of replaying stale ones.
   void _scheduleApply(RoutePlannerState state) {
+    final previous = _motionState;
+    if (previous?.simulationActive != state.simulationActive ||
+        previous?.simulationCameraMode != state.simulationCameraMode ||
+        !identical(previous?.optimizedRoute, state.optimizedRoute)) {
+      _previewCameraGeneration++;
+      _previewCameraWriter.discardPending();
+      _previewTiltOverride = null;
+      if (previous?.simulationActive == true && !state.simulationActive) {
+        // Cancel an in-flight follow animation immediately, even if the
+        // slower style/symbol apply pipeline is still handling an old tick.
+        final camera = _controller?.cameraPosition;
+        if (camera != null) {
+          unawaited(
+            _moveCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: camera.target, zoom: camera.zoom),
+              ),
+            ),
+          );
+        }
+        _stopExploring(resumeCamera: false);
+      }
+    }
     _handleSimVehicle(state);
     _pendingApply = state;
     if (_applying) return;
@@ -1551,12 +1596,23 @@ class RouteMapViewState extends State<RouteMapView>
         final s = _pendingApply!;
         _pendingApply = null;
         await _syncCamera(s);
+        if (!_sameMapMode(s)) continue;
         await _syncPolylines(s);
+        if (!_sameMapMode(s)) continue;
         await _syncSymbols(s);
       }
     } finally {
       _applying = false;
     }
+  }
+
+  bool _sameMapMode(RoutePlannerState state) {
+    final latest = _motionState;
+    return latest != null &&
+        state.simulationActive == latest.simulationActive &&
+        state.navigationActive == latest.navigationActive &&
+        state.simulationCameraMode == latest.simulationCameraMode &&
+        identical(state.optimizedRoute, latest.optimizedRoute);
   }
 
   // ── Camera sync ─────────────────────────────────────────────────────────────
@@ -1679,7 +1735,9 @@ class RouteMapViewState extends State<RouteMapView>
 
   Future<void> _syncSimulationCamera(RoutePlannerState state) async {
     final route = state.optimizedRoute;
-    if (route == null || route.fullPolyline.isEmpty) return;
+    if (route == null || route.fullPolyline.isEmpty || !_sameMapMode(state)) {
+      return;
+    }
 
     final mode = state.simulationCameraMode;
     if (_lastSimCameraMode != mode) {
@@ -1695,8 +1753,10 @@ class RouteMapViewState extends State<RouteMapView>
       if (!_hasFitOverviewBounds) {
         _hasFitOverviewBounds = true;
         // Flatten out of any 3D tilt so the whole route reads cleanly.
-        await _moveCamera(CameraUpdate.tiltTo(0));
+        await _moveCamera(CameraUpdate.tiltTo(_previewTiltOverride ?? 0));
+        if (!_sameMapMode(state)) return;
         await _moveCamera(CameraUpdate.bearingTo(0));
+        if (!_sameMapMode(state)) return;
         // Frame *every* point + the road geometry so nothing sits off
         // screen (#1).
         await _fitPoints(
@@ -1704,6 +1764,7 @@ class RouteMapViewState extends State<RouteMapView>
           padding: MapConfig.overviewFitPadding,
           maxZoom: MapConfig.fitMaxZoom,
         );
+        if (!_sameMapMode(state)) return;
         // Remember the framed camera so we can tell when the user has
         // zoomed/panned away from the panorama.
         final cam = _controller?.cameraPosition;
@@ -1744,21 +1805,25 @@ class RouteMapViewState extends State<RouteMapView>
         target: _ml(sample.point),
         zoom: zoom,
         bearing: headingUp ? travel : 0.0,
-        tilt: headingUp ? SimulationConfig.chaseTilt : 0.0,
+        tilt:
+            _previewTiltOverride ??
+            (headingUp ? SimulationConfig.chaseTilt : 0.0),
       ),
     );
     if (firstFrame) {
       await _moveCamera(update);
     } else {
-      // Fire-and-forget so the apply pipeline isn't blocked for the
-      // animation's duration.
-      unawaited(
-        _controller?.animateCamera(
-              update,
-              duration: MapConfig.followCamDuration,
-            ) ??
-            Future<void>.value(),
-      );
+      _previewCameraWriter.submit((
+        generation: _previewCameraGeneration,
+        position: CameraPosition(
+          target: _ml(sample.point),
+          zoom: zoom,
+          bearing: headingUp ? travel : 0.0,
+          tilt:
+              _previewTiltOverride ??
+              (headingUp ? SimulationConfig.chaseTilt : 0.0),
+        ),
+      ));
     }
   }
 
@@ -1973,6 +2038,8 @@ class RouteMapViewState extends State<RouteMapView>
       return;
     }
     _mapPointers.add(pointer);
+    _previewCameraGeneration++;
+    _previewCameraWriter.discardPending();
     _exploreResumeTimer?.cancel();
     _navExploring.value = true;
   }
@@ -2050,11 +2117,20 @@ class RouteMapViewState extends State<RouteMapView>
   /// discovers. The style already carries 3D buildings, so this only had to
   /// be given a way in.
   Future<void> _toggleTilt() async {
-    final current = _controller?.cameraPosition?.tilt ?? 0;
-    final goingFlat = current.abs() > 1;
-    await _animateCamera(
-      CameraUpdate.tiltTo(goingFlat ? 0 : NavigationConfig.exploreTilt),
-    );
+    final state = context.read<RoutePlannerCubit>().state;
+    final current =
+        (state.simulationActive ? _previewTiltOverride : null) ??
+        _controller?.cameraPosition?.tilt ??
+        0;
+    final target = current.abs() > 1 ? 0.0 : NavigationConfig.exploreTilt;
+    if (state.simulationActive) {
+      // Store the intent before animating. Every following playback tick
+      // honors it, including a second tap before the first animation ends.
+      _previewTiltOverride = target;
+      _previewCameraGeneration++;
+      _previewCameraWriter.discardPending();
+    }
+    await _animateCamera(CameraUpdate.tiltTo(target));
   }
 
   void _resetViewAngle() {
@@ -2065,6 +2141,11 @@ class RouteMapViewState extends State<RouteMapView>
       return;
     }
     _northLock = true;
+    if (state.simulationActive) {
+      _previewTiltOverride = 0;
+      _previewCameraGeneration++;
+      _previewCameraWriter.discardPending();
+    }
     unawaited(_flattenView());
   }
 

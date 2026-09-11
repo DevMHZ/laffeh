@@ -23,8 +23,8 @@ part 'route_simulation_overlay_widgets.dart';
 ///
 /// Replaces the old simulation bottom sheet. The map stays the hero:
 /// only a slim status card on top and one control bar at the bottom.
-/// No speed selector, no camera modes — one good default (follow
-/// camera, calm pace). Controls a driver actually needs:
+/// Controls stay mounted across playback ticks. Camera options and the
+/// play/pause button listen only to their own state. The overlay shows:
 ///   * where the vehicle is headed (big, top)
 ///   * which stop of how many (timeline)
 ///   * play / pause / replay (bottom, thumb-sized)
@@ -143,23 +143,7 @@ class RouteSimulationOverlay extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            IconButton(
-                              tooltip: AppStrings.exitSimulation,
-                              visualDensity: VisualDensity.compact,
-                              style: IconButton.styleFrom(
-                                fixedSize: const Size.square(36),
-                                padding: EdgeInsets.zero,
-                              ),
-                              onPressed: () {
-                                HapticFeedback.selectionClick();
-                                cubit.exitSimulation();
-                              },
-                              icon: Icon(
-                                Iconsax.close_circle,
-                                color: AppColors.textSecondary,
-                                size: 22,
-                              ),
-                            ),
+                            const _PreviewExitButton(),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -199,10 +183,7 @@ class RouteSimulationOverlay extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _CameraModeToggle(
-                      mode: state.simulationCameraMode,
-                      onChanged: cubit.setSimulationCameraMode,
-                    ),
+                    const _PreviewCameraControls(),
                   ],
                 ),
               ),
@@ -242,12 +223,7 @@ class RouteSimulationOverlay extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 14),
-                          _PlayPauseButton(
-                            playing: state.simulationPlaying,
-                            finished: finished,
-                            onPlay: cubit.resumeSimulation,
-                            onPause: cubit.pauseSimulation,
-                          ),
+                          const _PreviewPlaybackControl(),
                         ],
                       ),
                     ),

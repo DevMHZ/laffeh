@@ -1,5 +1,72 @@
 part of 'route_simulation_overlay.dart';
 
+/// Stable controls: progress updates cannot rebuild their gesture handlers.
+class _PreviewExitButton extends StatelessWidget {
+  const _PreviewExitButton();
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: AppStrings.exitSimulation,
+    style: IconButton.styleFrom(
+      fixedSize: const Size.square(48),
+      padding: EdgeInsets.zero,
+    ),
+    onPressed: () {
+      HapticFeedback.selectionClick();
+      context.read<RoutePlannerCubit>().exitSimulation();
+    },
+    icon: Icon(Iconsax.close_circle, color: AppColors.textSecondary, size: 22),
+  );
+}
+
+class _PreviewCameraControls extends StatelessWidget {
+  const _PreviewCameraControls();
+
+  @override
+  Widget build(BuildContext context) =>
+      BlocSelector<RoutePlannerCubit, RoutePlannerState, SimulationCameraMode>(
+        selector: (state) => state.simulationCameraMode,
+        builder: (context, mode) => _CameraModeToggle(
+          mode: mode,
+          onChanged: context.read<RoutePlannerCubit>().setSimulationCameraMode,
+        ),
+      );
+}
+
+class _PreviewPlaybackControl extends StatelessWidget {
+  const _PreviewPlaybackControl();
+
+  @override
+  Widget build(BuildContext context) =>
+      BlocSelector<
+        RoutePlannerCubit,
+        RoutePlannerState,
+        ({bool playing, bool finished})
+      >(
+        selector: (state) => (
+          playing: state.simulationPlaying,
+          finished: state.simulationProgress >= 1,
+        ),
+        builder: (context, playback) {
+          final cubit = context.read<RoutePlannerCubit>();
+          return Semantics(
+            button: true,
+            label: playback.playing
+                ? AppStrings.pauseSimulation
+                : playback.finished
+                ? AppStrings.replay
+                : AppStrings.resumeSimulation,
+            child: _PlayPauseButton(
+              playing: playback.playing,
+              finished: playback.finished,
+              onPlay: cubit.resumeSimulation,
+              onPause: cubit.pauseSimulation,
+            ),
+          );
+        },
+      );
+}
+
 /// A video-player-style trip scrubber: a track with the elapsed portion filled,
 /// little ticks at each stop, and a draggable playhead shaped like the preview
 /// car. Drag (or tap) anywhere to scrub the trip — pauses playback so the user

@@ -99,6 +99,10 @@ class LatestFrameWriter<T extends Object> {
     }
   }
 
+  /// Drop obsolete queued work when a user changes camera mode or exits.
+  /// The in-flight native operation may finish, but cannot replay old targets.
+  void discardPending() => _pending = null;
+
   void dispose() {
     _disposed = true;
     _pending = null;
