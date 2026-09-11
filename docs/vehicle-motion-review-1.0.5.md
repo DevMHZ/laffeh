@@ -1,6 +1,6 @@
 # Vehicle and route alignment follow-up
 
-Continues the [settings and driving refresh](driving-settings-review-1.0.5.md) on `design/1.0.5-ux-refresh`.
+Continues the [settings and driving refresh](driving-settings-review-1.0.5.md) on `design/1.0.5-ux-refresh`. Implementation commit: `197b75a`. Both this branch and the unchanged `1.0.5` base have been pushed to the existing `DevMHZ/laffeh` remote.
 
 ## Changes
 

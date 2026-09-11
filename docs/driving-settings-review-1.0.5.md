@@ -62,4 +62,4 @@ The new explanations describe a planning preference. They do not change the opti
 - The revised app is running in the simulator. No real-road GPS or physical Android-device validation was performed.
 - One stale Arabic planning-button golden from the previous button-height correction was refreshed after confirming the current button's compact layout.
 
-The store version remains `1.0.4+5`; this work does not create a store release. GitHub upload remains pending the repository approval requested in the earlier pass.
+The store version remains `1.0.4+5`; this work does not create a store release. The base `1.0.5` and `design/1.0.5-ux-refresh` branches were subsequently pushed to the existing GitHub remote after confirmation.
