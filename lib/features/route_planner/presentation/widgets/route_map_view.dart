@@ -11,6 +11,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../../../core/config/driving_camera.dart';
 import '../../../../core/config/env_config.dart';
 import '../../../../core/config/map_config.dart';
 import '../../../../core/config/navigation_config.dart';
@@ -365,10 +366,10 @@ class RouteMapViewState extends State<RouteMapView>
   /// Smoothed bearing used by the locked live navigation camera.
   double? _navBearing;
 
-  /// Smoothed speed-adaptive zoom for the drive camera; null until the
-  /// first drive frame (then eased toward the speed-band target so zoom
-  /// changes read as gradual breathing, never steps).
-  double? _navZoom;
+  /// Ease zoom, tilt and forward distance together, using elapsed time
+  /// rather than the number of GPS callbacks.
+  final _drivingCamera = DrivingCameraSmoother();
+  final _cameraClock = Stopwatch()..start();
 
   /// False until the drive camera's first frame, which snaps into place;
   /// every later update glides via animateCamera.
@@ -1734,7 +1735,7 @@ class RouteMapViewState extends State<RouteMapView>
       if (!_wasNavigationActive) {
         _northLock = false;
         _navBearing = null;
-        _navZoom = null;
+        _drivingCamera.reset();
         _navCamSnapped = false;
         _navAnchor = null;
         _navRoute = null;
@@ -1759,7 +1760,7 @@ class RouteMapViewState extends State<RouteMapView>
     if (_wasNavigationActive) {
       _wasNavigationActive = false;
       _navBearing = null;
-      _navZoom = null;
+      _drivingCamera.reset();
       _navCamSnapped = false;
       _navAnchor = null;
       _navPuckPos.value = null;
@@ -1927,6 +1928,10 @@ class RouteMapViewState extends State<RouteMapView>
     // without moving the car) before any camera work.
     _syncNavRenderTargets(state);
 
+    final pose = _drivingCamera.update(
+      state.navigationSpeedMps,
+      _cameraClock.elapsed,
+    );
     final polyline = state.optimizedRoute?.fullPolyline ?? const <ll.LatLng>[];
     final tangent = PolylineUtils.sampleAt(
       polyline,
@@ -1940,7 +1945,7 @@ class RouteMapViewState extends State<RouteMapView>
         ? PolylineUtils.lookAheadBearing(
             polyline,
             state.navigationProgress,
-            NavigationConfig.cameraAnticipationMeters,
+            pose.anticipation,
           )
         : null;
     final rawHeading =
@@ -1988,20 +1993,12 @@ class RouteMapViewState extends State<RouteMapView>
       return;
     }
 
-    // Speed-adaptive zoom, exponentially eased toward the band target.
-    final zoomTarget = _zoomForSpeed(state.navigationSpeedMps);
-    _navZoom = _navZoom == null
-        ? zoomTarget
-        : _navZoom! +
-              (zoomTarget - _navZoom!) * NavigationConfig.zoomSmoothingFactor;
-    final zoom = _navZoom!;
-
-    // The look-ahead offset scales with the viewport: landscape screens
-    // are short, so the portrait offset would leave the car off-screen.
-    final viewport = MediaQuery.sizeOf(context);
-    final lookahead = viewport.width > viewport.height
-        ? NavigationConfig.lookaheadMetersLandscape
-        : NavigationConfig.lookaheadMeters;
+    // Keep zoom, pitch and forward offset in the same eased profile. A
+    // fixed road offset at close zoom would push the vehicle off-screen.
+    final zoom = pose.zoom;
+    final lookahead = pose.lookaheadForViewport(
+      MediaQuery.sizeOf(context).height,
+    );
     final target = MapGeometry.destinationPoint(anchor, heading, lookahead);
     DebugLog.cam(
       'navCamera anchor=${anchor.latitude.toStringAsFixed(6)},'
@@ -2011,14 +2008,15 @@ class RouteMapViewState extends State<RouteMapView>
       'stateHeading=${state.navigationHeading?.toStringAsFixed(1)} '
       '→ appliedHeading=${heading.toStringAsFixed(1)} '
       'prog=${state.navigationProgress.toStringAsFixed(4)} '
-      'zoom=${zoom.toStringAsFixed(2)} tilt=${NavigationConfig.tilt}',
+      'zoom=${zoom.toStringAsFixed(2)} tilt=${pose.tilt.toStringAsFixed(1)} '
+      'lookahead=${lookahead.toStringAsFixed(1)}',
     );
     final update = CameraUpdate.newCameraPosition(
       CameraPosition(
         target: _ml(target),
         zoom: zoom,
         bearing: heading,
-        tilt: NavigationConfig.tilt,
+        tilt: pose.tilt,
       ),
     );
     if (!_navCamSnapped) {
@@ -2182,39 +2180,6 @@ class RouteMapViewState extends State<RouteMapView>
       a.zoom == b.zoom &&
       a.bearing == b.bearing &&
       a.tilt == b.tilt;
-
-  /// Zoom for the current speed: piecewise-linear between the config
-  /// bands so it changes continuously, never in steps.
-  double _zoomForSpeed(double? speedMps) {
-    final kmh = (speedMps ?? 0) * 3.6;
-    double lerp(double a, double b, double t) => a + (b - a) * t.clamp(0, 1);
-    if (kmh <= NavigationConfig.speedCrawlKmh) {
-      return NavigationConfig.zoomCrawl;
-    }
-    if (kmh <= NavigationConfig.speedCityKmh) {
-      return lerp(
-        NavigationConfig.zoomCrawl,
-        NavigationConfig.zoomCity,
-        (kmh - NavigationConfig.speedCrawlKmh) /
-            (NavigationConfig.speedCityKmh - NavigationConfig.speedCrawlKmh),
-      );
-    }
-    if (kmh <= NavigationConfig.speedFastKmh) {
-      return lerp(
-        NavigationConfig.zoomCity,
-        NavigationConfig.zoomFast,
-        (kmh - NavigationConfig.speedCityKmh) /
-            (NavigationConfig.speedFastKmh - NavigationConfig.speedCityKmh),
-      );
-    }
-    // 80 → 120 km/h eases out to the widest view.
-    return lerp(
-      NavigationConfig.zoomFast,
-      NavigationConfig.zoomHighway,
-      (kmh - NavigationConfig.speedFastKmh) /
-          (120.0 - NavigationConfig.speedFastKmh),
-    );
-  }
 
   // ── Free exploration during drive mode ──────────────────────────────────────
 

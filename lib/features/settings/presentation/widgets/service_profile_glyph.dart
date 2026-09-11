@@ -170,7 +170,7 @@ class _ServiceProfilePainter extends CustomPainter {
   // looks: at _atVan its lid clears the van's underside, and at _atDoor its
   // base meets the doorstep line — otherwise a delivery lands in mid-air and
   // a pickup stops short of the van it is being loaded into.
-  static const double _atVan = 0.40;
+  static const double _atVan = 0.46;
   static const double _atDoor = 0.76;
 
   @override
@@ -190,20 +190,34 @@ class _ServiceProfilePainter extends CustomPainter {
 
     final stroke = w * 0.07;
 
-    // ── The van ─────────────────────────────────────────────────────────
-    final van = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.16, h * 0.05, w * 0.68, h * 0.16),
-      Radius.circular(w * 0.06),
+    // A cargo body, cab and wheels remain recognisable in a still frame.
+    // Filled cargo means leaving loaded; outlined cargo means leaving empty.
+    final cargo = RRect.fromRectAndRadius(
+      Rect.fromLTWH(w * 0.13, h * 0.02, w * 0.45, h * 0.20),
+      Radius.circular(w * 0.025),
     );
-    if (profile == ServiceProfile.delivery) {
-      canvas.drawRRect(van, Paint()..color = colour); // loaded
-    } else {
-      canvas.drawRRect(
-        van,
-        Paint()
-          ..color = colour
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = stroke, // empty
+    canvas.drawRRect(
+      cargo,
+      Paint()
+        ..color = colour
+        ..style = profile == ServiceProfile.delivery
+            ? PaintingStyle.fill
+            : PaintingStyle.stroke
+        ..strokeWidth = w * 0.035,
+    );
+    final cab = Path()
+      ..moveTo(w * 0.60, h * 0.08)
+      ..lineTo(w * 0.75, h * 0.08)
+      ..lineTo(w * 0.86, h * 0.17)
+      ..lineTo(w * 0.86, h * 0.23)
+      ..lineTo(w * 0.60, h * 0.23)
+      ..close();
+    canvas.drawPath(cab, Paint()..color = colour);
+    for (final x in [0.28, 0.73]) {
+      canvas.drawCircle(
+        Offset(w * x, h * 0.255),
+        w * 0.045,
+        Paint()..color = colour,
       );
     }
 

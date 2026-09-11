@@ -27,6 +27,10 @@ class VehicleMarkerConfig {
   /// turns), so a fast bend can't churn the symbol layer every frame.
   static const int minFrameSwapMs = 90;
 
+  /// Shared logical size for both the Flutter follow puck and native
+  /// explore marker, so panning never makes the vehicle shrink.
+  static const double navigationSize = 72;
+
   // ── Rendering ────────────────────────────────────────────
   /// Native frame images are rasterised at this multiple of their logical
   /// size (and drawn with `iconSize: dpr / iconOversample`) so they stay

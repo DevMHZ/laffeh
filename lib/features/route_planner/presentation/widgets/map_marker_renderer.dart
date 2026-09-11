@@ -181,10 +181,14 @@ class MapMarkerRenderer {
   static Future<Uint8List> navVehicle() async {
     final kind = VehiclePrefs.current;
     final sprite = await VehicleSprites.of(kind);
-    return _toPng(54, 54, (c, sz) {
-      _paintNavHalo(c, sz);
-      _paintVehicle(c, sz, kind, sprite);
-    });
+    return _toPng(
+      VehicleMarkerConfig.navigationSize,
+      VehicleMarkerConfig.navigationSize,
+      (c, sz) {
+        _paintNavHalo(c, sz);
+        _paintVehicle(c, sz, kind, sprite);
+      },
+    );
   }
 
   /// One pseudo-3D frame of the picked vehicle's nav sheet ([heading] ×
@@ -202,7 +206,7 @@ class MapMarkerRenderer {
     final kind = VehiclePrefs.current;
     final sheet = await VehicleSprites.navOf(kind);
     final sprite = sheet == null ? await VehicleSprites.of(kind) : null;
-    final logical = halo ? 54.0 : 44.0;
+    final logical = halo ? VehicleMarkerConfig.navigationSize : 44.0;
     const os = VehicleMarkerConfig.iconOversample;
     return _toPng(
       logical * os,
@@ -235,11 +239,15 @@ class MapMarkerRenderer {
     final center = Offset(sz.width / 2, sz.height / 2);
     c.drawCircle(
       center,
-      26,
+      sz.width * 26 / 54,
       ui.Paint()..color = AppColors.primary.withValues(alpha: 0.10),
     );
     c.drawOval(
-      Rect.fromCenter(center: center.translate(0, 6), width: 34, height: 38),
+      Rect.fromCenter(
+        center: center.translate(0, sz.height / 9),
+        width: sz.width * 34 / 54,
+        height: sz.height * 38 / 54,
+      ),
       ui.Paint()
         ..color = Colors.black.withValues(alpha: 0.22)
         ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 4),

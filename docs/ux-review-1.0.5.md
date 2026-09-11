@@ -42,3 +42,5 @@ These are widget-rendered previews; their plain background stands in for the nat
 - Navigation testing covers UI behavior in the simulator. Real-road GPS accuracy was not evaluated.
 
 The branch name is `1.0.5`; the existing package version is still `1.0.4+5`. This design change does not cut a new store release.
+
+See the [driving and settings follow-up](driving-settings-review-1.0.5.md) for the adaptive camera, larger vehicle, and the next settings pass.

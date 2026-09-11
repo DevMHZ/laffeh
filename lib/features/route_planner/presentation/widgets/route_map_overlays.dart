@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/config/vehicle_marker_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
@@ -48,8 +49,8 @@ class NavigationPuck extends StatelessWidget {
   Widget build(BuildContext context) {
     // The halo/shadow stays unrotated — only the vehicle turns.
     return SizedBox(
-      width: 54,
-      height: 54,
+      width: VehicleMarkerConfig.navigationSize,
+      height: VehicleMarkerConfig.navigationSize,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -57,7 +58,7 @@ class NavigationPuck extends StatelessWidget {
           Center(
             child: VehicleNavFrame(
               kind: VehiclePrefs.current,
-              size: 54,
+              size: VehicleMarkerConfig.navigationSize,
               rotationDegrees: rotationDegrees,
               phase: phase,
             ),
@@ -78,11 +79,15 @@ class _NavigationPuckHaloPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     canvas.drawCircle(
       center,
-      26,
+      size.width * 26 / 54,
       Paint()..color = AppColors.primary.withValues(alpha: 0.10),
     );
     canvas.drawOval(
-      Rect.fromCenter(center: center.translate(0, 6), width: 34, height: 38),
+      Rect.fromCenter(
+        center: center.translate(0, size.height / 9),
+        width: size.width * 34 / 54,
+        height: size.height * 38 / 54,
+      ),
       Paint()
         ..color = Colors.black.withValues(alpha: 0.22)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),

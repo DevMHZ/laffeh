@@ -335,22 +335,30 @@ class _ActionRow extends StatelessWidget {
                 Icon(icon, size: 18, color: tint),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    label,
-                    style: AppTextStyles.titleSm.copyWith(
-                      color: danger ? AppColors.danger : AppColors.textPrimary,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: AppTextStyles.titleSm.copyWith(
+                          color: danger
+                              ? AppColors.danger
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      if (trailing != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          trailing!,
+                          style: AppTextStyles.muted.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (trailing != null) ...[
-                  Text(
-                    trailing!,
-                    style: AppTextStyles.mutedSm.copyWith(
-                      color: AppColors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
+                const SizedBox(width: 8),
                 const AppChevron(),
               ],
             ),

@@ -3,49 +3,16 @@ class NavigationConfig {
   NavigationConfig._();
 
   // ── Camera ───────────────────────────────────────────────
-  /// Pitch — a behind-the-car perspective looking down the road.
-  static const double tilt = 60;
-
-  /// Tilt used by the planning map's 3D toggle. A little shallower than the
-  /// driving camera: while planning you are reading a neighbourhood, not
-  /// looking down the next hundred metres of road.
+  /// Tilt used by the planning map's 3D toggle. The driving camera has
+  /// its own speed-dependent perspective in driving_camera.dart.
   static const double exploreTilt = 55;
-
-  /// How far ahead of the vehicle the camera targets, so the driver
-  /// sits in the lower-middle of the screen.
-  static const double lookaheadMeters = 115.0;
-
-  /// Landscape look-ahead — the viewport is much shorter, so the portrait
-  /// offset would push the car off the bottom edge; this keeps it in the
-  /// lower-middle of the rotated view.
-  static const double lookaheadMetersLandscape = 55.0;
-
-  /// Distance ahead on the route used to orient the camera bearing, so it
-  /// rotates *into* a turn before the car reaches it (the road ahead stays
-  /// pointing up) instead of swinging sideways mid-bend. Larger = more
-  /// anticipation but more corner-cutting on tight curves.
-  static const double cameraAnticipationMeters = 60.0;
 
   /// Native camera interpolation between GPS-driven follow targets. Long
   /// enough to glide over the ~1 s / 5 m GPS cadence, short enough that the
   /// view never lags a genuine turn.
   static const Duration cameraAnimDuration = Duration(milliseconds: 700);
 
-  // ── Speed-adaptive zoom ──────────────────────────────────
-  // The follow camera zooms out as the vehicle speeds up so the driver
-  // always sees an appropriate amount of road ahead. Zoom is interpolated
-  // piecewise between these anchors and then exponentially smoothed, so
-  // transitions are gradual — never a visible "gear change".
-  static const double zoomCrawl = 17.5; // ≤ crawl speed (stopped/serving)
-  static const double zoomCity = 17.0; // urban driving
-  static const double zoomFast = 16.2; // arterials
-  static const double zoomHighway = 15.4; // ≥ highway speed
-  static const double speedCrawlKmh = 15;
-  static const double speedCityKmh = 40;
-  static const double speedFastKmh = 80;
-
-  /// Exponential smoother applied to the zoom target per camera frame.
-  static const double zoomSmoothingFactor = 0.15;
+  // Speed-adaptive zoom, tilt and offsets live in driving_camera.dart.
 
   // ── Free exploration (drive mode) ────────────────────────
   /// After the user stops touching the map, follow-mode resumes
@@ -114,7 +81,7 @@ class NavigationConfig {
   /// Chord length (metres) used to read the road tangent under the car for
   /// the avatar's rotation — long enough to smooth polyline vertex kinks,
   /// short enough to still be "the road under the car" (unlike the camera,
-  /// which anticipates [cameraAnticipationMeters] ahead).
+  /// which anticipates farther ahead as speed rises).
   static const double avatarTangentMeters = 12.0;
 
   /// Max distance (metres) a GPS fix may sit from the planned route for it

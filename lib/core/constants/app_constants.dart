@@ -411,6 +411,13 @@ class AppStrings {
   static String get couldNotServeConfirm => _t('couldNotServeConfirm');
   static String get orderedOnStraightLines => _t('orderedOnStraightLines');
   static String get serviceProfile => _t('serviceProfile');
+  static String get settingsIntro => _t('settingsIntro');
+  static String get settingsGroupDriving => _t('settingsGroupDriving');
+  static String get drivingCameraTitle => _t('drivingCameraTitle');
+  static String get drivingCameraHint => _t('drivingCameraHint');
+  static String get serviceProfileIntro => _t('serviceProfileIntro');
+  static String get appearanceLight => _t('appearanceLight');
+  static String get appearanceDark => _t('appearanceDark');
   static String get serviceProfileDelivery => _t('serviceProfileDelivery');
   static String get serviceProfileDeliveryHint =>
       _t('serviceProfileDeliveryHint');
@@ -1394,13 +1401,23 @@ const Map<String, Map<String, String>> _copy = {
     'orderedOnStraightLines':
         'Road data was unavailable, so this order was worked out on straight-line distances. The sequence may be poor where the direct line is not drivable.',
     'serviceProfile': 'Round type',
+    'settingsIntro': 'Make each round feel like yours.',
+    'settingsGroupDriving': 'Driving',
+    'drivingCameraTitle': 'Adaptive driving view',
+    'drivingCameraHint':
+        'A closer, flatter view near stops. More road ahead as you speed up.',
+    'serviceProfileIntro': 'Choose how your load changes during the round.',
+    'appearanceLight': 'Light',
+    'appearanceDark': 'Dark',
     'serviceProfileDelivery': 'Deliveries',
     'serviceProfileDeliveryHint':
-        'You set off loaded. Heaviest drops go first.',
+        'Start loaded and deliver along the way. Prioritize heavier deliveries earlier.',
     'serviceProfilePickup': 'Pickups',
-    'serviceProfilePickupHint': 'You set off empty. Heaviest pickups go last.',
+    'serviceProfilePickupHint':
+        'Start empty and collect along the way. Prefer heavier pickups later in the round.',
     'serviceProfileNone': 'No preference',
-    'serviceProfileNoneHint': 'Keep the order the optimiser found, untouched.',
+    'serviceProfileNoneHint':
+        'Plan by route efficiency, with no loading preference.',
     'servedEarly': 'Delivered',
     'couldNotServe': "Couldn't deliver",
     'stopSkipped': 'Stop skipped',
@@ -2009,12 +2026,23 @@ const Map<String, Map<String, String>> _copy = {
     'orderedOnStraightLines':
         'تعذّر الحصول على بيانات الطرق، لذلك رُتّبت النقاط بالمسافات المستقيمة. قد يكون الترتيب غير مناسب حيث لا يمكن سلوك الخط المباشر.',
     'serviceProfile': 'نوع اللفة',
+    'settingsIntro': 'اضبط اللفة على طريقتك.',
+    'settingsGroupDriving': 'القيادة',
+    'drivingCameraTitle': 'عرض يتكيّف مع القيادة',
+    'drivingCameraHint':
+        'رؤية أقرب وأقل ميلًا عند التوقف، ومسافة أبعد أمامك كلما زادت السرعة.',
+    'serviceProfileIntro': 'اختر كيف تتغيّر حمولتك خلال اللفة.',
+    'appearanceLight': 'فاتح',
+    'appearanceDark': 'داكن',
     'serviceProfileDelivery': 'توصيل',
-    'serviceProfileDeliveryHint': 'تنطلق محمّلًا. الأثقل يُسلَّم أولًا.',
+    'serviceProfileDeliveryHint':
+        'ابدأ محمّلًا وسلّم الطلبات على الطريق، مع إعطاء أولوية للتوصيلات الأثقل في البداية.',
     'serviceProfilePickup': 'استلام',
-    'serviceProfilePickupHint': 'تنطلق فارغًا. الأثقل يُستلم أخيرًا.',
+    'serviceProfilePickupHint':
+        'ابدأ فارغًا واجمع الطلبات على الطريق، مع تفضيل استلام الحمولات الأثقل قرب نهاية اللفة.',
     'serviceProfileNone': 'بدون تفضيل',
-    'serviceProfileNoneHint': 'أبقِ الترتيب كما وجده المحسِّن، دون تغيير.',
+    'serviceProfileNoneHint':
+        'خطّط حسب كفاءة المسار، دون تفضيل لترتيب الحمولة.',
     'servedEarly': 'تم التسليم',
     'couldNotServe': 'تعذّر التسليم',
     'stopSkipped': 'تم تخطي النقطة',
@@ -2634,15 +2662,24 @@ const Map<String, Map<String, String>> _copy = {
     'orderedOnStraightLines':
         'Les donnees routieres etaient indisponibles : cet ordre a ete calcule a vol d\'oiseau. La sequence peut etre mauvaise la ou la ligne directe n\'est pas praticable.',
     'serviceProfile': 'Type de tournee',
+    'settingsIntro': 'Votre tournée, à votre façon.',
+    'settingsGroupDriving': 'Conduite',
+    'drivingCameraTitle': 'Vue de conduite adaptative',
+    'drivingCameraHint':
+        'Une vue plus proche et moins inclinée aux arrêts. Plus de route visible quand la vitesse augmente.',
+    'serviceProfileIntro':
+        'Choisissez comment votre chargement évolue pendant la tournée.',
+    'appearanceLight': 'Clair',
+    'appearanceDark': 'Sombre',
     'serviceProfileDelivery': 'Livraisons',
     'serviceProfileDeliveryHint':
-        'Vous partez charge. Le plus lourd part en premier.',
+        'Partez chargé et livrez au fil du trajet. Privilégiez les livraisons lourdes au début.',
     'serviceProfilePickup': 'Collectes',
     'serviceProfilePickupHint':
-        'Vous partez a vide. Le plus lourd est pris en dernier.',
+        'Partez à vide et collectez au fil du trajet. Privilégiez les collectes lourdes en fin de tournée.',
     'serviceProfileNone': 'Sans preference',
     'serviceProfileNoneHint':
-        'Gardez l\'ordre trouve par l\'optimiseur, tel quel.',
+        'Privilégiez un trajet efficace, sans préférence de chargement.',
     'servedEarly': 'Livre',
     'couldNotServe': 'Livraison impossible',
     'stopSkipped': 'Point ignore',

@@ -22,6 +22,7 @@ import '../../../../core/widgets/offline_area_section.dart';
 import '../../../../core/widgets/vehicle_turntable.dart';
 import '../widgets/account_section.dart';
 import '../widgets/service_profile_glyph.dart';
+import '../widgets/service_profile_picker.dart';
 
 class SettingsPage extends StatelessWidget {
   /// Picks a spreadsheet of stops for the trip behind this page, and reports
@@ -59,29 +60,30 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
         children: [
-          // Brand block — Laffah app icon + Afdal "Powered by"
-          Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Image.asset(
-                'assets/laffeh_logo.png',
-                width: 88,
-                height: 88,
-                fit: BoxFit.contain,
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/laffeh_logo.png',
+                  width: 56,
+                  height: 56,
+                ),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(AppStrings.appName, style: AppTextStyles.titleLg),
+                    const SizedBox(height: 3),
+                    Text(AppStrings.settingsIntro, style: AppTextStyles.muted),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('${AppStrings.poweredBy} ', style: AppTextStyles.mutedSm),
-                AfdalLogo.compact(height: 24),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 24),
 
           _SettingsGroups(
             onAboutUsTap: () => _openWebsite(context),
@@ -203,27 +205,7 @@ class _LanguageTile extends StatelessWidget {
   }
 }
 
-/// The settings list, in four labelled groups.
-///
-/// It used to be one card holding eight unrelated rows: app info, three
-/// preferences, the offline map, the account, and two documents, separated
-/// only by dividers. Nothing told the eye where one concern ended and the
-/// next began, and the least useful row — "About the app" — sat in the most
-/// prominent slot on the page.
-///
-/// The order now follows what a driver actually comes here to do. Their
-/// account first, because that is what decides whether their trips are
-/// being kept. Then the preferences they set once — language ahead of the
-/// rest, since a driver who opened the app in the wrong language cannot
-/// read anything else until they find it. The documents last, where
-/// read-once material belongs.
-///
-/// The offline map used to sit second, on the reasoning that it was the one
-/// thing here that *did* something and was worth finding before losing
-/// signal. It no longer needs finding: the app keeps a square around the
-/// driver by itself (see `AutoMapCache`), unasked and unannounced, so what
-/// is left on this page is the picker for choosing a *bigger* map
-/// deliberately — settings, not an errand. It moved down accordingly.
+/// Preferences and driving controls first; account and reference material below.
 class _SettingsGroups extends StatelessWidget {
   final VoidCallback onAboutUsTap;
   final Future<int> Function()? onImportCsv;
@@ -241,12 +223,43 @@ class _SettingsGroups extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _SettingsGroup(
-          label: AppStrings.settingsGroupAccount,
-          children: [AccountSection()],
+          label: AppStrings.settingsGroupPreferences,
+          children: [_LanguageSection(), _ThemeSection()],
         ),
         _SettingsGroup(
-          label: AppStrings.settingsGroupPreferences,
-          children: [_LanguageSection(), _ThemeSection(), _VehicleSection()],
+          label: AppStrings.settingsGroupDriving,
+          children: [
+            _VehicleSection(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.explore_outlined,
+                  size: 22,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppStrings.drivingCameraTitle,
+                        style: AppTextStyles.titleSm,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.drivingCameraHint,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
         // The spreadsheet of stops the office keeps. It used to sit on the
         // planning sheet and on the empty map, where it spent its life being
@@ -272,6 +285,10 @@ class _SettingsGroups extends StatelessWidget {
           // summary instead, next to the driving it is for; here it spent
           // most of its life saying there was no trip to save.
           children: [OfflineAreaSection()],
+        ),
+        _SettingsGroup(
+          label: AppStrings.settingsGroupAccount,
+          children: [AccountSection()],
         ),
         _SettingsGroup(
           label: AppStrings.settingsGroupAbout,
@@ -521,7 +538,8 @@ class _ThemeSectionState extends State<_ThemeSection> {
                 initialIndex: DriverPalette.all.indexWhere(
                   (p) => p.id == active.id,
                 ),
-                height: 150,
+                height:
+                    150 + (MediaQuery.textScalerOf(context).scale(16) - 16) * 3,
                 viewportFraction: 0.58,
                 onSelected: (i) => AppTheme.setPalette(DriverPalette.all[i]),
                 itemBuilder: (context, i, isActive) => _ThemePage(
@@ -566,18 +584,6 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
     setState(() => _expanded = !_expanded);
   }
 
-  static String _nameFor(ServiceProfile p) => switch (p) {
-    ServiceProfile.delivery => AppStrings.serviceProfileDelivery,
-    ServiceProfile.pickup => AppStrings.serviceProfilePickup,
-    ServiceProfile.none => AppStrings.serviceProfileNone,
-  };
-
-  static String _hintFor(ServiceProfile p) => switch (p) {
-    ServiceProfile.delivery => AppStrings.serviceProfileDeliveryHint,
-    ServiceProfile.pickup => AppStrings.serviceProfilePickupHint,
-    ServiceProfile.none => AppStrings.serviceProfileNoneHint,
-  };
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ServiceProfile>(
@@ -589,7 +595,7 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
             _CollapsibleHeader(
               icon: Iconsax.box,
               title: AppStrings.serviceProfile,
-              valueLabel: _nameFor(active),
+              valueLabel: serviceProfileName(active),
               // Still frame while collapsed: a looping parcel in a settings
               // list is a distraction, and the row is only a reminder of
               // what is set. It comes alive in the options below.
@@ -616,95 +622,14 @@ class _ServiceProfileSectionState extends State<_ServiceProfileSection> {
               expanded: _expanded,
               child: !_expanded
                   ? const SizedBox.shrink()
-                  : Column(
-                      children: [
-                        for (final profile in ServiceProfile.values)
-                          _ServiceProfileOption(
-                            profile: profile,
-                            title: _nameFor(profile),
-                            hint: _hintFor(profile),
-                            selected: profile == active,
-                            onTap: () =>
-                                ServiceProfilePrefs.setProfile(profile),
-                          ),
-                      ],
+                  : ServiceProfilePicker(
+                      value: active,
+                      onChanged: ServiceProfilePrefs.setProfile,
                     ),
             ),
           ],
         );
       },
-    );
-  }
-}
-
-class _ServiceProfileOption extends StatelessWidget {
-  final ServiceProfile profile;
-  final String title;
-  final String hint;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ServiceProfileOption({
-    required this.profile,
-    required this.title,
-    required this.hint,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: selected
-            ? AppColors.primary.withValues(alpha: 0.08)
-            : AppColors.surfaceAlt.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected ? AppColors.primary : AppColors.border,
-                width: selected ? 1.4 : 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                // Only the chosen row animates. Three parcels shuttling at
-                // once is a fairground, and it makes the selected option
-                // harder to find rather than easier.
-                ServiceProfileGlyph(
-                  profile: profile,
-                  size: 32,
-                  color: selected ? AppColors.primary : AppColors.textMuted,
-                  animate: selected,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: AppTextStyles.bodyMd),
-                      const SizedBox(height: 2),
-                      Text(hint, style: AppTextStyles.mutedSm),
-                    ],
-                  ),
-                ),
-                if (selected)
-                  Icon(Iconsax.tick_circle, size: 18, color: AppColors.primary),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -770,7 +695,9 @@ class _VehicleSectionState extends State<_VehicleSection> {
                   : _SwipeSelector(
                       itemCount: VehicleKind.values.length,
                       initialIndex: VehicleKind.values.indexOf(active),
-                      height: 214,
+                      height:
+                          214 +
+                          (MediaQuery.textScalerOf(context).scale(16) - 16) * 2,
                       viewportFraction: 0.76,
                       onSelected: (i) =>
                           VehiclePrefs.setVehicle(VehicleKind.values[i]),
@@ -839,7 +766,8 @@ class _CollapsibleHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(title, style: AppTextStyles.titleMd),
-                    Text(valueLabel, style: AppTextStyles.muted),
+                    if (valueLabel.isNotEmpty)
+                      Text(valueLabel, style: AppTextStyles.muted),
                   ],
                 ),
               ),
@@ -968,21 +896,28 @@ class _SwipeSelectorState extends State<_SwipeSelector> {
             },
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            for (var i = 0; i < widget.itemCount; i++)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: i == _current ? 18 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: i == _current ? AppColors.primary : AppColors.border,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
+            IconButton(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              tooltip: MaterialLocalizations.of(context).previousPageTooltip,
+              onPressed: _current > 0 ? () => _jumpTo(_current - 1) : null,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            Text(
+              '${_current + 1} / ${widget.itemCount}',
+              style: AppTextStyles.muted,
+            ),
+            IconButton(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              tooltip: MaterialLocalizations.of(context).nextPageTooltip,
+              onPressed: _current < widget.itemCount - 1
+                  ? () => _jumpTo(_current + 1)
+                  : null,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
           ],
         ),
       ],
@@ -1082,7 +1017,9 @@ class _ThemePage extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            palette.isDark ? 'Dark' : 'Light',
+            palette.isDark
+                ? AppStrings.appearanceDark
+                : AppStrings.appearanceLight,
             style: AppTextStyles.mutedSm.copyWith(color: palette.textMuted),
           ),
         ],
@@ -1127,7 +1064,10 @@ class _VehicleStage extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            child: _ShowcaseStage(kind: kind, animate: active),
+            child: _ShowcaseStage(
+              kind: kind,
+              animate: active && !MediaQuery.disableAnimationsOf(context),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
