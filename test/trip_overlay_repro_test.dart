@@ -89,6 +89,8 @@ class _CameraRecorder implements ml.MapLibreMapController {
   Completer<bool?>? holdNextAnimation;
   final positions = <ml.CameraPosition>[];
   int animations = 0;
+  final trackingPositions = <ml.CameraPosition>[];
+  final interpolations = <ml.CameraAnimationInterpolation?>[];
 
   void apply(ml.CameraUpdate update) {
     final json = update.toJson() as List<dynamic>;
@@ -127,6 +129,20 @@ class _CameraRecorder implements ml.MapLibreMapController {
     final held = holdNextAnimation;
     holdNextAnimation = null;
     return held?.future ?? Future.value(true);
+  }
+
+  @override
+  Future<bool> easeCamera(
+    ml.CameraUpdate update, {
+    Duration? duration,
+    ml.CameraAnimationInterpolation? interpolation,
+  }) {
+    apply(update);
+    trackingPositions.add(cameraPosition);
+    interpolations.add(interpolation);
+    final held = holdNextAnimation;
+    holdNextAnimation = null;
+    return held?.future.then((value) => value ?? false) ?? Future.value(true);
   }
 
   @override
@@ -308,43 +324,64 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'busy camera coalesces ticks; one Exit tap drops queued follow work',
-    (tester) async {
-      final (cubit, camera) = await preview(tester);
-      final blocked = Completer<bool?>();
-      camera.holdNextAnimation = blocked;
-      final before = camera.animations;
-      await ticks(tester, cubit, 5);
-      expect(
-        camera.animations,
-        before + 1,
-        reason: 'only one native animation in flight',
-      );
-      final press = await tester.startGesture(
-        tester.getCenter(find.byTooltip(AppStrings.exitSimulation)),
-      );
-      await ticks(
-        tester,
-        cubit,
-        3,
-      ); // Playback advances while the finger is down.
-      await press.up();
-      await tester.pump();
-      expect(cubit.exits, 1);
-      expect(cubit.state.simulationActive, isFalse);
-      expect(find.byType(RouteSimulationOverlay), findsNothing);
-      expect(camera.cameraPosition.tilt, 0);
-      blocked.complete(true);
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(
-        camera.cameraPosition.tilt,
-        0,
-        reason: 'old follow frames cannot re-tilt after exit',
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final mode in [
+    SimulationCameraMode.follow,
+    SimulationCameraMode.chase,
+  ]) {
+    testWidgets(
+      '${mode.name} retargets continuously; Exit prevents stale follow work',
+      (tester) async {
+        final (cubit, camera) = await preview(tester);
+        cubit.setSimulationCameraMode(mode);
+        await ticks(tester, cubit, 2);
+        final blocked = Completer<bool?>();
+        camera.holdNextAnimation = blocked;
+        final before = camera.trackingPositions.length;
+        await ticks(tester, cubit, 5);
+        expect(
+          camera.trackingPositions.length,
+          greaterThanOrEqualTo(before + 4),
+          reason: 'new targets must not wait for animation completion',
+        );
+        expect(
+          camera.trackingPositions
+              .skip(before)
+              .map((p) => p.target)
+              .toSet()
+              .length,
+          greaterThanOrEqualTo(4),
+        );
+        expect(
+          camera.interpolations,
+          everyElement(ml.CameraAnimationInterpolation.linear),
+        );
+        final press = await tester.startGesture(
+          tester.getCenter(find.byTooltip(AppStrings.exitSimulation)),
+        );
+        await ticks(
+          tester,
+          cubit,
+          3,
+        ); // Playback advances while the finger is down.
+        await press.up();
+        await tester.pump();
+        expect(cubit.exits, 1);
+        expect(cubit.state.simulationActive, isFalse);
+        expect(find.byType(RouteSimulationOverlay), findsNothing);
+        expect(camera.cameraPosition.tilt, 0);
+        final targetsAtExit = camera.trackingPositions.length;
+        blocked.complete(true);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(camera.trackingPositions.length, targetsAtExit);
+        expect(
+          camera.cameraPosition.tilt,
+          0,
+          reason: 'old follow frames cannot re-tilt after exit',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('camera-mode buttons accept each tap across playback updates', (
     tester,

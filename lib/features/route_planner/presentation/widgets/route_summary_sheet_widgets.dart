@@ -107,60 +107,100 @@ class _StatRule extends StatelessWidget {
       VerticalDivider(width: 1, thickness: 1, color: AppColors.border);
 }
 
-/// Preview, and open-in-Maps: real wants, neither of them this screen's job.
-///
-/// Both used to be full-width buttons in the app's secondary green, one of
-/// them sitting above "start driving" — which is how a rehearsal of the trip
-/// came to be the thing drivers tapped. Half width, side by side, and grey
-/// enough that the only filled control in the sheet is the one that starts
-/// the trip.
-class _SecondaryAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
+/// Full-width labels distinguish the in-app preview from the external map.
+/// Start driving remains the filled primary action pinned below the sheet.
+class _RouteActions extends StatelessWidget {
+  final VoidCallback onPreview;
+  final VoidCallback? onOpenGoogleMaps;
 
-  const _SecondaryAction({required this.icon, required this.label, this.onTap});
+  const _RouteActions({required this.onPreview, this.onOpenGoogleMaps});
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surfaceAlt,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap == null
-            ? null
-            : () {
-                HapticFeedback.selectionClick();
-                onTap!();
-              },
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.divider),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: BorderSide(color: AppColors.border),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      children: [
+        _RouteActionRow(
+          icon: Iconsax.play_circle,
+          label: AppStrings.previewRoute,
+          trailing: Icons.chevron_right_rounded,
+          highlighted: true,
+          onTap: onPreview,
+        ),
+        Divider(height: 1, thickness: 1, color: AppColors.border),
+        _RouteActionRow(
+          icon: Iconsax.map_1,
+          label: AppStrings.openInGoogleMaps,
+          trailing: Icons.open_in_new_rounded,
+          onTap: onOpenGoogleMaps,
+        ),
+      ],
+    ),
+  );
+}
+
+class _RouteActionRow extends StatelessWidget {
+  final IconData icon;
+  final IconData trailing;
+  final String label;
+  final VoidCallback? onTap;
+  final bool highlighted;
+
+  const _RouteActionRow({
+    required this.icon,
+    required this.trailing,
+    required this.label,
+    this.onTap,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Ink(
+    color: highlighted ? AppColors.surfaceAlt : AppColors.surface,
+    child: InkWell(
+      onTap: onTap == null
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              onTap!();
+            },
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: highlighted ? 56 : 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Flexible(
+              Icon(
+                icon,
+                size: highlighted ? 24 : 22,
+                color: highlighted
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Text(
                   label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.titleSm,
+                  style: highlighted
+                      ? AppTextStyles.titleSm
+                      : AppTextStyles.bodyMd.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                 ),
               ),
+              const SizedBox(width: 10),
+              Icon(trailing, size: 18, color: AppColors.textSecondary),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

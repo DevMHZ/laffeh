@@ -30,10 +30,31 @@ The automated drag tool entered exploration and showed Re-center in preview but 
 - `flutter analyze --no-pub`: only the same five existing findings (one unused optional parameter and four dangling test documentation comments). No new findings.
 - Store version remains `1.0.4+5`.
 
-## Preview controls follow-up
+## Preview controls follow-up (superseded camera scheduling below)
 
 The 2D/3D button's camera change was overwritten by the next playback tick. Preview now retains the selected tilt until the camera mode changes. Camera updates also run one animation at a time, coalesce to the latest target, and discard queued targets on a mode change, map touch or exit. Exiting immediately cancels the follow camera, while stale style/symbol updates are ignored after the mode changes.
 
 Exit, camera-mode selection and play/pause now keep stable control subtrees during progress updates. Exit has a 48-point target; play/pause has an accessibility label. The changed preview visual reference was inspected and refreshed.
 
 Verification: **502 tests passed**, including three new tests on the real planner widget with a recorded native camera. They cover tilt persistence, one Exit tap while an animation is held open, and repeated mode taps with playback updates between pointer-down and pointer-up. Full static analysis has only the same five existing findings. The rebuilt iPhone simulator was checked through 2D/3D changes, replay, and one-tap exits from Overview and Cinematic playback; no new map/camera runtime errors were logged.
+
+
+## Preview smoothness and route actions follow-up
+
+The serialized camera animations above introduced a regression: Follow and Cinematic waited for each 100 ms ease-in/out animation to complete before taking the newest target. The repeated acceleration and stopping was visible while following, and stopped when a pan paused the follow camera.
+
+Preview now retargets MapLibre's native `easeCamera` at playback cadence using linear interpolation and the existing 140 ms tracking duration. Animation completion performs no further camera work, so there is no queue to replay after a pan or exit. Mode guards, persistent 2D/3D choice, immediate exit cancellation, and the shared geographic vehicle/route source remain intact. Driving camera behavior is unchanged.
+
+The route sheet now groups two full-width rows: **Preview route** with a play icon, then **Open in Google Maps** with a map and external-link icon. The latter describes opening the external app, not a Google-powered preview inside Laffah. Full labels can wrap instead of being truncated in half-width buttons. English, Arabic and French preview wording is updated. Start driving remains the filled, pinned action.
+
+Preview remains tap-to-start. A cancellable five-second countdown is a reasonable optional behavior, but was not enabled by default: it would interrupt route review with unexpected map movement. The user was offered that preference while the fix was in progress.
+
+![Updated route actions on the iPhone simulator](preview-refresh-1.0.5/route-actions.png)
+
+Verification:
+
+- **503 tests passed** in the complete suite. Both Follow and Cinematic are tested with an unresolved native animation: fresh, distinct targets continue to arrive using linear interpolation, and completing the old animation after Exit cannot restore following. Existing tilt persistence, mode controls and geographic route join checks pass.
+- Static analysis reports only the same five existing findings; no new findings.
+- Four affected route-sheet golden images were rendered and visually reviewed, including Arabic RTL.
+- The rebuilt iPhone 17 / iOS 26.5 simulator exercised Follow, Cinematic, flatten and exit. A local recording is available in `.codex-ui-screenshots/preview-smooth-playback.mp4`. No camera or map runtime errors appeared in its log. Simulator checks do not establish physical-device frame pacing; Android and real-road driving were not tested in this follow-up.
+- Store version remains `1.0.4+5`.

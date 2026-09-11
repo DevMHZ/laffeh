@@ -277,26 +277,6 @@ class RouteMapViewState extends State<RouteMapView>
   OptimizedRoute? _simRoute;
   SimulationCameraMode _simMode = SimulationCameraMode.follow;
   double? _previewTiltOverride;
-  int _previewCameraGeneration = 0;
-  late final _previewCameraWriter =
-      LatestFrameWriter<({int generation, CameraPosition position})>((
-        frame,
-      ) async {
-        if (_disposed ||
-            frame.generation != _previewCameraGeneration ||
-            !_simRunning ||
-            _navExploring.value) {
-          return;
-        }
-        // One animation at a time. A tick replaces only the pending target;
-        // it cannot start another native animation over a user's tap.
-        await _controller
-            ?.animateCamera(
-              CameraUpdate.newCameraPosition(frame.position),
-              duration: const Duration(milliseconds: 100),
-            )
-            .timeout(const Duration(milliseconds: 500));
-      }, onError: (error, _) => DebugLog.cam('preview camera: $error'));
   double _dpr = 1;
   Duration _lastSimTick = Duration.zero;
   RoutePlannerState? _motionState;
@@ -431,7 +411,6 @@ class RouteMapViewState extends State<RouteMapView>
       ?..stop()
       ..dispose();
     _motionWriter.dispose();
-    _previewCameraWriter.dispose();
     _exploreResumeTimer?.cancel();
     _navExploring.dispose();
     _controller?.onSymbolTapped.remove(_onSymbolTapped);
@@ -1410,8 +1389,6 @@ class RouteMapViewState extends State<RouteMapView>
     if (previous?.simulationActive != state.simulationActive ||
         previous?.simulationCameraMode != state.simulationCameraMode ||
         !identical(previous?.optimizedRoute, state.optimizedRoute)) {
-      _previewCameraGeneration++;
-      _previewCameraWriter.discardPending();
       _previewTiltOverride = null;
       if (previous?.simulationActive == true && !state.simulationActive) {
         // Cancel an in-flight follow animation immediately, even if the
@@ -1813,17 +1790,23 @@ class RouteMapViewState extends State<RouteMapView>
     if (firstFrame) {
       await _moveCamera(update);
     } else {
-      _previewCameraWriter.submit((
-        generation: _previewCameraGeneration,
-        position: CameraPosition(
-          target: _ml(sample.point),
-          zoom: zoom,
-          bearing: headingUp ? travel : 0.0,
-          tilt:
-              _previewTiltOverride ??
-              (headingUp ? SimulationConfig.chaseTilt : 0.0),
-        ),
-      ));
+      // Retarget the native animation at playback cadence. Waiting for its
+      // completion creates a stop/start cycle, especially in tilted views.
+      // Completion has no follow-up work, so an old animation cannot enqueue
+      // a stale target after the user pans, changes mode or exits preview.
+      unawaited(_easePreviewCamera(update));
+    }
+  }
+
+  Future<void> _easePreviewCamera(CameraUpdate update) async {
+    try {
+      await _controller?.easeCamera(
+        update,
+        duration: MapConfig.followCamDuration,
+        interpolation: CameraAnimationInterpolation.linear,
+      );
+    } catch (error) {
+      DebugLog.cam('preview camera: $error');
     }
   }
 
@@ -2038,8 +2021,6 @@ class RouteMapViewState extends State<RouteMapView>
       return;
     }
     _mapPointers.add(pointer);
-    _previewCameraGeneration++;
-    _previewCameraWriter.discardPending();
     _exploreResumeTimer?.cancel();
     _navExploring.value = true;
   }
@@ -2127,8 +2108,6 @@ class RouteMapViewState extends State<RouteMapView>
       // Store the intent before animating. Every following playback tick
       // honors it, including a second tap before the first animation ends.
       _previewTiltOverride = target;
-      _previewCameraGeneration++;
-      _previewCameraWriter.discardPending();
     }
     await _animateCamera(CameraUpdate.tiltTo(target));
   }
@@ -2143,8 +2122,6 @@ class RouteMapViewState extends State<RouteMapView>
     _northLock = true;
     if (state.simulationActive) {
       _previewTiltOverride = 0;
-      _previewCameraGeneration++;
-      _previewCameraWriter.discardPending();
     }
     unawaited(_flattenView());
   }

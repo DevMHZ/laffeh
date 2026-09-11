@@ -91,28 +91,9 @@ class RouteSummarySheet extends StatelessWidget {
               _TripStrip(route: route, stops: order.length),
               const SizedBox(height: 10),
 
-              // ── The two things that are not driving ────────────────
-              //    Half width, quiet, and below the numbers: rehearsing the
-              //    trip and handing it to another app are both real wants,
-              //    and neither is what this screen is for.
-              Row(
-                children: [
-                  Expanded(
-                    child: _SecondaryAction(
-                      icon: Iconsax.play_circle,
-                      label: AppStrings.previewRoute,
-                      onTap: cubit.startSimulation,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _SecondaryAction(
-                      icon: Iconsax.map_1,
-                      label: AppStrings.openWithMaps,
-                      onTap: onOpenGoogleMaps,
-                    ),
-                  ),
-                ],
+              _RouteActions(
+                onPreview: cubit.startSimulation,
+                onOpenGoogleMaps: onOpenGoogleMaps,
               ),
               const SizedBox(height: 18),
 
