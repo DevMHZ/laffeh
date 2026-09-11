@@ -171,7 +171,11 @@ class MapMarkerRenderer {
   static Future<Uint8List> vehicle() async {
     final kind = VehiclePrefs.current;
     final sprite = await VehicleSprites.of(kind);
-    return _toPng(44, 44, (c, sz) => _paintVehicle(c, sz, kind, sprite));
+    return _toPng(
+      VehicleMarkerConfig.previewSize,
+      VehicleMarkerConfig.previewSize,
+      (c, sz) => _paintVehicle(c, sz, kind, sprite),
+    );
   }
 
   /// Geo-anchored drive vehicle used while the user freely explores the map
@@ -206,7 +210,9 @@ class MapMarkerRenderer {
     final kind = VehiclePrefs.current;
     final sheet = await VehicleSprites.navOf(kind);
     final sprite = sheet == null ? await VehicleSprites.of(kind) : null;
-    final logical = halo ? VehicleMarkerConfig.navigationSize : 44.0;
+    final logical = halo
+        ? VehicleMarkerConfig.navigationSize
+        : VehicleMarkerConfig.previewSize;
     const os = VehicleMarkerConfig.iconOversample;
     return _toPng(
       logical * os,

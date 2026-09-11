@@ -2,6 +2,8 @@
 
 Built on `design/1.0.5-ux-refresh`, following the first design refresh (`329c78d`).
 
+A later [vehicle and route alignment fix](vehicle-motion-review-1.0.5.md) increases the vehicle again and replaces the screen-overlay approach described below.
+
 The driving view now gets closer and less tilted near stops, then gradually shows more road as speed rises. The vehicle is 72 logical pixels instead of 54, a 33% increase, in both the normal follow view and the native marker used while exploring the map.
 
 | Reviewed issue | Implemented change |

@@ -36,6 +36,7 @@ import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'map_action_button.dart';
 import '../utils/sim_visit_states.dart';
+import '../utils/route_motion_frame.dart';
 import 'sheet_extent.dart';
 import 'map_compass.dart';
 import 'map_geometry.dart';
@@ -136,22 +137,6 @@ class RouteMapViewState extends State<RouteMapView>
   /// device DPR + system-inset geometry.
   final ValueNotifier<Offset> aimOffset = ValueNotifier<Offset>(Offset.zero);
   bool _calibrating = false;
-
-  /// Logical screen position (from the map's top-left) where the live-drive
-  /// car should sit — the on-screen projection of the user's *real* location
-  /// under the tilted, look-ahead navigation camera. Null until the first
-  /// projection lands (build falls back to an approximate slot). Projecting
-  /// the actual location (rather than a hard-coded `Alignment`) keeps the car
-  /// glued to the road across DPR, tilt, and the Android native/Flutter
-  /// centre offset. See [_projectNavPuck].
-  final ValueNotifier<Offset?> _navPuckPos = ValueNotifier<Offset?>(null);
-
-  /// Road tangent (degrees) under the car during live drive, read over a
-  /// short chord so polyline vertex kinks don't twitch it. The camera's
-  /// bearing anticipates the road *ahead*, so mid-bend the car must rotate
-  /// by (tangent − live camera bearing) to stay lying along its own road
-  /// instead of appearing to drift sideways. Null outside navigation.
-  final ValueNotifier<double?> _navTangent = ValueNotifier<double?>(null);
 
   /// Plugin projection unit factor: physical px on Android, logical
   /// everywhere else. `toScreenLocation`/`toLatLng` results are divided by
@@ -280,39 +265,44 @@ class RouteMapViewState extends State<RouteMapView>
   // Image IDs already registered with the map style via controller.addImage.
   final Set<String> _registeredImages = {};
 
-  /// Smoothed direction of travel (degrees) for the playback vehicle, so
-  /// the chase camera and the car icon ease around corners instead of
-  /// snapping at every polyline vertex.
+  /// Smoothed direction of travel for the preview chase camera.
   double? _travelBearing;
 
-  /// Screen-centred preview car for follow/chase modes: holds its rotation
-  /// in degrees, or null when hidden (overview uses a native symbol). A
-  /// screen-fixed widget can't desync from the moving camera, so it never
-  /// lags or jitters.
-  final ValueNotifier<double?> _puck = ValueNotifier<double?>(null);
-
-  // ── Vehicle render loop (vsync) ─────────────────────────────────────────────
-  // The cubit advances logical progress on a 33 ms Timer (good enough for
-  // the trail/markers), but a Timer isn't frame-aligned, so driving the
-  // car straight off it looks jittery. Instead a vsync Ticker eases the
-  // *rendered* car position toward the latest progress every display
-  // frame — buttery motion regardless of the timer's cadence.
+  // Both preview and drive render a geographic vehicle and the joining
+  // route lines in one native GeoJSON source, never a screen-fixed overlay.
   Ticker? _vehicleTicker;
   bool _simRunning = false;
-  double _renderProgress = 0.0;
-  double _targetProgress = 0.0;
+  double _renderProgress = 0;
+  double _targetProgress = 0;
   OptimizedRoute? _simRoute;
   SimulationCameraMode _simMode = SimulationCameraMode.follow;
-  double _dpr = 1.0;
-  bool _vehicleReady = false;
-  // Guards [_ensureVehicleSymbol] against re-entrancy: it's called on every
-  // overview frame and has an `await` gap, so without this two calls could
-  // both add a symbol and the second would overwrite `_symbols['vehicle']`,
-  // orphaning the first car forever (it accumulates across previews).
-  bool _creatingVehicle = false;
-  double? _lastVehLat;
-  double? _lastVehLon;
-  double? _lastVehRot;
+  double _dpr = 1;
+  Duration _lastSimTick = Duration.zero;
+  RoutePlannerState? _motionState;
+  bool _motionVisible = false;
+  String? _motionImage;
+  double _motionImageScale = 1;
+  bool _loadingMotionImage = false;
+  String? _motionImageKind;
+  int? _motionHeadingFrame;
+  DateTime _lastMotionFrameAt = DateTime.fromMillisecondsSinceEpoch(0);
+  double? _lastMotionProgress;
+  double? _lastMotionBearing;
+  OptimizedRoute? _lastMotionRoute;
+  int? _lastMotionStop;
+  ll.LatLng? _lastMotionAnchor;
+  String? _lastMotionImage;
+  final _mapPointers = <int>{};
+  late final _motionWriter = LatestFrameWriter<Map<String, dynamic>>(
+    (frame) async {
+      if (_disposed || !_styleLoaded) return;
+      await _controller?.setGeoJsonSource(_srcTrail, frame);
+    },
+    onError: (error, _) {
+      _lastMotionProgress = null;
+      DebugLog.map('motion frame failed: $error');
+    },
+  );
 
   // ── Pseudo-3D vehicle frames ────────────────────────────────────────────────
   // The decoded nav sheet for the picked vehicle (48 headings × 4 phases,
@@ -321,29 +311,13 @@ class RouteMapViewState extends State<RouteMapView>
   // residual, so the car shows real 3D perspective while turning stays
   // smooth. Null while decoding — and permanently for painter-drawn kinds
   // (arrow) or a missing bake — which keeps the legacy flat-sprite path.
-  // The Flutter pucks load the sheet themselves via `VehicleNavFrame`.
+  // Native heading frames share this decoded sheet.
   ui.Image? _navSheet;
   VehicleKind? _navSheetKind;
   bool _navSheetLoading = false;
 
-  /// Wheel/leg animation phase for the Flutter pucks (sim follow/chase
-  /// and drive follow are mutually exclusive). Advances on a wall-clock
-  /// cadence while the vehicle moves and freezes when it stops — see
-  /// [_tickVehiclePhase]. The native symbols hold phase 0: swapping their
-  /// iconImage per phase re-layouts the symbol every swap, which reads as
-  /// a pulse against the otherwise-smooth glide.
-  final ValueNotifier<int> _vehiclePhase = ValueNotifier(0);
-  DateTime? _phaseClockAt;
-  double _phaseClockMs = 0;
-
-  // The heading frame each native symbol currently shows, plus a swap
-  // throttle so a fast bend can't churn the symbol layer every frame.
-  int? _vehFrameH; // overview sim symbol
-  int? _exploreFrameH; // drive explore symbol
-  DateTime _lastVehFrameSwap = DateTime.fromMillisecondsSinceEpoch(0);
-  DateTime _lastExploreFrameSwap = DateTime.fromMillisecondsSinceEpoch(0);
-  // Frame images currently rendering/registering (fire-and-forget); the
-  // symbol keeps its current frame until the wanted one lands.
+  // Frames are cached by vehicle, heading and size. Native symbols hold
+  // phase zero; changing the bitmap per wheel phase causes symbol pulsing.
   final Set<String> _pendingFrameImages = {};
   // ── Overview (panoramic) framing ────────────────────────────────────────────
   // The camera/zoom we framed the whole route at. If the user pinch-zooms
@@ -375,21 +349,12 @@ class RouteMapViewState extends State<RouteMapView>
   /// every later update glides via animateCamera.
   bool _navCamSnapped = false;
 
-  /// The vehicle's on-route anchor for the current drive frame — what the
-  /// nav puck is projected from (also while the user explores the map).
-  ll.LatLng? _navAnchor;
-
   /// True while the driver is freely panning/zooming the map mid-drive:
   /// the follow camera pauses (navigation itself continues) and a
   /// "Re-center" pill is shown. Auto-resumes after
   /// [NavigationConfig.exploreResumeDelay] without touches.
   final ValueNotifier<bool> _navExploring = ValueNotifier(false);
   Timer? _exploreResumeTimer;
-
-  // Throttle state for the nav-puck screen projection (one light platform
-  // round-trip at most every ~80 ms, incl. while the camera animates).
-  bool _puckProjecting = false;
-  DateTime _lastPuckProjection = DateTime.fromMillisecondsSinceEpoch(0);
 
   // ── Nav vehicle render loop (vsync) ─────────────────────────────────────────
   // GPS fixes land ~once a second; drawing the car straight off them makes
@@ -405,24 +370,6 @@ class RouteMapViewState extends State<RouteMapView>
   double _navProgressRatePerSec = 0.0;
   OptimizedRoute? _navRoute;
   double _navRouteTotalKm = 0.0;
-  // Last projection inputs, so a parked car under an idle camera costs
-  // zero platform traffic.
-  ll.LatLng? _lastProjAnchor;
-  CameraPosition? _lastProjCamera;
-
-  // ── Explore-mode native vehicle ─────────────────────────────────────────────
-  // While the user pans/zooms mid-drive the Flutter puck (an async screen
-  // projection) inevitably lags the natively-rendered tiles and looks
-  // dragged by the camera. So for the whole explore session — and the
-  // glide back to follow — the car is a geo-anchored native symbol
-  // instead: glued to the road by construction, moving only on GPS.
-  Symbol? _navExploreSymbol;
-  bool _creatingNavExploreSymbol = false;
-  final ValueNotifier<bool> _navPuckHidden = ValueNotifier(false);
-  Timer? _followSwapTimer;
-  ll.LatLng? _navExplorePosApplied;
-  double? _navExploreRotApplied;
-  bool _navExploreUpdating = false;
 
   /// Whether the maneuver-highlight layer currently holds geometry, so
   /// non-drive modes can clear it exactly once instead of every frame.
@@ -462,11 +409,8 @@ class RouteMapViewState extends State<RouteMapView>
     _navTicker
       ?..stop()
       ..dispose();
-    _puck.dispose();
-    _vehiclePhase.dispose();
+    _motionWriter.dispose();
     _exploreResumeTimer?.cancel();
-    _followSwapTimer?.cancel();
-    _navPuckHidden.dispose();
     _navExploring.dispose();
     _controller?.onSymbolTapped.remove(_onSymbolTapped);
     _controller = null;
@@ -475,8 +419,6 @@ class RouteMapViewState extends State<RouteMapView>
     _tilt.dispose();
     _showRecenter.dispose();
     aimOffset.dispose();
-    _navPuckPos.dispose();
-    _navTangent.dispose();
     super.dispose();
   }
 
@@ -489,13 +431,16 @@ class RouteMapViewState extends State<RouteMapView>
   }
 
   Future<void> _onStyleLoaded() async {
-    _styleLoaded = true;
+    _styleLoaded = false;
     _dpr =
         WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     // DPR drives icon sizing + the historical drop-accuracy bug. It differs
     // between the Simulator and a physical phone, so log it explicitly.
     DebugLog.map('onStyleLoaded ✅ — devicePixelRatio=$_dpr');
     await _initPolylineLayers();
+    if (!mounted) return;
+    _styleLoaded = true;
+    _lastMotionProgress = null;
 
     // Allow symbols to overlap each other and map text so all markers show.
     await _controller?.setSymbolIconAllowOverlap(true);
@@ -520,10 +465,13 @@ class RouteMapViewState extends State<RouteMapView>
     // a point is accurate even if onCameraIdle is unreliable on a device.
     _mapCenter = ll.LatLng(position.target.latitude, position.target.longitude);
 
-    // Drive mode without the render ticker (no road geometry): keep the
-    // car pinned through camera animations the legacy way. With the ticker
-    // running, projection happens every display frame already.
-    if (_wasNavigationActive && !_navTickerActive) _maybeReprojectNavPuck();
+    // Rotation may change while paused. Reorient the native avatar at its
+    // existing route position; camera movement never changes its coordinates.
+    if (_motionState?.navigationActive == true) {
+      _publishMotionFrame(navigation: true);
+    } else if (_simRunning) {
+      _publishMotionFrame(navigation: false);
+    }
 
     // Toggle the "return to my location" control as the user pans away from
     // their current position. The threshold scales with zoom so it triggers
@@ -715,6 +663,21 @@ class RouteMapViewState extends State<RouteMapView>
     await c.addGeoJsonSource(_srcTrail, MapGeometry.emptyGeoJson);
     await c.addLineLayer(
       _srcTrail,
+      'lyr-motion-done',
+      LineLayerProperties(
+        lineColor: MapGeometry.hex(AppColors.driveDone),
+        lineWidth: MapConfig.driveDoneWidth,
+        lineCap: 'round',
+        lineJoin: 'round',
+      ),
+      filter: [
+        '==',
+        ['get', 'role'],
+        'done',
+      ],
+    );
+    await c.addLineLayer(
+      _srcTrail,
       _lyrTrail,
       const LineLayerProperties(
         lineColor: '#63B956',
@@ -722,6 +685,11 @@ class RouteMapViewState extends State<RouteMapView>
         lineCap: 'round',
         lineJoin: 'round',
       ),
+      filter: [
+        '==',
+        ['get', 'role'],
+        'trail',
+      ],
     );
 
     // Drive-mode turn guidance: a bright white segment drawn over the
@@ -737,6 +705,26 @@ class RouteMapViewState extends State<RouteMapView>
         lineCap: 'round',
         lineJoin: 'round',
       ),
+    );
+    await c.addSymbolLayer(
+      _srcTrail,
+      'lyr-motion-vehicle',
+      const SymbolLayerProperties(
+        iconImage: ['get', 'image'],
+        iconSize: ['get', 'scale'],
+        iconRotate: ['get', 'rotation'],
+        iconAnchor: 'center',
+        iconRotationAlignment: 'viewport',
+        iconPitchAlignment: 'viewport',
+        iconAllowOverlap: true,
+        iconIgnorePlacement: true,
+      ),
+      filter: [
+        '==',
+        ['get', 'role'],
+        'vehicle',
+      ],
+      enableInteraction: false,
     );
   }
 
@@ -756,7 +744,7 @@ class RouteMapViewState extends State<RouteMapView>
     if (route == null) {
       await c.setGeoJsonSource(_srcBg, MapGeometry.emptyGeoJson);
       await c.setGeoJsonSource(_srcFg, MapGeometry.emptyGeoJson);
-      await c.setGeoJsonSource(_srcTrail, MapGeometry.emptyGeoJson);
+      _clearMotionFrame();
       await _clearManeuverHighlight();
       _lineStyleKey = 'empty';
       return;
@@ -782,23 +770,19 @@ class RouteMapViewState extends State<RouteMapView>
         p,
       );
 
-      // bg = already driven, fg = remaining after the next stop,
-      // trail (drawn on top) = the current leg the driver is on.
-      await c.setGeoJsonSource(
-        _srcBg,
-        MapGeometry.lineGeoJson(MapGeometry.subPath(full, 0, p)),
-      );
+      if (restyle) await c.setGeoJsonSource(_srcBg, MapGeometry.emptyGeoJson);
       await c.setGeoJsonSource(
         _srcFg,
         MapGeometry.lineGeoJson(MapGeometry.subPath(full, nextFrac, 1.0)),
       );
-      await c.setGeoJsonSource(
-        _srcTrail,
-        MapGeometry.lineGeoJson(MapGeometry.subPath(full, p, nextFrac)),
-      );
+      _publishMotionFrame(navigation: true);
       await _syncManeuverHighlight(state, full, p);
       if (restyle) {
-        await _setLine(_lyrBg, AppColors.driveDone, MapConfig.driveDoneWidth);
+        await _setLine(
+          'lyr-motion-done',
+          AppColors.driveDone,
+          MapConfig.driveDoneWidth,
+        );
         await _setLine(_lyrFg, AppColors.driveAhead, MapConfig.driveAheadWidth);
         await _setLine(
           _lyrTrail,
@@ -814,14 +798,7 @@ class RouteMapViewState extends State<RouteMapView>
 
     // ── Trip preview / simulation ──
     if (state.simulationActive) {
-      final t = state.simulationProgress;
-      // Only the growing trail changes each frame; the faint full-route
-      // ghost underneath is set once on entry. Keeping per-tick work to a
-      // single source update is what keeps follow-mode playback smooth.
-      await c.setGeoJsonSource(
-        _srcTrail,
-        MapGeometry.lineGeoJson(MapGeometry.trailUpTo(full, t)),
-      );
+      _publishMotionFrame(navigation: false);
       if (restyle) {
         await c.setGeoJsonSource(_srcBg, MapGeometry.lineGeoJson(full));
         await c.setGeoJsonSource(_srcFg, MapGeometry.emptyGeoJson);
@@ -848,7 +825,7 @@ class RouteMapViewState extends State<RouteMapView>
     };
     await c.setGeoJsonSource(_srcBg, MapGeometry.lineGeoJson(full));
     await c.setGeoJsonSource(_srcFg, MapGeometry.lineGeoJson(highlighted));
-    await c.setGeoJsonSource(_srcTrail, MapGeometry.emptyGeoJson);
+    _clearMotionFrame();
     if (restyle) {
       // styleKey encodes the chosen segment, so this re-applies whenever
       // the user toggles go / return / full.
@@ -953,18 +930,14 @@ class RouteMapViewState extends State<RouteMapView>
       // Remove symbols that are no longer in the desired set. The vehicle
       // is owned by the vsync ticker, so never reconcile it here.
       for (final key in _symbols.keys.toList()) {
-        if (key == 'vehicle') continue;
         if (!specKeys.contains(key)) {
           await c.removeSymbol(_symbols.remove(key)!);
           _appliedSpecs.remove(key);
         }
       }
 
-      // Add or update only what actually changed. During playback this
-      // means just the moving vehicle (and a stop whenever its visit
-      // colour flips) — the static markers are left untouched, so the
-      // vehicle's updateSymbol isn't queued behind a dozen redundant
-      // ones each frame. That's what keeps its motion smooth.
+      // Only update changed stop badges. Vehicle motion uses its own
+      // coalesced source and never queues behind these static symbols.
       for (final spec in specs) {
         final existing = _symbols[spec.key];
         if (existing != null) {
@@ -1150,10 +1123,6 @@ class RouteMapViewState extends State<RouteMapView>
       );
     }
 
-    // The playback vehicle isn't reconciled here: in overview it's an
-    // eased native symbol (_onOverviewTick); in follow/chase it's the
-    // screen-centred puck.
-
     return specs;
   }
 
@@ -1169,7 +1138,8 @@ class RouteMapViewState extends State<RouteMapView>
   /// Cache key for the registered vehicle image, namespaced by the user's
   /// picked [VehicleKind] so switching it re-registers a fresh icon instead
   /// of reusing whatever was cached under a shared id.
-  String get _vehicleImageId => 'img-vehicle-${VehiclePrefs.current.id}';
+  String get _vehicleImageId =>
+      'img-vehicle-${VehiclePrefs.current.id}-${VehicleMarkerConfig.previewSize}';
 
   Future<String> _ensureImage(
     String id,
@@ -1212,7 +1182,8 @@ class RouteMapViewState extends State<RouteMapView>
       _navSheetKind == VehiclePrefs.current ? _navSheet : null;
 
   String _navFrameId(int h, int p, {required bool halo}) =>
-      'img-nav3d${halo ? '-halo' : ''}-${VehiclePrefs.current.id}-$h-$p';
+      'img-nav3d${halo ? '-halo' : ''}-${VehiclePrefs.current.id}-'
+      '${halo ? VehicleMarkerConfig.navigationSize : VehicleMarkerConfig.previewSize}-$h-$p';
 
   /// The registered image id for frame ([h], [p]) — or null when it isn't
   /// registered yet, in which case rendering + registration is kicked off
@@ -1224,10 +1195,12 @@ class RouteMapViewState extends State<RouteMapView>
     if (!_pendingFrameImages.contains(id)) {
       _pendingFrameImages.add(id);
       unawaited(
-        _ensureImage(
-          id,
-          () => MapMarkerRenderer.navFrame(h, p, halo: halo),
-        ).whenComplete(() => _pendingFrameImages.remove(id)),
+        _ensureImage(id, () => MapMarkerRenderer.navFrame(h, p, halo: halo))
+            .catchError((Object error) {
+              DebugLog.cam('vehicle heading image: $error');
+              return id;
+            })
+            .whenComplete(() => _pendingFrameImages.remove(id)),
       );
     }
     return null;
@@ -1235,28 +1208,6 @@ class RouteMapViewState extends State<RouteMapView>
 
   /// Shortest-arc equivalent of [deg] in (−180, 180].
   double _wrap180(double deg) => ((deg + 540) % 360) - 180;
-
-  /// Advances the pucks' wheel/leg phase on a wall-clock cadence
-  /// ([VehicleMarkerConfig.phaseDurationMs] per frame) while [moving];
-  /// while stopped the clock freezes so the animation halts mid-stride.
-  /// Deliberately time-based, not distance-based: playback compresses the
-  /// trip so much that distance-driven phases cycled faster than the eye
-  /// can read — it looked like vibration, not rolling.
-  void _tickVehiclePhase({required bool moving}) {
-    final now = DateTime.now();
-    final last = _phaseClockAt;
-    _phaseClockAt = now;
-    if (!moving || last == null) return;
-    _phaseClockMs += now
-        .difference(last)
-        .inMilliseconds
-        .clamp(0, 100)
-        .toDouble();
-    final phase =
-        (_phaseClockMs / VehicleMarkerConfig.phaseDurationMs).floor() %
-        VehicleNavSheet.phases;
-    if (_vehiclePhase.value != phase) _vehiclePhase.value = phase;
-  }
 
   // ── Symbol event handlers ───────────────────────────────────────────────────
 
@@ -1442,229 +1393,152 @@ class RouteMapViewState extends State<RouteMapView>
 
   // ── Vehicle render loop ─────────────────────────────────────────────────────
 
-  /// Starts/stops the vsync vehicle ticker as simulation begins/ends and
-  /// feeds it the latest target progress.
-  ///
-  /// Vehicle rendering differs by mode:
-  ///   * overview — a geo-anchored native symbol glides across the static
-  ///     map (managed here + the ticker).
-  ///   * follow / chase — the car is a screen-centred Flutter widget
-  ///     (`_puck`) while the camera glides under it. No native symbol, so
-  ///     there's zero camera↔icon desync — the icon never lags.
   void _handleSimVehicle(RoutePlannerState state) {
-    _simRoute = state.optimizedRoute;
-    final mode = state.simulationCameraMode;
-
-    final shouldRun = state.simulationActive && state.optimizedRoute != null;
+    _motionState = state;
+    final route = state.optimizedRoute;
+    final shouldRun = state.simulationActive && route != null;
     if (shouldRun) {
-      _ensureNavSheet();
+      final changedRoute = !identical(_simRoute, route);
+      _simRoute = route;
       _targetProgress = state.simulationProgress;
-      if (!_simRunning) {
-        _simRunning = true;
+      if (!_simRunning ||
+          changedRoute ||
+          state.simulationProgress < _renderProgress) {
         _renderProgress = state.simulationProgress;
         _travelBearing = null;
-        _lastVehLat = _lastVehLon = _lastVehRot = null;
       }
-      // Overview = a geo-anchored symbol eased by the vsync ticker on a
-      // static map. Follow/chase = a screen-centred puck + an
-      // animateCamera follow (driven from _syncSimulationCamera); no
-      // ticker, no 60 fps moveCamera — kind to real devices.
-      if (mode == SimulationCameraMode.overview) {
-        _puck.value = null;
-        unawaited(_ensureVehicleSymbol());
-        // _handleSimVehicle runs on every state emit (~30×/s during
-        // playback); only start the ticker when it isn't already running,
-        // otherwise Ticker.start() throws "a ticker was started twice".
-        final ticker = _vehicleTicker ??= createTicker(_onOverviewTick);
-        if (!ticker.isActive) ticker.start();
-      } else {
-        _vehicleTicker?.stop();
-        unawaited(_removeVehicleSymbol());
+      _simRunning = true;
+      _simMode = state.simulationCameraMode;
+      final ticker = _vehicleTicker ??= createTicker(_onPreviewTick);
+      if (!ticker.isActive) {
+        _lastSimTick = Duration.zero;
+        ticker.start();
       }
-    } else if (_simRunning) {
+    } else {
       _simRunning = false;
       _vehicleTicker?.stop();
-      _renderProgress = 0;
-      _travelBearing = null;
-      _lastVehLat = _lastVehLon = _lastVehRot = null;
-      _puck.value = null;
-      unawaited(_removeVehicleSymbol());
+      _simRoute = null;
     }
-    _simMode = mode;
+    if (!state.navigationActive && !shouldRun) _clearMotionFrame();
   }
 
-  Future<void> _ensureVehicleSymbol() async {
-    final c = _controller;
-    final route = _simRoute;
-    if (c == null || route == null || !_styleLoaded) return;
-    // Only ever create one vehicle at a time. The re-entrancy guard is what
-    // prevents duplicate/orphaned cars (see [_creatingVehicle]).
-    if (_vehicleReady || _creatingVehicle) return;
-    _creatingVehicle = true;
-    try {
-      // Decode the nav sheet up front (instant from cache after the first
-      // sim) so the symbol is born as a pseudo-3D frame instead of
-      // flashing flat and upgrading a tick later.
-      _navSheet = await VehicleSprites.navOf(VehiclePrefs.current);
-      _navSheetKind = VehiclePrefs.current;
-
-      final sample = PolylineUtils.sampleAt(
-        route.fullPolyline,
-        _renderProgress,
-      );
-      final bearing = sample?.bearing ?? 0.0; // overview camera is north-up
-
-      final String imgId;
-      final double iconRotate;
-      final double iconSize;
-      if (_currentNavSheet != null) {
-        final h = VehicleNavSheet.headingIndex(bearing);
-        imgId = await _ensureImage(
-          _navFrameId(h, 0, halo: false),
-          () => MapMarkerRenderer.navFrame(h, 0, halo: false),
-        );
-        iconRotate = VehicleNavSheet.residualDeg(bearing);
-        iconSize = _dpr / VehicleMarkerConfig.iconOversample;
-        _vehFrameH = h;
-      } else {
-        imgId = await _ensureImage(_vehicleImageId, MapMarkerRenderer.vehicle);
-        iconRotate = bearing;
-        iconSize = _dpr / VehicleMarkerConfig.badgeIconDivisor;
-      }
-      // Bailed, already created, or the user left overview while we were
-      // awaiting — don't strand a native car in follow/chase.
-      if (!_simRunning ||
-          _vehicleReady ||
-          _simMode != SimulationCameraMode.overview) {
-        return;
-      }
-      // Defensive: if a previous symbol somehow lingers, drop it before adding
-      // so we never leave two on the map.
-      final stale = _symbols.remove('vehicle');
-      if (stale != null) {
-        try {
-          await c.removeSymbol(stale);
-        } catch (_) {}
-      }
-      final pos = sample?.point ?? route.fullPolyline.first;
-      final sym = await c.addSymbol(
-        SymbolOptions(
-          geometry: LatLng(pos.latitude, pos.longitude),
-          iconImage: imgId,
-          iconSize: iconSize,
-          iconAnchor: 'center',
-          iconRotate: iconRotate,
-        ),
-      );
-      // Playback may have stopped during the addSymbol await — if so, the
-      // removal in [_removeVehicleSymbol] already ran (and missed, since the
-      // symbol didn't exist yet), so tidy up here instead of leaving a car
-      // parked on a stopped sim.
-      if (!_simRunning || _simMode != SimulationCameraMode.overview) {
-        try {
-          await c.removeSymbol(sym);
-        } catch (_) {}
-        return;
-      }
-      _symbols['vehicle'] = sym;
-      _vehicleReady = true;
-    } finally {
-      _creatingVehicle = false;
-    }
+  void _onPreviewTick(Duration elapsed) {
+    if (!_simRunning || _simRoute == null || !_styleLoaded) return;
+    if (elapsed - _lastSimTick < SimulationConfig.tickInterval) return;
+    _lastSimTick = elapsed;
+    // The logical clock is already sampled at 30 Hz. A second easing clock
+    // used to leave the car behind the growing line, especially at 8×.
+    _renderProgress = _targetProgress;
+    _publishMotionFrame(navigation: false);
   }
 
-  Future<void> _removeVehicleSymbol() async {
-    final sym = _symbols.remove('vehicle');
-    _appliedSpecs.remove('vehicle');
-    _vehicleReady = false;
-    _vehFrameH = null;
-    final c = _controller;
-    if (c != null && sym != null) {
+  void _clearMotionFrame() {
+    if (!_motionVisible) return;
+    _motionVisible = false;
+    _lastMotionProgress = null;
+    _motionWriter.submit(MapGeometry.emptyGeoJson);
+  }
+
+  /// Preload a visible fallback, then use baked heading frames when ready.
+  /// The key includes dimensions so a hot-reloaded size cannot reuse old art.
+  void _prepareMotionImage(bool navigation) {
+    final key =
+        '${VehiclePrefs.current.id}-$navigation-'
+        '${navigation ? VehicleMarkerConfig.navigationSize : VehicleMarkerConfig.previewSize}';
+    if (_motionImageKind == key || _loadingMotionImage) return;
+    _loadingMotionImage = true;
+    _ensureNavSheet();
+    unawaited(() async {
       try {
-        await c.removeSymbol(sym);
-      } catch (_) {}
-    }
+        final id = navigation ? _navVehicleImageId : _vehicleImageId;
+        await _ensureImage(
+          id,
+          navigation ? MapMarkerRenderer.navVehicle : MapMarkerRenderer.vehicle,
+        );
+        if (!mounted) return;
+        _motionImageKind = key;
+        _motionImage = id;
+        _motionImageScale = _dpr / VehicleMarkerConfig.badgeIconDivisor;
+        _motionHeadingFrame = null;
+        _lastMotionProgress = null;
+      } catch (error) {
+        DebugLog.cam('vehicle image: $error');
+      } finally {
+        _loadingMotionImage = false;
+      }
+    }());
   }
 
-  /// Overview only: eases the geo-anchored vehicle symbol across the
-  /// static map at the display's refresh rate for buttery motion. One
-  /// light `updateSymbol` per frame — fire-and-forget. Follow/chase don't
-  /// use this (their car is a screen-centred widget).
-  void _onOverviewTick(Duration _) {
-    final c = _controller;
-    final route = _simRoute;
-    final sym = _symbols['vehicle'];
-    if (c == null || route == null || sym == null || !_styleLoaded) return;
-
-    final diff = _targetProgress - _renderProgress;
-    if (diff.abs() < SimulationConfig.overviewSettleThreshold) {
-      _renderProgress = _targetProgress;
-    } else {
-      _renderProgress += diff * SimulationConfig.overviewEaseFactor;
-    }
-
-    final sample = PolylineUtils.sampleAt(route.fullPolyline, _renderProgress);
-    if (sample == null) return;
-
-    _travelBearing = _blendAngle(_travelBearing, sample.bearing);
-    final iconRot =
-        _travelBearing ?? sample.bearing; // north-up: car faces travel
-    final lat = sample.point.latitude;
-    final lon = sample.point.longitude;
-
-    if (_lastVehLat == lat &&
-        _lastVehLon == lon &&
-        _lastVehRot != null &&
-        (_lastVehRot! - iconRot).abs() < 0.4) {
-      return; // settled (paused) — nothing to push
-    }
-    _lastVehLat = lat;
-    _lastVehLon = lon;
-    _lastVehRot = iconRot;
-
-    // Pseudo-3D path: swap to the baked frame nearest the travel bearing
-    // and rotate only the residual. Heading swaps only happen in turns,
-    // are throttled, and only ever land on already-registered images —
-    // going straight the image never changes, so the glide stays
-    // perfectly smooth (phase stays 0 here; see [_vehiclePhase]).
-    var h = _vehFrameH;
+  void _publishMotionFrame({required bool navigation}) {
+    final state = _motionState;
+    if (!_styleLoaded || state == null || _disposed) return;
+    if (navigation ? !state.navigationActive : !_simRunning) return;
+    final route = navigation ? _navRoute ?? state.optimizedRoute : _simRoute;
+    final path = route?.fullPolyline ?? const <ll.LatLng>[];
+    final progress = navigation ? _navRenderProgress : _renderProgress;
+    _prepareMotionImage(navigation);
+    final expectedKey =
+        '${VehiclePrefs.current.id}-$navigation-'
+        '${navigation ? VehicleMarkerConfig.navigationSize : VehicleMarkerConfig.previewSize}';
+    if (_motionImage == null || _motionImageKind != expectedKey) return;
+    final now = DateTime.now();
+    if (now.difference(_lastMotionFrameAt).inMilliseconds < 33) return;
+    final sample = PolylineUtils.sampleAt(path, progress);
+    final anchor = sample?.point ?? (navigation ? state.userLocation : null);
+    if (anchor == null) return;
+    final tangent = sample?.bearing ?? state.navigationHeading ?? 0;
+    // Relative to the actual native camera, not its future animated target.
+    final rotation = _wrap180(tangent - _bearing.value);
+    var image = _motionImage!;
+    var scale = _motionImageScale;
+    var iconRotation = rotation;
     if (_currentNavSheet != null) {
-      final wantH = VehicleNavSheet.headingIndex(iconRot);
-      final now = DateTime.now();
-      if (wantH != h &&
-          now.difference(_lastVehFrameSwap).inMilliseconds >=
-              VehicleMarkerConfig.minFrameSwapMs) {
-        if (_readyNavFrameId(wantH, 0, halo: false) != null) {
-          h = wantH;
-          _lastVehFrameSwap = now;
-        }
+      final desired = VehicleNavSheet.headingIndex(rotation);
+      if (_readyNavFrameId(desired, 0, halo: navigation) != null) {
+        _motionHeadingFrame = desired;
       }
-    } else {
-      h = null; // sheet-less kind (arrow) — legacy flat path
+      final frame = _motionHeadingFrame;
+      if (frame != null) {
+        image = _navFrameId(frame, 0, halo: navigation);
+        scale = _dpr / VehicleMarkerConfig.iconOversample;
+        iconRotation = _wrap180(
+          rotation - frame * VehicleMarkerConfig.headingStepDeg,
+        );
+      }
     }
-    _vehFrameH = h;
-
-    if (h == null) {
-      c.updateSymbol(
-        sym,
-        SymbolOptions(
-          geometry: LatLng(lat, lon),
-          iconImage: _vehicleImageId,
-          iconSize: _dpr / VehicleMarkerConfig.badgeIconDivisor,
-          iconAnchor: 'center',
-          iconRotate: iconRot,
-        ),
-      );
+    final stop = navigation ? state.navigationStopIndex : null;
+    if (_motionVisible &&
+        identical(route, _lastMotionRoute) &&
+        progress == _lastMotionProgress &&
+        rotation == _lastMotionBearing &&
+        stop == _lastMotionStop &&
+        image == _lastMotionImage &&
+        anchor == _lastMotionAnchor) {
       return;
     }
-    c.updateSymbol(
-      sym,
-      SymbolOptions(
-        geometry: LatLng(lat, lon),
-        iconImage: _navFrameId(h, 0, halo: false),
-        iconSize: _dpr / VehicleMarkerConfig.iconOversample,
-        iconAnchor: 'center',
-        iconRotate: _wrap180(iconRot - h * VehicleMarkerConfig.headingStepDeg),
+    _lastMotionFrameAt = now;
+    _lastMotionProgress = progress;
+    _lastMotionBearing = rotation;
+    _lastMotionStop = stop;
+    _lastMotionRoute = route;
+    _lastMotionImage = image;
+    _lastMotionAnchor = anchor;
+    _motionVisible = true;
+    _motionWriter.submit(
+      RouteMotionFrame.build(
+        path: path,
+        progress: progress,
+        image: image,
+        imageScale: scale,
+        rotation: iconRotation,
+        fallbackPosition: anchor,
+        nextStop: navigation && route != null
+            ? MapGeometry.nextStopFraction(
+                route,
+                state.navigationStopIndex,
+                progress,
+              )
+            : null,
       ),
     );
   }
@@ -1737,13 +1611,9 @@ class RouteMapViewState extends State<RouteMapView>
         _navBearing = null;
         _drivingCamera.reset();
         _navCamSnapped = false;
-        _navAnchor = null;
         _navRoute = null;
         _navRenderProgress = state.navigationProgress;
-        _lastProjAnchor = null;
-        _lastProjCamera = null;
         _stopExploring(resumeCamera: false);
-        _restoreFollowPuck();
       }
       _wasNavigationActive = true;
       await _syncNavigationCamera(state);
@@ -1762,17 +1632,12 @@ class RouteMapViewState extends State<RouteMapView>
       _navBearing = null;
       _drivingCamera.reset();
       _navCamSnapped = false;
-      _navAnchor = null;
-      _navPuckPos.value = null;
-      _navTangent.value = null;
       _stopExploring(resumeCamera: false);
       _stopNavTicker();
       _navRoute = null;
       _navRouteTotalKm = 0.0;
       _navRenderProgress = 0.0;
-      _lastProjAnchor = null;
-      _lastProjCamera = null;
-      _restoreFollowPuck();
+      _stopExploring(resumeCamera: false);
       await _moveCamera(CameraUpdate.tiltTo(0));
       await _moveCamera(CameraUpdate.bearingTo(0));
     }
@@ -1823,6 +1688,7 @@ class RouteMapViewState extends State<RouteMapView>
       _northLock = false;
       _overviewAdjusted = false;
       _lastSimCameraMode = mode;
+      _stopExploring(resumeCamera: false);
     }
 
     if (mode == SimulationCameraMode.overview) {
@@ -1850,27 +1716,20 @@ class RouteMapViewState extends State<RouteMapView>
       return;
     }
 
+    if (_navExploring.value) return;
+
     // ── Follow / chase ──
-    // The car is a screen-centred puck; here we just keep the camera on it.
+    // Follow the same geographic progress used by the native motion frame.
     // First frame snaps into place; after that we *animate* toward each
     // 30 fps target so the map glides via native interpolation — no 60 fps
     // moveCamera spam (which janks on real devices).
-    final sample = PolylineUtils.sampleAt(
-      route.fullPolyline,
-      state.simulationProgress,
-    );
+    final sample = PolylineUtils.sampleAt(route.fullPolyline, _renderProgress);
     if (sample == null) return;
 
     final isChase = mode == SimulationCameraMode.chase;
     final headingUp = isChase && !_northLock;
     _travelBearing = _blendAngle(_travelBearing, sample.bearing);
     final travel = _travelBearing ?? sample.bearing;
-
-    // Chase faces travel (car points up); follow is north-up (car rotates).
-    _puck.value = headingUp ? 0.0 : travel;
-    // Reached only while playback emits frames, so "moving" is implicit;
-    // paused playback stops the emits and the phase clock freezes.
-    _tickVehiclePhase(moving: true);
 
     final firstFrame = !_simCameraAnchored;
     _simCameraAnchored = true;
@@ -1964,34 +1823,10 @@ class RouteMapViewState extends State<RouteMapView>
         : null;
     final anchor = onRoute ?? loc;
 
-    // With the render ticker running, the car's anchor/tangent are owned
-    // by the per-frame interpolator — writing the (slightly ahead) GPS
-    // values here would make the car twitch forward on every fix.
     if (!_navTickerActive) {
-      _navAnchor = anchor;
-      // The road direction the *car* is on right now — a short chord,
-      // unlike the camera's long anticipation window — drives the
-      // avatar's rotation.
-      _navTangent.value = polyline.length >= 2
-          ? PolylineUtils.lookAheadBearing(
-              polyline,
-              state.navigationProgress,
-              NavigationConfig.avatarTangentMeters,
-            )
-          : state.navigationHeading;
+      _publishMotionFrame(navigation: true);
     }
-
-    // While the driver explores the map, guidance continues but the camera
-    // is theirs — the geo-anchored explore symbol keeps tracking via the
-    // render ticker. Geometry-less routes have no ticker, so nudge the
-    // symbol (and the fallback puck) straight off the fix instead.
-    if (_navExploring.value) {
-      if (!_navTickerActive) {
-        _updateNavExploreSymbol(anchor, _navTangent.value);
-        unawaited(_projectNavPuck(anchor));
-      }
-      return;
-    }
+    if (_navExploring.value) return;
 
     // Keep zoom, pitch and forward offset in the same eased profile. A
     // fixed road offset at close zoom would push the vehicle off-screen.
@@ -2034,14 +1869,6 @@ class RouteMapViewState extends State<RouteMapView>
             Future<void>.value(),
       );
     }
-
-    // Drop the car where the on-route anchor projects on screen (the camera
-    // centres the look-ahead point, so the anchor sits lower). The map's own
-    // projection handles perspective + the Android native/Flutter offset, so
-    // the car rides the road instead of a fixed slot. With road geometry the
-    // render ticker re-projects every display frame; this per-fix fallback
-    // only serves geometry-less routes.
-    if (!_navTickerActive) await _projectNavPuck(anchor);
   }
 
   // ── Nav vehicle render loop ─────────────────────────────────────────────────
@@ -2075,10 +1902,9 @@ class RouteMapViewState extends State<RouteMapView>
       _navRoute = route;
       _navRouteTotalKm = newTotalKm;
     }
-    // The cubit's progress is monotonic within a trip, so a target behind
-    // the rendered car is a deliberate restart (e.g. the debug simulator
-    // taking over mid-drive) — snap back instead of freezing forward-only.
-    if (state.navigationProgress < _navRenderProgress - 1e-6) {
+    // Compare logical fixes, not the extrapolated render position. A normal
+    // GPS fix can trail our prediction without being a deliberate restart.
+    if (state.navigationProgress < _navTargetProgress - 1e-6) {
       _navRenderProgress = state.navigationProgress;
     }
     _navTargetProgress = state.navigationProgress;
@@ -2105,9 +1931,8 @@ class RouteMapViewState extends State<RouteMapView>
 
   /// One display frame of vehicle motion: dead-reckon the last fix forward
   /// at the vehicle's speed, chase it with an exponential smoother
-  /// (forward-only — you can't un-drive a road), then move whichever car
-  /// representation is active (screen-projected puck, or the geo-anchored
-  /// explore symbol).
+  /// (forward-only), then publish the vehicle and adjoining route lines
+  /// together to the native map.
   void _onNavTick(Duration elapsed) {
     final dt = _navTickerLast == Duration.zero
         ? 1 / 60.0
@@ -2133,79 +1958,30 @@ class RouteMapViewState extends State<RouteMapView>
       _navRenderProgress = math.min(_navRenderProgress + diff * k, predicted);
     }
 
-    final polyline = route.fullPolyline;
-    final anchor = PolylineUtils.interpolateByLength(
-      polyline,
-      _navRenderProgress,
-    );
-    if (anchor == null) return;
-    _navAnchor = anchor;
-    final tangent = PolylineUtils.lookAheadBearing(
-      polyline,
-      _navRenderProgress,
-      NavigationConfig.avatarTangentMeters,
-    );
-    if (_navTangent.value != tangent) _navTangent.value = tangent;
-    _tickVehiclePhase(moving: diff > 1e-7);
-
-    if (_navPuckHidden.value) {
-      // Exploring (or gliding back to follow): the geo-anchored native
-      // symbol owns the car — nudge it along the road and keep it aligned
-      // to the current camera bearing.
-      _updateNavExploreSymbol(anchor, tangent);
-      return;
-    }
-
-    // Follow mode: project the anchor to its on-screen slot. One in-flight
-    // platform call at a time — effectively frame-rate minus channel
-    // latency — and none at all while parked under an idle camera.
-    final cam = _controller?.cameraPosition;
-    if (_puckProjecting ||
-        (anchor == _lastProjAnchor && _sameCamera(cam, _lastProjCamera))) {
-      return;
-    }
-    _lastProjAnchor = anchor;
-    _lastProjCamera = cam;
-    _puckProjecting = true;
-    unawaited(
-      _projectNavPuck(anchor).whenComplete(() => _puckProjecting = false),
-    );
+    _publishMotionFrame(navigation: true);
   }
-
-  bool _sameCamera(CameraPosition? a, CameraPosition? b) =>
-      a != null &&
-      b != null &&
-      a.target.latitude == b.target.latitude &&
-      a.target.longitude == b.target.longitude &&
-      a.zoom == b.zoom &&
-      a.bearing == b.bearing &&
-      a.tilt == b.tilt;
 
   // ── Free exploration during drive mode ──────────────────────────────────────
 
-  /// First touch on the map mid-drive hands the camera to the user:
-  /// follow pauses (navigation continues), the Re-center pill appears, and
-  /// the car swaps to a geo-anchored native symbol — glued to the road by
-  /// construction, so no amount of panning or zooming can drag it.
-  void _onNavPointerDown() {
+  /// Touch pauses the follow camera, never the geographic vehicle.
+  void _onNavPointerDown(int pointer) {
     if (!mounted) return;
-    if (!context.read<RoutePlannerCubit>().state.navigationActive) return;
-    _exploreResumeTimer?.cancel();
-    // Touching again mid-glide re-enters exploration with the symbol
-    // still in place — never swap back under the user's finger.
-    _followSwapTimer?.cancel();
-    _followSwapTimer = null;
-    if (!_navExploring.value) {
-      DebugLog.cam('explore: user touched map — follow paused');
-      _navExploring.value = true;
+    final state = context.read<RoutePlannerCubit>().state;
+    if (!state.navigationActive &&
+        !(state.simulationActive &&
+            state.simulationCameraMode != SimulationCameraMode.overview)) {
+      return;
     }
-    if (_navExploreSymbol == null) unawaited(_showNavExploreSymbol());
+    _mapPointers.add(pointer);
+    _exploreResumeTimer?.cancel();
+    _navExploring.value = true;
   }
 
-  /// Touch lifted: arm the auto-resume. If the user stays hands-off for
-  /// [NavigationConfig.exploreResumeDelay], follow mode returns by itself.
-  void _onNavPointerUp() {
-    if (!_navExploring.value) return;
+  void _onNavPointerUp(int pointer) {
+    _mapPointers.remove(pointer);
+    if (_mapPointers.isNotEmpty || !_navExploring.value || !mounted) return;
+    // A paused preview stays where the user put it until Re-center.
+    if (!context.read<RoutePlannerCubit>().state.navigationActive) return;
     _exploreResumeTimer?.cancel();
     _exploreResumeTimer = Timer(
       NavigationConfig.exploreResumeDelay,
@@ -2213,217 +1989,19 @@ class RouteMapViewState extends State<RouteMapView>
     );
   }
 
-  /// Leaves exploration; when [resumeCamera] the follow camera glides
-  /// straight back to the vehicle. Also the Re-center pill's tap action.
-  /// The geo-anchored car stays through the glide (it tracks the road
-  /// perfectly while the camera animates) and hands back to the
-  /// screen-projected puck once the follow view has settled.
   void _stopExploring({required bool resumeCamera}) {
     _exploreResumeTimer?.cancel();
     _exploreResumeTimer = null;
+    _mapPointers.clear();
     if (!_navExploring.value) return;
     _navExploring.value = false;
-    DebugLog.cam('explore: resuming follow (resumeCamera=$resumeCamera)');
     if (resumeCamera && mounted) {
-      unawaited(_syncNavigationCamera(context.read<RoutePlannerCubit>().state));
-      _followSwapTimer?.cancel();
-      _followSwapTimer = Timer(
-        NavigationConfig.cameraAnimDuration + const Duration(milliseconds: 120),
-        _restoreFollowPuck,
-      );
-    } else {
-      _restoreFollowPuck();
+      unawaited(_syncCamera(context.read<RoutePlannerCubit>().state));
     }
   }
 
-  /// Swaps the car back from the explore symbol to the screen-projected
-  /// follow puck (idempotent).
-  void _restoreFollowPuck() {
-    _followSwapTimer?.cancel();
-    _followSwapTimer = null;
-    _navPuckHidden.value = false;
-    unawaited(_removeNavExploreSymbol());
-  }
-
-  /// Explore-symbol image id, namespaced by the picked vehicle like
-  /// [_vehicleImageId] so switching vehicles re-registers a fresh icon.
-  String get _navVehicleImageId => 'img-nav-vehicle-${VehiclePrefs.current.id}';
-
-  /// Creates the geo-anchored explore car at the vehicle's current on-route
-  /// anchor. The Flutter puck is hidden only after the symbol is actually
-  /// on the map, so the car never blinks out during the swap.
-  Future<void> _showNavExploreSymbol() async {
-    final c = _controller;
-    if (c == null ||
-        !_styleLoaded ||
-        _navExploreSymbol != null ||
-        _creatingNavExploreSymbol) {
-      return;
-    }
-    _creatingNavExploreSymbol = true;
-    try {
-      // Decode the nav sheet first (instant from cache after the first
-      // use) so the explore car matches the pseudo-3D follow puck.
-      _navSheet = await VehicleSprites.navOf(VehiclePrefs.current);
-      _navSheetKind = VehiclePrefs.current;
-      final tangent = _navTangent.value;
-      final rot = tangent == null
-          ? 0.0
-          : ((tangent - _bearing.value) % 360 + 360) % 360;
-
-      final String imgId;
-      final double iconRotate;
-      final double iconSize;
-      if (_currentNavSheet != null) {
-        final h = VehicleNavSheet.headingIndex(rot);
-        imgId = await _ensureImage(
-          _navFrameId(h, 0, halo: true),
-          () => MapMarkerRenderer.navFrame(h, 0, halo: true),
-        );
-        iconRotate = VehicleNavSheet.residualDeg(rot);
-        iconSize = _dpr / VehicleMarkerConfig.iconOversample;
-        _exploreFrameH = h;
-      } else {
-        imgId = await _ensureImage(
-          _navVehicleImageId,
-          MapMarkerRenderer.navVehicle,
-        );
-        iconRotate = rot;
-        iconSize = _dpr / VehicleMarkerConfig.badgeIconDivisor;
-        _exploreFrameH = null;
-      }
-      if (!mounted || _navExploreSymbol != null) return;
-      final anchor = _navAnchor;
-      if (anchor == null) return;
-      final sym = await c.addSymbol(
-        SymbolOptions(
-          geometry: _ml(anchor),
-          iconImage: imgId,
-          iconSize: iconSize,
-          iconAnchor: 'center',
-          iconRotate: iconRotate,
-        ),
-      );
-      // The touch may have ended (and follow fully resumed) mid-await.
-      if (!mounted || !_navExploring.value) {
-        try {
-          await c.removeSymbol(sym);
-        } catch (_) {}
-        return;
-      }
-      _navExploreSymbol = sym;
-      _navExplorePosApplied = anchor;
-      _navExploreRotApplied = rot;
-      _navPuckHidden.value = true;
-    } catch (_) {
-      // Symbol creation can fail mid style reload; the puck stays visible.
-    } finally {
-      _creatingNavExploreSymbol = false;
-    }
-  }
-
-  Future<void> _removeNavExploreSymbol() async {
-    final sym = _navExploreSymbol;
-    _navExploreSymbol = null;
-    _navExplorePosApplied = null;
-    _navExploreRotApplied = null;
-    _exploreFrameH = null;
-    if (sym == null) return;
-    try {
-      await _controller?.removeSymbol(sym);
-    } catch (_) {}
-  }
-
-  /// Per-frame nudge of the explore car: geometry follows the interpolated
-  /// on-route anchor (true GPS-driven motion only), rotation keeps the car
-  /// lying along its road under the current camera bearing (which only
-  /// changes during the resume glide — rotate gestures are disabled).
-  void _updateNavExploreSymbol(ll.LatLng anchor, double? tangent) {
-    final c = _controller;
-    final sym = _navExploreSymbol;
-    if (c == null || sym == null || _navExploreUpdating) return;
-    final rot = tangent == null
-        ? (_navExploreRotApplied ?? 0.0)
-        : ((tangent - _bearing.value) % 360 + 360) % 360;
-
-    // Pseudo-3D path (symbol was created with a nav-sheet frame): chase
-    // the frame nearest the current relative bearing, throttled and only
-    // onto already-registered images. Phase stays 0 on native symbols —
-    // see [_vehiclePhase].
-    var h = _exploreFrameH;
-    var swapped = false;
-    if (_currentNavSheet != null && h != null) {
-      final wantH = VehicleNavSheet.headingIndex(rot);
-      final now = DateTime.now();
-      if (wantH != h &&
-          now.difference(_lastExploreFrameSwap).inMilliseconds >=
-              VehicleMarkerConfig.minFrameSwapMs) {
-        if (_readyNavFrameId(wantH, 0, halo: true) != null) {
-          h = wantH;
-          swapped = true;
-          _lastExploreFrameSwap = now;
-        }
-      }
-    }
-
-    final lastPos = _navExplorePosApplied;
-    final lastRot = _navExploreRotApplied;
-    if (!swapped &&
-        lastPos != null &&
-        lastRot != null &&
-        (lastPos.latitude - anchor.latitude).abs() < 1e-7 &&
-        (lastPos.longitude - anchor.longitude).abs() < 1e-7 &&
-        (lastRot - rot).abs() < 0.3) {
-      return; // parked & camera bearing stable — nothing to push
-    }
-    _navExplorePosApplied = anchor;
-    _navExploreRotApplied = rot;
-    _exploreFrameH = h;
-    _navExploreUpdating = true;
-    final opts = (h != null)
-        ? SymbolOptions(
-            geometry: _ml(anchor),
-            // Null = leave unchanged; only a landed swap re-layouts.
-            iconImage: swapped ? _navFrameId(h, 0, halo: true) : null,
-            iconRotate: _wrap180(rot - h * VehicleMarkerConfig.headingStepDeg),
-          )
-        : SymbolOptions(geometry: _ml(anchor), iconRotate: rot);
-    c
-        .updateSymbol(sym, opts)
-        .catchError((_) {})
-        .whenComplete(() => _navExploreUpdating = false);
-  }
-
-  /// Throttled nav-puck re-projection driven by [_onCameraMove]: keeps the
-  /// car glued to its on-route anchor while the camera animates between
-  /// fixes and while the user pans around in explore mode.
-  void _maybeReprojectNavPuck() {
-    final anchor = _navAnchor;
-    if (anchor == null || _puckProjecting) return;
-    final now = DateTime.now();
-    if (now.difference(_lastPuckProjection).inMilliseconds < 80) return;
-    _lastPuckProjection = now;
-    _puckProjecting = true;
-    unawaited(
-      _projectNavPuck(anchor).whenComplete(() => _puckProjecting = false),
-    );
-  }
-
-  /// Projects the live-drive [loc] to a logical screen position for the car
-  /// puck. Runs after each nav camera move so the car tracks the road.
-  Future<void> _projectNavPuck(ll.LatLng loc) async {
-    final c = _controller;
-    if (c == null) return;
-    try {
-      final sp = await c.toScreenLocation(_ml(loc));
-      if (!mounted) return;
-      // No per-projection logging here: the render ticker projects every
-      // display frame, which would flood the debug log.
-      _navPuckPos.value = Offset(sp.x / _aimScale, sp.y / _aimScale);
-    } catch (_) {
-      // Projection can momentarily fail mid-move; keep the last position.
-    }
-  }
+  String get _navVehicleImageId =>
+      'img-nav-vehicle-${VehiclePrefs.current.id}-${VehicleMarkerConfig.navigationSize}';
 
   /// All points worth keeping in frame for the overview: every ordered
   /// stop plus the full road geometry.
@@ -2541,106 +2119,6 @@ class RouteMapViewState extends State<RouteMapView>
                   a.navigationActive != b.navigationActive ||
                   (!b.navigationActive && a.cameraTarget != b.cameraTarget),
               builder: (context, state) => _buildMapLibreMap(context, state),
-            ),
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-                buildWhen: (a, b) =>
-                    a.navigationActive != b.navigationActive ||
-                    (a.userLocation == null) != (b.userLocation == null),
-                builder: (context, state) {
-                  if (!state.navigationActive || state.userLocation == null) {
-                    return const SizedBox.shrink();
-                  }
-                  // The avatar rotates by (road tangent under the car −
-                  // live camera bearing): zero on a straight road, but as
-                  // the camera anticipates into a bend the car keeps lying
-                  // along the road it is actually on. Listening to the live
-                  // bearing keeps it aligned through camera animations and
-                  // while the user explores the map.
-                  final puck = ValueListenableBuilder<double>(
-                    valueListenable: _bearing,
-                    builder: (_, camBearing, __) =>
-                        ValueListenableBuilder<double?>(
-                          valueListenable: _navTangent,
-                          builder: (_, tangent, __) {
-                            final rotation = tangent == null
-                                ? 0.0
-                                : ((tangent - camBearing + 540) % 360) - 180;
-                            return ValueListenableBuilder<int>(
-                              valueListenable: _vehiclePhase,
-                              builder: (_, phase, __) => NavigationPuck(
-                                rotationDegrees: rotation,
-                                phase: phase,
-                              ),
-                            );
-                          },
-                        ),
-                  );
-                  // While exploring (and through the glide back) the car is
-                  // a geo-anchored native symbol instead — hide the
-                  // screen-projected puck so there's never a doubled or
-                  // camera-dragged vehicle.
-                  return ValueListenableBuilder<bool>(
-                    valueListenable: _navPuckHidden,
-                    builder: (_, hidden, __) {
-                      if (hidden) return const SizedBox.shrink();
-                      return ValueListenableBuilder<Offset?>(
-                        valueListenable: _navPuckPos,
-                        builder: (_, pos, __) {
-                          if (pos == null) {
-                            // First frame, before the projection lands: an
-                            // approximate lower-middle slot.
-                            return Align(
-                              alignment: const Alignment(0, 0.34),
-                              child: puck,
-                            );
-                          }
-                          return Stack(
-                            children: [
-                              Positioned(
-                                left: pos.dx,
-                                top: pos.dy,
-                                child: FractionalTranslation(
-                                  translation: const Offset(-0.5, -0.5),
-                                  child: puck,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ),
-          // Screen-centred preview car for follow/chase — pinned to where
-          // the camera centres the vehicle. Shifted by [aimOffset] so it
-          // sits on the (native-rendered) centre on Android too, not the
-          // Flutter-widget centre.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Center(
-                child: ValueListenableBuilder<Offset>(
-                  valueListenable: aimOffset,
-                  builder: (_, off, child) =>
-                      Transform.translate(offset: off, child: child),
-                  child: ValueListenableBuilder<double?>(
-                    valueListenable: _puck,
-                    builder: (_, rotation, __) {
-                      if (rotation == null) return const SizedBox.shrink();
-                      return ValueListenableBuilder<int>(
-                        valueListenable: _vehiclePhase,
-                        builder: (_, phase, __) =>
-                            SimPuck(rotation: rotation, phase: phase),
-                      );
-                    },
-                  ),
-                ),
-              ),
             ),
           ),
           BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
@@ -2765,7 +2243,7 @@ class RouteMapViewState extends State<RouteMapView>
                   a.simulationCameraMode != b.simulationCameraMode,
               builder: (context, state) {
                 // Only the panoramic view offers "reset view"; follow/chase
-                // always track the car, so they need no recenter control.
+                // have their own exploration/recenter control below.
                 final show =
                     state.simulationActive &&
                     state.simulationCameraMode ==
@@ -2801,18 +2279,31 @@ class RouteMapViewState extends State<RouteMapView>
             child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
               buildWhen: (a, b) =>
                   a.navigationActive != b.navigationActive ||
-                  a.navigationArrived != b.navigationArrived,
+                  a.navigationArrived != b.navigationArrived ||
+                  a.simulationActive != b.simulationActive ||
+                  a.simulationCameraMode != b.simulationCameraMode,
               builder: (context, state) {
-                if (!state.navigationActive) return const SizedBox.shrink();
+                if (!state.navigationActive &&
+                    !(state.simulationActive &&
+                        state.simulationCameraMode !=
+                            SimulationCameraMode.overview)) {
+                  return const SizedBox.shrink();
+                }
                 return Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: EdgeInsets.only(
-                      bottom:
-                          MediaQuery.paddingOf(context).bottom +
-                          (state.navigationArrived
-                              ? MapConfig.navRecenterLiftArrivedPx
-                              : MapConfig.navRecenterLiftPx),
+                      bottom: state.simulationActive
+                          ? math.max(
+                              MediaQuery.paddingOf(context).bottom + 112,
+                              MediaQuery.sizeOf(context).height *
+                                      SheetExtent.of(context) +
+                                  12,
+                            )
+                          : MediaQuery.paddingOf(context).bottom +
+                                (state.navigationArrived
+                                    ? MapConfig.navRecenterLiftArrivedPx
+                                    : MapConfig.navRecenterLiftPx),
                     ),
                     child: ValueListenableBuilder<bool>(
                       valueListenable: _navExploring,
@@ -2853,9 +2344,9 @@ class RouteMapViewState extends State<RouteMapView>
     // camera to the user (explore mode) without interrupting guidance.
     // The Listener sees the raw pointers the map consumes as gestures.
     return Listener(
-      onPointerDown: (_) => _onNavPointerDown(),
-      onPointerUp: (_) => _onNavPointerUp(),
-      onPointerCancel: (_) => _onNavPointerUp(),
+      onPointerDown: (event) => _onNavPointerDown(event.pointer),
+      onPointerUp: (event) => _onNavPointerUp(event.pointer),
+      onPointerCancel: (event) => _onNavPointerUp(event.pointer),
       behavior: HitTestBehavior.translucent,
       child: _buildMap(initialTarget),
     );
