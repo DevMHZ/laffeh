@@ -58,3 +58,11 @@ Verification:
 - Four affected route-sheet golden images were rendered and visually reviewed, including Arabic RTL.
 - The rebuilt iPhone 17 / iOS 26.5 simulator exercised Follow, Cinematic, flatten and exit. A local recording is available in `.codex-ui-screenshots/preview-smooth-playback.mp4`. No camera or map runtime errors appeared in its log. Simulator checks do not establish physical-device frame pacing; Android and real-road driving were not tested in this follow-up.
 - Store version remains `1.0.4+5`.
+
+## Ten-stop Beirut debug demo
+
+The flask button now loads ten stops plus a fixed Martyrs' Square departure and return: Hamra, Sassine Square, Zaitunay Bay, Verdun, Sursock Museum, Raouché, Beirut Souks, the National Museum, Ain El Mreisseh and Mar Mikhael. The normal optimizer chooses their visit order and road geometry. Landmark names are kept in addresses so optimization's stop renumbering does not erase them; the demo names and button text support English, Arabic and French.
+
+Each reload clears the previous departure date, custom finish, skipped stops and restored-draft message, and resets preview to Overview at 1×. The departure stays in Beirut when real GPS moves. The button and loader remain debug-only.
+
+Verified through the iPhone simulator's flask button: the route contained ten stops (12 points including departure/return), approximately 22 km and 31 minutes of driving. The overview preview showed “Stop 2 of 10”; exiting returned to the complete route. The existing route lifecycle, navigator and early-stop test files passed all 43 tests. Static analysis has only the same five baseline findings.

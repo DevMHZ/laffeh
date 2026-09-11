@@ -58,6 +58,8 @@ class AppStrings {
   static String get appTagline => _t('appTagline');
 
   // Map / Planner
+  static String get beirutDemo => _t('beirutDemo');
+  static String get loadingBeirutDemo => _t('loadingBeirutDemo');
   static String get planRouteTitle => _t('planRouteTitle');
   static String get routePointsTitle => _t('routePointsTitle');
   static String get bestRouteTitle => _t('bestRouteTitle');
@@ -1089,6 +1091,8 @@ const Map<String, Map<String, String>> _copy = {
   'en': {
     'appName': 'Laffah',
     'appTagline': 'Your smarter route',
+    'beirutDemo': 'Beirut demo · 10 stops',
+    'loadingBeirutDemo': 'Loading the 10-stop Beirut demo…',
     'planRouteTitle': 'Plan your route',
     'routePointsTitle': 'Route points',
     'bestRouteTitle': 'Best route',
@@ -1718,6 +1722,8 @@ const Map<String, Map<String, String>> _copy = {
   'ar': {
     'appName': 'لفّة',
     'appTagline': 'مسارك الأذكى',
+    'beirutDemo': 'مسار بيروت التجريبي · 10 محطات',
+    'loadingBeirutDemo': 'تحميل مسار بيروت التجريبي — 10 محطات…',
     'planRouteTitle': 'خطط مسارك',
     'routePointsTitle': 'نقاط المسار',
     'bestRouteTitle': 'إيجاد المسار الأفضل ',
@@ -2337,6 +2343,8 @@ const Map<String, Map<String, String>> _copy = {
   'fr': {
     'appName': 'Laffah',
     'appTagline': 'Votre itineraire plus intelligent',
+    'beirutDemo': 'Démo Beyrouth · 10 arrêts',
+    'loadingBeirutDemo': 'Chargement de la démo de Beyrouth — 10 arrêts…',
     'planRouteTitle': 'Planifiez votre itineraire',
     'routePointsTitle': 'Points du trajet',
     'bestRouteTitle': 'Meilleur itineraire',

@@ -1922,20 +1922,34 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// True while the driver is off in GTA mode (not following the route).
   bool get debugDriveSimFreeDriving => _driveSimHeading != null;
 
-  /// DEBUG ONLY. Loads a reproducible 3-stop Beirut demo (departure at
-  /// Martyrs' Square → Hamra → Sassine → Verdun) and optimizes it, no
-  /// matter where the device really is — the playground for the drive
-  /// simulator.
+  /// DEBUG ONLY. Loads a ten-stop Beirut loop spanning downtown, the
+  /// seafront and Achrafieh, then optimizes it for preview/client demos.
+  /// Roadside points keep the route on streets instead of inside landmarks.
   Future<void> debugLoadBeirutDemo() async {
     if (!kDebugMode) return;
     _cancelSimTimer();
     _cancelNavigationStream();
-    const depot = LatLng(33.8938, 35.5018); // ساحة الشهداء
-    const stops = <(double, double, String)>[
-      (33.8965, 35.4780, 'الحمرا'),
-      (33.8869, 35.5131, 'ساسين — الأشرفية'),
-      (33.8791, 35.4884, 'فردان'),
+    const depot = LatLng(33.8959, 35.5066); // Martyrs' Square
+    // Latitude, longitude, English, Arabic, French. Deliberately unsorted:
+    // the normal optimizer computes the visit order and road geometry.
+    const stops = <(double, double, String, String, String)>[
+      (33.8965, 35.4780, 'Hamra', 'الحمرا', 'Hamra'),
+      (33.8869, 35.5131, 'Sassine Square', 'ساحة ساسين', 'Place Sassine'),
+      (33.9012, 35.4950, 'Zaitunay Bay', 'زيتونة باي', 'Zaitunay Bay'),
+      (33.8791, 35.4884, 'Verdun', 'فردان', 'Verdun'),
+      (33.8937, 35.5170, 'Sursock Museum', 'متحف سرسق', 'Musée Sursock'),
+      (33.8895, 35.4733, 'Raouché', 'الروشة', 'Raouché'),
+      (33.8990, 35.5030, 'Beirut Souks', 'أسواق بيروت', 'Souks de Beyrouth'),
+      (33.8784, 35.5150, 'National Museum', 'المتحف الوطني', 'Musée national'),
+      (33.9020, 35.4860, 'Ain El Mreisseh', 'عين المريسة', 'Aïn el-Mreissé'),
+      (33.8971, 35.5290, 'Mar Mikhael', 'مار مخايل', 'Mar Mikhaël'),
     ];
+    String demoName(String english, String arabic, String french) =>
+        switch (AppStrings.languageCode) {
+          'ar' => arabic,
+          'fr' => french,
+          _ => english,
+        };
     emit(
       state.copyWith(
         status: RoutePlannerStatus.pointsUpdated,
@@ -1943,10 +1957,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         cameraTarget: depot,
         points: [
           RoutePoint(
-            id: 'depot_current',
+            id: 'demo_beirut_depot',
             latitude: depot.latitude,
             longitude: depot.longitude,
             label: AppStrings.departure,
+            address: demoName(
+              'Martyrs’ Square, Beirut',
+              'ساحة الشهداء، بيروت',
+              'Place des Martyrs, Beyrouth',
+            ),
             weight: RoutingConfig.defaultStopWeight,
             kind: RoutePointKind.depot,
           ),
@@ -1955,18 +1974,32 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
               id: 'demo_beirut_$i',
               latitude: stops[i].$1,
               longitude: stops[i].$2,
-              label: stops[i].$3,
+              label: AppStrings.stopLabel(i + 1),
+              // Optimization renumbers labels; addresses retain the landmarks.
+              address: demoName(stops[i].$3, stops[i].$4, stops[i].$5),
               weight: RoutingConfig.defaultStopWeight,
               kind: RoutePointKind.stop,
             ),
         ],
+        // A previous plan's destination/date must not leak into the demo.
+        finish: const RouteFinish.depot(),
+        clearDepartureAt: true,
+        draftRestored: false,
+        clearMovingPoint: true,
         clearOptimizedRoute: true,
         clearError: true,
         simulationActive: false,
         simulationPlaying: false,
         simulationProgress: 0.0,
+        simulationSpeed: 1.0,
+        simulationCameraMode: SimulationCameraMode.overview,
         navigationActive: false,
         navigationProgress: 0.0,
+        navigationStopIndex: 1,
+        navigationArrived: false,
+        skippedPointIds: const {},
+        clearNavigationStopDistance: true,
+        clearNavigationStopRouteDistance: true,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
         manualPlacement: false,

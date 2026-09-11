@@ -54,7 +54,7 @@ class TopBar extends StatelessWidget {
                           RoutePlannerActions.openSavedRoutes(context),
                     ),
                   ),
-                  // DEBUG-ONLY: loads the reproducible 3-stop Beirut demo
+                  // DEBUG-ONLY: loads the reproducible 10-stop Beirut demo
                   // route — the playground for the drive simulator. Compiled
                   // out of release builds via [kDebugMode], so it's invisible
                   // in production.
@@ -67,8 +67,8 @@ class TopBar extends StatelessWidget {
                         onPressed: () {
                           HapticFeedback.heavyImpact();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('تحميل مسار بيروت التجريبي…'),
+                            SnackBar(
+                              content: Text(AppStrings.loadingBeirutDemo),
                               duration: Duration(seconds: 2),
                             ),
                           );
@@ -248,7 +248,7 @@ class _DebugTestButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: 'مسار تجريبي (بيروت)',
+      tooltip: AppStrings.beirutDemo,
       style: IconButton.styleFrom(
         fixedSize: const Size.square(48),
         minimumSize: const Size.square(48),
