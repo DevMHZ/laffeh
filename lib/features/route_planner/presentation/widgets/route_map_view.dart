@@ -94,7 +94,8 @@ const double _mapChromeCeiling = 0.70;
 const double _mapChromeGap = 14;
 
 class RouteMapView extends StatefulWidget {
-  const RouteMapView({super.key});
+  final ValueChanged<OptimizedRoute?>? onRouteReady;
+  const RouteMapView({super.key, this.onRouteReady});
 
   @override
   State<RouteMapView> createState() => RouteMapViewState();
@@ -433,6 +434,7 @@ class RouteMapViewState extends State<RouteMapView>
 
   Future<void> _onStyleLoaded() async {
     _styleLoaded = false;
+    widget.onRouteReady?.call(null);
     _dpr =
         WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     // DPR drives icon sizing + the historical drop-accuracy bug. It differs
@@ -1577,6 +1579,14 @@ class RouteMapViewState extends State<RouteMapView>
         await _syncPolylines(s);
         if (!_sameMapMode(s)) continue;
         await _syncSymbols(s);
+        if (!_disposed &&
+            _styleLoaded &&
+            _sameMapMode(s) &&
+            !s.simulationActive &&
+            !s.navigationActive &&
+            !s.isOptimizing) {
+          widget.onRouteReady?.call(s.optimizedRoute);
+        }
       }
     } finally {
       _applying = false;
@@ -2152,6 +2162,7 @@ class RouteMapViewState extends State<RouteMapView>
   Widget build(BuildContext context) {
     return BlocListener<RoutePlannerCubit, RoutePlannerState>(
       listenWhen: (a, b) =>
+          a.previewRequestId != b.previewRequestId ||
           a.cameraTarget != b.cameraTarget ||
           a.optimizedRoute != b.optimizedRoute ||
           a.simulationActive != b.simulationActive ||

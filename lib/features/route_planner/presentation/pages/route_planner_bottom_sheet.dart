@@ -53,6 +53,7 @@ class BottomSheetHost extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
       buildWhen: (a, b) =>
+          a.previewRequestId != b.previewRequestId ||
           a.optimizedRoute != b.optimizedRoute ||
           a.points != b.points ||
           a.status != b.status ||
@@ -116,7 +117,11 @@ class BottomSheetHost extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final key = showSummary ? 'summary' : 'points';
+        // An explicit new plan starts at the top, with its countdown visible.
+        // Background reroutes keep the current scroll position.
+        final key = showSummary
+            ? 'summary-${state.previewRequestId}'
+            : 'points';
 
         // Snap sizes are capped per sheet so the user can't drag past where
         // there's actually content.

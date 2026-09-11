@@ -19,6 +19,7 @@ import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import 'missed_time_window_sheet.dart';
 import 'route_finish_sheet.dart';
+import 'route_preview_actions.dart';
 import 'stop_time_window_sheet.dart';
 
 part 'route_summary_sheet_widgets.dart';
@@ -91,7 +92,7 @@ class RouteSummarySheet extends StatelessWidget {
               _TripStrip(route: route, stops: order.length),
               const SizedBox(height: 10),
 
-              _RouteActions(
+              RoutePreviewActions(
                 onPreview: cubit.startSimulation,
                 onOpenGoogleMaps: onOpenGoogleMaps,
               ),

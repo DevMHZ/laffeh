@@ -54,6 +54,10 @@ class RoutePlannerState extends Equatable {
 
   final OptimizedRoute? optimizedRoute;
 
+  /// Session-only request, incremented after an explicit successful optimize.
+  /// Restored routes and background reroutes never request automatic playback.
+  final int previewRequestId;
+
   /// Which segment is highlighted on the map.
   final RouteSegment displaySegment;
 
@@ -195,6 +199,7 @@ class RoutePlannerState extends Equatable {
     this.userLocation,
     this.cameraTarget,
     this.optimizedRoute,
+    this.previewRequestId = 0,
     this.displaySegment = RouteSegment.full,
     this.stopFractions = const [],
     this.errorMessage,
@@ -285,6 +290,7 @@ class RoutePlannerState extends Equatable {
     LatLng? userLocation,
     LatLng? cameraTarget,
     OptimizedRoute? optimizedRoute,
+    int? previewRequestId,
     RouteSegment? displaySegment,
     List<double>? stopFractions,
     String? errorMessage,
@@ -331,6 +337,7 @@ class RoutePlannerState extends Equatable {
       optimizedRoute: clearOptimizedRoute
           ? null
           : (optimizedRoute ?? this.optimizedRoute),
+      previewRequestId: previewRequestId ?? this.previewRequestId,
       displaySegment: displaySegment ?? this.displaySegment,
       stopFractions: stopFractions ?? this.stopFractions,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
@@ -382,6 +389,7 @@ class RoutePlannerState extends Equatable {
     userLocation,
     cameraTarget,
     optimizedRoute,
+    previewRequestId,
     displaySegment,
     stopFractions,
     errorMessage,

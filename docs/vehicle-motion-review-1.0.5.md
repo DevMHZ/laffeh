@@ -47,7 +47,7 @@ Preview now retargets MapLibre's native `easeCamera` at playback cadence using l
 
 The route sheet now groups two full-width rows: **Preview route** with a play icon, then **Open in Google Maps** with a map and external-link icon. The latter describes opening the external app, not a Google-powered preview inside Laffah. Full labels can wrap instead of being truncated in half-width buttons. English, Arabic and French preview wording is updated. Start driving remains the filled, pinned action.
 
-Preview remains tap-to-start. A cancellable five-second countdown is a reasonable optional behavior, but was not enabled by default: it would interrupt route review with unexpected map movement. The user was offered that preference while the fix was in progress.
+At this stage preview remained tap-to-start. The subsequently approved [automatic preview follow-up](auto-preview-1.0.5.md) adds a cancellable five-second countdown, a settings switch and a separate playback card; it supersedes the action layout shown here.
 
 ![Updated route actions on the iPhone simulator](preview-refresh-1.0.5/route-actions.png)
 

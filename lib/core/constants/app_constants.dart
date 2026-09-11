@@ -340,6 +340,14 @@ class AppStrings {
   static String get stepRoute => _t('stepRoute');
   static String get stepDrive => _t('stepDrive');
   static String get previewRoute => _t('previewRoute');
+  static String get routePreviewTitle => _t('routePreviewTitle');
+  static String get playRoutePreview => _t('playRoutePreview');
+  static String get previewPlaybackHint => _t('previewPlaybackHint');
+  static String get cancelAutoPreview => _t('cancelAutoPreview');
+  static String get autoPreviewTitle => _t('autoPreviewTitle');
+  static String get autoPreviewHint => _t('autoPreviewHint');
+  static String previewStartsIn(int seconds) =>
+      _t('previewStartsIn').replaceAll('{seconds}', '$seconds');
   static String get previewBadge => _t('previewBadge');
   static String get previewStartDrive => _t('previewStartDrive');
   static String get endTrip => _t('endTrip');
@@ -1388,6 +1396,14 @@ const Map<String, Map<String, String>> _copy = {
     'stepStops': 'Stops',
     'stepRoute': 'Route',
     'stepDrive': 'Drive',
+    'routePreviewTitle': 'Route preview',
+    'playRoutePreview': 'Play route preview',
+    'previewPlaybackHint': 'See the route before you set off',
+    'previewStartsIn': 'Starting in {seconds}s',
+    'cancelAutoPreview': 'Cancel automatic preview',
+    'autoPreviewTitle': 'Auto-preview new routes',
+    'autoPreviewHint':
+        'Start an overview 5 seconds after planning. Touch the screen to cancel.',
     'previewRoute': 'Preview route',
     'previewBadge': 'Preview',
     'previewStartDrive': 'Ready? Start driving',
@@ -2015,6 +2031,14 @@ const Map<String, Map<String, String>> _copy = {
     'stepStops': 'المحطات',
     'stepRoute': 'المسار',
     'stepDrive': 'القيادة',
+    'routePreviewTitle': 'معاينة المسار',
+    'playRoutePreview': 'تشغيل معاينة المسار',
+    'previewPlaybackHint': 'شاهد المسار قبل الانطلاق',
+    'previewStartsIn': 'تبدأ خلال {seconds} ث',
+    'cancelAutoPreview': 'إلغاء المعاينة التلقائية',
+    'autoPreviewTitle': 'معاينة المسارات تلقائياً',
+    'autoPreviewHint':
+        'تبدأ المعاينة بعد 5 ثوانٍ من التخطيط. المس الشاشة للإلغاء.',
     'previewRoute': 'معاينة المسار',
     'previewBadge': 'معاينة',
     'previewStartDrive': 'جاهز؟ ابدأ القيادة',
@@ -2653,6 +2677,14 @@ const Map<String, Map<String, String>> _copy = {
     'stepStops': 'Arrets',
     'stepRoute': 'Itineraire',
     'stepDrive': 'Conduite',
+    'routePreviewTitle': 'Aperçu du trajet',
+    'playRoutePreview': 'Lire l’aperçu du trajet',
+    'previewPlaybackHint': 'Visualisez le trajet avant de partir',
+    'previewStartsIn': 'Début dans {seconds} s',
+    'cancelAutoPreview': 'Annuler l’aperçu automatique',
+    'autoPreviewTitle': 'Aperçu automatique',
+    'autoPreviewHint':
+        'Démarre 5 secondes après le calcul du trajet. Touchez l’écran pour annuler.',
     'previewRoute': 'Aperçu du trajet',
     'previewBadge': 'Apercu',
     'previewStartDrive': 'Pret ? Demarrer',

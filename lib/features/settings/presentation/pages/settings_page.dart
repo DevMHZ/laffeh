@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/config/service_profile.dart';
+import '../../../../core/config/preview_prefs.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -271,6 +272,7 @@ class _SettingsGroups extends StatelessWidget {
           label: AppStrings.settingsGroupTrip,
           children: [
             _ServiceProfileSection(),
+            const _AutoPreviewSetting(),
             if (onImportCsv != null) _ImportCsvRow(onTap: onImportCsv!),
           ],
         ),
@@ -301,6 +303,37 @@ class _SettingsGroups extends StatelessWidget {
       ],
     );
   }
+}
+
+class _AutoPreviewSetting extends StatelessWidget {
+  const _AutoPreviewSetting();
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: PreviewPrefs.notifier,
+    builder: (_, enabled, __) => Material(
+      color: Colors.transparent,
+      child: SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: Text(AppStrings.autoPreviewTitle, style: AppTextStyles.titleSm),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            AppStrings.autoPreviewHint,
+            style: AppTextStyles.bodySm.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        activeTrackColor: AppColors.primary,
+        value: enabled,
+        onChanged: (value) {
+          HapticFeedback.selectionClick();
+          PreviewPrefs.setEnabled(value);
+        },
+      ),
+    ),
+  );
 }
 
 /// One labelled group: a quiet heading over a card of related rows.

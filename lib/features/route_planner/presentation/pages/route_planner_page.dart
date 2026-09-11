@@ -8,6 +8,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/config/preview_prefs.dart';
+import '../../domain/entities/optimized_route.dart';
+import '../cubit/route_planner_state.dart';
+import '../utils/auto_preview_controller.dart';
+import '../widgets/route_preview_actions.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/registration_guard.dart';
@@ -64,6 +69,38 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   final GlobalKey<RouteMapViewState> _mapKey = GlobalKey<RouteMapViewState>();
   StreamSubscription<String>? _shareSub;
   StreamSubscription<String>? _roundFileSub;
+  late final AutoPreviewController _autoPreview;
+  bool _reduceMotion = false;
+  bool _foreground = true;
+
+  bool _canAutoPreview(OptimizedRoute route) {
+    if (!mounted ||
+        !_foreground ||
+        _reduceMotion ||
+        !PreviewPrefs.enabled ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return false;
+    }
+    final state = context.read<RoutePlannerCubit>().state;
+    return AutoPreviewController.eligible(state) &&
+        identical(state.optimizedRoute, route);
+  }
+
+  void _onPreviewPreferenceChanged() {
+    if (!PreviewPrefs.enabled) _autoPreview.cancel();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final media = MediaQuery.of(context);
+    _reduceMotion = media.disableAnimations || media.accessibleNavigation;
+    if (_reduceMotion) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _reduceMotion) _autoPreview.cancel();
+      });
+    }
+  }
 
   /// How much of the screen the bottom sheet covers right now. Published by
   /// the sheet, read by the map chrome so the compass and the 2D/3D toggle
@@ -75,6 +112,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   DateTime? _lastBackPress;
 
   void _handleBackPressed() {
+    _autoPreview.cancel();
     final now = DateTime.now();
     if (_lastBackPress == null ||
         now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
@@ -94,6 +132,13 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final cubit = context.read<RoutePlannerCubit>();
+    _autoPreview = AutoPreviewController(
+      initialRequestId: cubit.state.previewRequestId,
+      canStart: _canAutoPreview,
+      onStart: cubit.startSimulation,
+    );
+    PreviewPrefs.notifier.addListener(_onPreviewPreferenceChanged);
     _shareSub = ShareIntentHandler.stream.listen(_onSharedText);
     _roundFileSub = ShareIntentHandler.fileStream.listen(_onRoundFile);
     // First chance to capture this launch's single location ping. Best-effort;
@@ -117,6 +162,8 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     WidgetsBinding.instance.removeObserver(this);
     _shareSub?.cancel();
     _roundFileSub?.cancel();
+    PreviewPrefs.notifier.removeListener(_onPreviewPreferenceChanged);
+    _autoPreview.dispose();
     _sheetExtent.dispose();
     super.dispose();
   }
@@ -124,6 +171,8 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!mounted) return;
+    _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) _autoPreview.cancel();
 
     // `inactive` is deliberately not treated as leaving: iOS passes through
     // it for a pulled-down notification shade or an incoming call banner,
@@ -200,47 +249,63 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      // Exit only on a deliberate double-back (handled in _handleBackPressed),
-      // never on a single press.
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _handleBackPressed();
-      },
-      child: Scaffold(
-        extendBodyBehindAppBar: true,
-        // Coalesces all the frosted map chrome (top bar, floating action
-        // buttons, compass) into a single backdrop sampling/blur pass instead
-        // of one per widget — a large GPU saving while the map pans, zooms and
-        // rotates. Each panel opts in via `BackdropFilter.grouped`.
-        body: BackdropGroup(
-          child: SheetExtent(
-            extent: _sheetExtent,
-            child: NotificationListener<DraggableScrollableNotification>(
-              // The sheet reports every frame of a drag. Writing straight to
-              // the notifier (rather than setState) keeps the rebuild to the
-              // handful of widgets that actually follow it.
-              onNotification: (note) {
-                _sheetExtent.value = note.extent;
-                return false;
-              },
-              child: Stack(
-                children: [
-                  // Keeps the Stack full-screen even when every other child
-                  // collapses to SizedBox.shrink during preview/drive.
-                  const SizedBox.expand(),
-                  Positioned.fill(child: RouteMapView(key: _mapKey)),
-                  const TopBar(),
-                  const LocationAccessChip(),
-                  CenterPin(mapKey: _mapKey),
-                  const BottomSheetHost(),
-                  const AddOptionsHost(),
-                  ManualPlacementHost(mapKey: _mapKey),
-                  MovePointHost(mapKey: _mapKey),
-                  const TripOverlayHost(),
-                  const LoadingOverlay(),
-                ],
+    return BlocListener<RoutePlannerCubit, RoutePlannerState>(
+      listener: (_, state) => _autoPreview.update(state),
+      child: AutoPreviewScope(
+        controller: _autoPreview,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => _autoPreview.cancel(),
+          onPointerSignal: (_) => _autoPreview.cancel(),
+          child: PopScope(
+            // Exit only on a deliberate double-back (handled in _handleBackPressed),
+            // never on a single press.
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) return;
+              _handleBackPressed();
+            },
+            child: Scaffold(
+              extendBodyBehindAppBar: true,
+              // Coalesces all the frosted map chrome (top bar, floating action
+              // buttons, compass) into a single backdrop sampling/blur pass instead
+              // of one per widget — a large GPU saving while the map pans, zooms and
+              // rotates. Each panel opts in via `BackdropFilter.grouped`.
+              body: BackdropGroup(
+                child: SheetExtent(
+                  extent: _sheetExtent,
+                  child: NotificationListener<DraggableScrollableNotification>(
+                    // The sheet reports every frame of a drag. Writing straight to
+                    // the notifier (rather than setState) keeps the rebuild to the
+                    // handful of widgets that actually follow it.
+                    onNotification: (note) {
+                      _sheetExtent.value = note.extent;
+                      return false;
+                    },
+                    child: Stack(
+                      children: [
+                        // Keeps the Stack full-screen even when every other child
+                        // collapses to SizedBox.shrink during preview/drive.
+                        const SizedBox.expand(),
+                        Positioned.fill(
+                          child: RouteMapView(
+                            key: _mapKey,
+                            onRouteReady: _autoPreview.mapReady,
+                          ),
+                        ),
+                        const TopBar(),
+                        const LocationAccessChip(),
+                        CenterPin(mapKey: _mapKey),
+                        const BottomSheetHost(),
+                        const AddOptionsHost(),
+                        ManualPlacementHost(mapKey: _mapKey),
+                        MovePointHost(mapKey: _mapKey),
+                        const TripOverlayHost(),
+                        const LoadingOverlay(),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

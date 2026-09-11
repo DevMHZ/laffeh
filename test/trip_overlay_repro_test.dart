@@ -6,6 +6,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:laffeh/core/constants/app_constants.dart';
+import 'package:laffeh/core/config/preview_prefs.dart';
+import 'package:laffeh/features/route_planner/presentation/widgets/route_map_view.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +44,26 @@ class _FakeRouteCubit extends Cubit<RoutePlannerState>
   _FakeRouteCubit(super.initialState);
 
   int exits = 0;
+  int previews = 0;
+
+  @override
+  void startSimulation() {
+    previews++;
+    emit(
+      state.copyWith(
+        simulationActive: true,
+        simulationPlaying: true,
+        simulationCameraMode: SimulationCameraMode.overview,
+      ),
+    );
+  }
+
+  @override
+  Future<void> refreshConnectivity() async {}
+  @override
+  Future<void> refreshLocationAccess() async {}
+  @override
+  void setAppForeground(bool foreground) {}
 
   void advance() => emit(
     state.copyWith(
@@ -204,6 +226,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    PreviewPrefs.notifier.value = true;
     dotenv.loadFromString(envString: 'AI_ROUTE_BASE_URL=https://example.com');
   });
 
@@ -235,6 +258,110 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     return cubit;
   }
+
+  Future<_FakeRouteCubit> planForCountdown(WidgetTester tester) async {
+    final cubit = await pumpPage(tester, const RoutePlannerState());
+    final route = _fixtureRoute();
+    cubit.emit(
+      RoutePlannerState(
+        status: RoutePlannerStatus.optimizedSuccess,
+        points: route.orderedPoints,
+        optimizedRoute: route,
+        previewRequestId: 1,
+      ),
+    );
+    await tester.pump();
+    return cubit;
+  }
+
+  void reportMapReady(WidgetTester tester, _FakeRouteCubit cubit) {
+    tester.widget<RouteMapView>(find.byType(RouteMapView)).onRouteReady!(
+      cubit.state.optimizedRoute,
+    );
+  }
+
+  testWidgets('planner waits for map readiness and starts Overview only once', (
+    tester,
+  ) async {
+    final cubit = await planForCountdown(tester);
+    await tester.pump(const Duration(seconds: 6));
+    expect(cubit.previews, 0);
+    reportMapReady(tester, cubit);
+    await tester.pump();
+    expect(find.text(AppStrings.previewStartsIn(5)), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    expect(cubit.previews, 0);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(cubit.previews, 1);
+    expect(cubit.state.simulationCameraMode, SimulationCameraMode.overview);
+    await tester.tap(find.byTooltip(AppStrings.exitSimulation));
+    await tester.pump(const Duration(seconds: 6));
+    expect(cubit.previews, 1);
+    expect(find.text(AppStrings.playRoutePreview), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final accessibility in ['reduce motion', 'screen reader']) {
+    testWidgets('$accessibility keeps preview manual in the real planner', (
+      tester,
+    ) async {
+      tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(
+            disableAnimations: accessibility == 'reduce motion',
+            accessibleNavigation: accessibility == 'screen reader',
+          );
+      addTearDown(
+        tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final cubit = await planForCountdown(tester);
+      reportMapReady(tester, cubit);
+      await tester.pump(const Duration(seconds: 6));
+      expect(cubit.previews, 0);
+      expect(find.text(AppStrings.playRoutePreview), findsOneWidget);
+      await tester.tap(find.text(AppStrings.playRoutePreview));
+      await tester.pump();
+      expect(cubit.previews, 1);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('backgrounding at the last second consumes the countdown', (
+    tester,
+  ) async {
+    final cubit = await planForCountdown(tester);
+    reportMapReady(tester, cubit);
+    await tester.pump(const Duration(seconds: 4));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump(const Duration(seconds: 2));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 6));
+    expect(cubit.previews, 0);
+    expect(find.text(AppStrings.playRoutePreview), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opening another page prevents automatic preview underneath it', (
+    tester,
+  ) async {
+    final cubit = await planForCountdown(tester);
+    reportMapReady(tester, cubit);
+    await tester.pump(const Duration(seconds: 4));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    unawaited(
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Other page')),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(cubit.previews, 0);
+    navigator.pop();
+    await tester.pump(const Duration(seconds: 6));
+    expect(cubit.previews, 0);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('simulation overlay mounts on the real page', (tester) async {
     await pumpPage(

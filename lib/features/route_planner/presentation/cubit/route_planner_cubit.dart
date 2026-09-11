@@ -1565,6 +1565,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
             status: RoutePlannerStatus.optimizedSuccess,
             quietRouting: false,
             optimizedRoute: route,
+            previewRequestId: state.previewRequestId + (quiet ? 0 : 1),
             stopFractions: _fractionsFor(route),
             maneuverFractions: _maneuverFractionsFor(route),
             // Keep deactivated optional points around (dimmed on the map,

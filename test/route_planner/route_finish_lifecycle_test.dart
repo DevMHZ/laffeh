@@ -178,6 +178,23 @@ void main() {
     await geo.dispose();
   });
 
+  test('only an explicit optimize requests automatic preview', () async {
+    cubit.loadSavedRoute(
+      _saved([
+        _pt('d', 33.89, 35.50, depot: true),
+        _pt('a', 33.90, 35.51),
+        _pt('b', 33.91, 35.52),
+      ]),
+    );
+    expect(cubit.state.previewRequestId, 0);
+    await cubit.optimize(quiet: true);
+    expect(cubit.state.previewRequestId, 0);
+    await cubit.optimize();
+    expect(cubit.state.previewRequestId, 1);
+    await cubit.optimize(quiet: true);
+    expect(cubit.state.previewRequestId, 1);
+  });
+
   group('the end of the day belongs to one trip, not to the app', () {
     test('clearing the trip forgets where the day was going to end', () async {
       await cubit.setRouteFinish(
