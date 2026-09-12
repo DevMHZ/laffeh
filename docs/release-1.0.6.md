@@ -23,10 +23,17 @@ The generator rejects service-role keys and excludes the unused Mapbox token.
 
 Existing B2B keys remain server-side for older clients; rotating/revoking those
 would require a separate migration. The blocked build 6 is superseded and must
-not be uploaded. Build 7's Google Play name and notes are saved. The browser file chooser
-opened, but Chrome rejected `setFiles` with `Not allowed`; the extension needs
-Allow access to file URLs enabled. No successful bundle upload or Google Play
-processing has been confirmed yet.
+not be uploaded. Build 7 was uploaded successfully through Chrome's native file picker.
+Google Play processed and accepted App bundle `7 (1.0.6)`: API levels 24+,
+target SDK 36, three ABIs, with ReTrace mapping and native debug symbols.
+The release was saved as a production-track draft, not submitted for review
+or rolled out. Release name: `1.0.6 (7)`.
+
+Play draft: https://play.google.com/console/u/0/developers/5891027044453857427/app/4973371552052367519/tracks/4697283739472337143/releases/1/prepare
+
+The live API smoke test returned a valid one-vehicle route for two public Beirut
+demo stops. Attempts to request seven vehicles or use the new ID for tracking
+and privileged B2B optimization were rejected.
 
 ## Rebuild and verify
 
