@@ -10,20 +10,14 @@ class EnvConfig {
   }
 
   static String get aiRouteBaseUrl => _read(
-    'AI_ROUTE_BASE_URL',
-    fallback: 'https://back.laffa.afdal.tech/api/v1',
+    'MOBILE_ROUTE_BASE_URL',
+    fallback: 'https://back.laffa.afdal.tech/api/mobile',
   );
 
-  /// No fallback on purpose. A key checked into the repository is a key
-  /// anyone can read, and this one was public long enough to be treated as
-  /// compromised. An unset key now fails loudly at the first request rather
-  /// than quietly signing traffic with a shared default.
-  ///
-  /// Note this is an *identifier*, not a secret: `.env` is bundled as an
-  /// asset, so whatever is here ships inside the APK and can be read out of
-  /// it. Rate limits and quotas on the server are what actually protect the
-  /// API — see the `limit` field on each key.
-  static String get aiRouteApiKey => _read('AI_ROUTE_API_KEY');
+  /// Publishable ID for the bounded, single-driver routing service. This is
+  /// intentionally public and cannot authorize B2B, tracking or account APIs.
+  /// Server policy: vrp-saas-osm/backend/mobile_access.py.
+  static const String laffaMobileAppKey = 'laffa_mobile_public_AgViki7W0zE-EYCuxqgBa9wlCgxfTWd4';
 
   static String get mapStyleUrl => _read(
     'MAP_STYLE_URL',

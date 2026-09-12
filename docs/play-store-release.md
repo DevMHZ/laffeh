@@ -128,16 +128,17 @@ Notes for the reviewer/questionnaire:
 
 ## Known gaps / follow-ups (not blockers)
 
-1. **`.env` ships inside the bundle.** It is bundled as a Flutter asset, so
-   anyone who downloads the app can extract `base/assets/flutter_assets/.env`
-   and read every key in it:
-   - `SUPABASE_ANON_KEY` — fine, it is public by design and guarded by RLS.
-   - `MAPBOX_ACCESS_TOKEN` — restrict it to this app / rotate it if it is a
-     secret token; an unrestricted token can be billed against by anyone.
-   - `AI_ROUTE_API_KEY` — **this is a real secret and is currently extractable.**
-     Move the call behind your own backend, or issue per-app keys with limited
-     scope, before a public launch.
-   `.env` is gitignored, so any CI that builds the AAB must inject it.
+1. **Generate public configuration before building:** run
+   `python3 scripts/prepare_public_config.py`. Only the ignored, allowlisted
+   `assets/public.env` ships; the source `.env` is no longer a Flutter asset.
+   The generator excludes routing/Mapbox secrets and rejects a Supabase
+   service-role key. Supabase anon/publishable keys still rely on server RLS.
+   Routing now uses the intentionally public `laffaMobileAppKey` identifier
+   and the dedicated `/api/mobile/optimize` endpoint. Its server policy allows
+   one vehicle, up to 100 stops and 1–10 seconds of solver search, with global
+   rate and concurrency limits. This identifier cannot authorize B2B,
+   tracking or account APIs. It is not proof of a genuine app installation.
+   Deploy this backend endpoint before distributing build 7 or later.
 2. **iOS / macOS / Windows / Linux still use `com.example.laffeh`.** Only Android
    was renamed (Play is the target). Change the iOS bundle id before an App
    Store submission — it affects provisioning profiles, so do it deliberately.

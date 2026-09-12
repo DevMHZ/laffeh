@@ -29,7 +29,7 @@ Future<void> main() async {
   await initializeDateFormatting();
 
   try {
-    await dotenv.load(fileName: '.env');
+    await dotenv.load(fileName: 'assets/public.env');
   } catch (_) {}
 
   await SupabaseConfig.init();

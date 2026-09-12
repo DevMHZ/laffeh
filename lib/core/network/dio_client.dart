@@ -12,7 +12,7 @@ import '../config/network_config.dart';
 /// Two named Dio instances:
 ///
 ///   * [aiRouteDio]   → talks to the Afdal VRP optimizer
-///                       (carries the `X-API-Key` header by default).
+///                       (carries the publishable `X-Laffa-Mobile-Key` ID).
 ///   * [osrmDio]      → talks to the public OSRM router
 ///                       (OpenStreetMap-based; no key).
 ///   * [nominatimDio] → structured addresses + reverse geocoding through
@@ -64,7 +64,7 @@ class DioClient {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'X-API-Key': EnvConfig.aiRouteApiKey,
+          'X-Laffa-Mobile-Key': EnvConfig.laffaMobileAppKey,
         },
         responseType: ResponseType.json,
       ),

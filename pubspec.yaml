@@ -1,7 +1,7 @@
 name: laffeh
 description: "Laffeh - AI Route Optimization (Afdal VRP)."
 publish_to: 'none'
-version: 1.0.6+6
+version: 1.0.6+7
 
 environment:
   sdk: ^3.8.1
@@ -72,7 +72,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - .env
+    - assets/public.env
     - assets/afdalLogo.png
     - assets/laffeh_logo.png
     - assets/laffeh_road.png

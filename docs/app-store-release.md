@@ -372,8 +372,9 @@ flutter analyze
 flutter test test/auth/
 ```
 
-`.env` is gitignored but **bundled as a Flutter asset** — make sure the real one
-is present before archiving, or the app ships with no Supabase/Mapbox config.
+Run `python3 scripts/prepare_public_config.py` before building. Its allowlisted
+`assets/public.env` is bundled; the source `.env` is excluded. Make sure the configuration
+is present before archiving, or the app ships with no Supabase configuration.
 
 ### 5.2 Build the IPA
 
@@ -512,14 +513,13 @@ build number.
 
 ## 9. Known gaps carried over from the Play release
 
-1. **`.env` ships inside the IPA.** An `.ipa` is a zip — anyone can extract
-   `Payload/Runner.app/Flutter/flutter_assets/.env`:
-   - `SUPABASE_ANON_KEY` — fine, public by design, guarded by RLS.
-   - `MAPBOX_ACCESS_TOKEN` — restrict it to this bundle id, or it can be billed
-     against by anyone.
-   - `AI_ROUTE_API_KEY` — **a real secret, currently extractable.** Move the call
-     behind your own backend or issue scoped per-app keys. This is the one item
-     here that is a genuine security problem rather than a store requirement.
+1. **Only public client configuration ships.** Generate `assets/public.env`
+   with `python3 scripts/prepare_public_config.py`; `.env` is excluded from
+   Flutter assets. Routing uses the intentionally publishable
+   `laffaMobileAppKey` ID on `/api/mobile/optimize`, with server-enforced stop,
+   vehicle, compute, rate and concurrency limits and no private API access.
+   The old shared B2B key and unused Mapbox token are excluded. Supabase anon
+   or publishable keys remain public and depend on database RLS.
 2. **Stale golden tests.** 10 of 190 tests fail on pixel diffs — `splash`,
    `loader`, `fun_animations`, `marker_preview`, `trip_flow_preview`,
    `trip_overlay_repro`. Confirmed pre-existing: they fail identically with the

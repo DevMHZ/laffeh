@@ -8,6 +8,7 @@
 .env.*
 .env.local
 .env.*.local
+assets/public.env
 .codex-ui-screenshots/
 .atom/
 .build/
@@ -72,3 +73,5 @@ app.*.map.json
 /.appstore_html/
 /app_store_screenshots/
 /app_store_screenshots.zip
+
+scripts/__pycache__/

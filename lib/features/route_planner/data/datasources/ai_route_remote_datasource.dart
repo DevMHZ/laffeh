@@ -47,7 +47,10 @@ class AiRouteRemoteDataSource {
     if (body is Map && body['message'] != null) {
       message = body['message'].toString();
     } else if (body is Map && body['detail'] != null) {
-      message = body['detail'].toString();
+      final detail = body['detail'];
+      message = detail is Map && detail['message'] != null
+          ? detail['message'].toString()
+          : detail.toString();
     }
     return ServerException(message, statusCode: e.response?.statusCode);
   }
