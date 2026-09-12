@@ -103,6 +103,68 @@ void main() {
   );
 
   for (final language in ['en', 'ar', 'fr']) {
+    testWidgets('$language About links launch externally and fit large text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 820);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      AppStrings.setLocale(Locale(language));
+      final auth = _Auth();
+      addTearDown(auth.close);
+      final launches = <MethodCall>[];
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        launches.add(call);
+        return true;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await tester.pumpWidget(
+        BlocProvider<AuthCubit>.value(
+          value: auth,
+          child: MaterialApp(
+            theme: AppTheme.data,
+            home: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(1.8)),
+              child: Directionality(
+                textDirection: language == 'ar'
+                    ? TextDirection.rtl
+                    : TextDirection.ltr,
+                child: const SettingsPage(),
+              ),
+            ),
+          ),
+        ),
+      );
+      for (final (label, url) in [
+        (AppStrings.aboutUs, 'https://www.afdal.tech/'),
+        (AppStrings.tryOurGame, 'https://game.laffa.afdal.tech/'),
+      ]) {
+        await tester.scrollUntilVisible(
+          find.text(label).hitTestable(),
+          250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        expect(launches.last.method, 'launch');
+        expect(launches.last.arguments['url'], url);
+        expect(launches.last.arguments['useSafariVC'], false);
+        expect(launches.last.arguments['useWebView'], false);
+        expect(find.byType(SettingsPage), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+      expect(launches, hasLength(2));
+    });
+
     testWidgets(
       '$language load descriptions fit a narrow screen at 180% text',
       (tester) async {
@@ -251,6 +313,46 @@ void main() {
         find.byType(Scaffold),
         matchesGoldenFile('goldens/settings_profiles_$language.png'),
       );
+    });
+  }
+
+  for (final throws in [false, true]) {
+    testWidgets('failed game launch gives feedback (throws: $throws)', (
+      tester,
+    ) async {
+      final auth = _Auth();
+      addTearDown(auth.close);
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        _,
+      ) async {
+        if (throws) throw PlatformException(code: 'no_browser');
+        return false;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await tester.pumpWidget(
+        BlocProvider<AuthCubit>.value(
+          value: auth,
+          child: MaterialApp(theme: AppTheme.data, home: const SettingsPage()),
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.text(AppStrings.tryOurGame).hitTestable(),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text(AppStrings.tryOurGame));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppStrings.websiteOpenFailed(AppStrings.gameWebsiteUrl)),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
   }
 

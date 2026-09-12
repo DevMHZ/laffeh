@@ -87,7 +87,9 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 24),
 
           _SettingsGroups(
-            onAboutUsTap: () => _openWebsite(context),
+            onAboutUsTap: () =>
+                _openWebsite(context, AppStrings.afdalWebsiteUrl),
+            onGameTap: () => _openWebsite(context, AppStrings.gameWebsiteUrl),
             onImportCsv: onImportCsv,
           ),
         ],
@@ -95,16 +97,19 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _openWebsite(BuildContext context) async {
-    final uri = Uri.parse(AppStrings.afdalWebsiteUrl);
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _openWebsite(BuildContext context, String url) async {
+    var ok = false;
+    try {
+      ok = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      ok = false;
+    }
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppStrings.websiteOpenFailed(AppStrings.afdalWebsiteUrl),
-          ),
-        ),
+        SnackBar(content: Text(AppStrings.websiteOpenFailed(url))),
       );
     }
   }
@@ -209,8 +214,13 @@ class _LanguageTile extends StatelessWidget {
 /// Preferences and driving controls first; account and reference material below.
 class _SettingsGroups extends StatelessWidget {
   final VoidCallback onAboutUsTap;
+  final VoidCallback onGameTap;
   final Future<int> Function()? onImportCsv;
-  const _SettingsGroups({required this.onAboutUsTap, this.onImportCsv});
+  const _SettingsGroups({
+    required this.onAboutUsTap,
+    required this.onGameTap,
+    this.onImportCsv,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -297,7 +307,19 @@ class _SettingsGroups extends StatelessWidget {
           children: [
             _AboutSection(),
             _LegalRow(),
-            _AboutUsRow(onTap: onAboutUsTap),
+            _DiscoveryLink(
+              icon: Iconsax.heart,
+              title: AppStrings.aboutUs,
+              description: 'afdal.tech',
+              onTap: onAboutUsTap,
+            ),
+            _DiscoveryLink(
+              icon: Icons.sports_esports_outlined,
+              title: AppStrings.tryOurGame,
+              description: AppStrings.gameDescription,
+              onTap: onGameTap,
+              highlighted: true,
+            ),
           ],
         ),
       ],
@@ -1258,36 +1280,69 @@ class _ImportCsvRow extends StatelessWidget {
   }
 }
 
-class _AboutUsRow extends StatelessWidget {
+class _DiscoveryLink extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
   final VoidCallback onTap;
-  const _AboutUsRow({required this.onTap});
+  final bool highlighted;
+  const _DiscoveryLink({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+    this.highlighted = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
+    return Semantics(
+      link: true,
+      hint: AppStrings.opensInBrowser,
+      child: Material(
+        color: highlighted
+            ? AppColors.primary.withValues(alpha: 0.09)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              Icon(Iconsax.heart, size: 18, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(AppStrings.aboutUs, style: AppTextStyles.titleMd),
-              ),
-              Text(
-                AppStrings.visitWebsite,
-                style: AppTextStyles.mutedSm.copyWith(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: highlighted ? 12 : 0,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: highlighted ? 24 : 20,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: AppTextStyles.titleMd),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  Icons.open_in_new_rounded,
+                  size: 17,
                   color: AppColors.textMuted,
                 ),
-              ),
-              const SizedBox(width: 4),
-              const AppChevron(),
-            ],
+              ],
+            ),
           ),
         ),
       ),

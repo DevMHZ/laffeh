@@ -15,6 +15,7 @@ class AppStrings {
 
   static const _supportedCodes = {'en', 'ar', 'fr'};
   static const afdalWebsiteUrl = 'https://www.afdal.tech/';
+  static const gameWebsiteUrl = 'https://game.laffa.afdal.tech/';
   static const localeStorageKey = 'laffeh.language_code';
   static const onboardingDoneKey = 'laffeh.onboarding_done';
 
@@ -229,6 +230,9 @@ class AppStrings {
   static String get officialWebsite => _t('officialWebsite');
   static String get visitWebsite => _t('visitWebsite');
   static String get aboutUs => _t('aboutUs');
+  static String get tryOurGame => _t('tryOurGame');
+  static String get gameDescription => _t('gameDescription');
+  static String get opensInBrowser => _t('opensInBrowser');
   static String get aboutDescription => _t('aboutDescription');
   static String get language => _t('language');
   static String get appearance => _t('appearance');
@@ -1245,6 +1249,10 @@ const Map<String, Map<String, String>> _copy = {
     'officialWebsite': 'Official website',
     'visitWebsite': 'Visit website',
     'aboutUs': 'About us',
+    'tryOurGame': 'Try our game',
+    'gameDescription':
+        'Find the shortest route. See how your instincts compare.',
+    'opensInBrowser': 'Opens in your browser',
     'language': 'Language',
     'appearance': 'Appearance',
     'vehicleIcon': 'Vehicle icon',
@@ -1881,6 +1889,9 @@ const Map<String, Map<String, String>> _copy = {
     'officialWebsite': 'الموقع الرسمي',
     'visitWebsite': 'زيارة الموقع',
     'aboutUs': 'من نحن',
+    'tryOurGame': 'جرّب لعبتنا',
+    'gameDescription': 'اعثر على أقصر طريق واختبر مهارتك في اختيار المسار.',
+    'opensInBrowser': 'يفتح في المتصفح',
     'language': 'اللغة',
     'appearance': 'المظهر',
     'vehicleIcon': 'أيقونة المركبة',
@@ -2520,6 +2531,10 @@ const Map<String, Map<String, String>> _copy = {
     'officialWebsite': 'Site officiel',
     'visitWebsite': 'Visiter le site',
     'aboutUs': 'À propos',
+    'tryOurGame': 'Essayez notre jeu',
+    'gameDescription':
+        'Trouvez le chemin le plus court. Testez votre intuition.',
+    'opensInBrowser': 'S’ouvre dans votre navigateur',
     'language': 'Langue',
     'appearance': 'Apparence',
     'vehicleIcon': 'Icône du véhicule',
