@@ -26,14 +26,33 @@ would require a separate migration. The blocked build 6 is superseded and must
 not be uploaded. Build 7 was uploaded successfully through Chrome's native file picker.
 Google Play processed and accepted App bundle `7 (1.0.6)`: API levels 24+,
 target SDK 36, three ABIs, with ReTrace mapping and native debug symbols.
-The release was saved as a production-track draft, not submitted for review
-or rolled out. Release name: `1.0.6 (7)`.
+The bundle was first saved as a production-track draft. On September 12, 2026,
+it was also attached from Play's library to the open-testing release
+`1.0.6 (7)` and submitted to Google for review. Publishing overview confirmed
+**Changes in review**, with exactly one change: **Open testing — 1.0.6 (7) —
+Start full rollout**. Managed publishing is off. Google approval is pending;
+the production-track draft was not submitted.
+
+The two open-testing errors (no eligible upgrade and no app bundles added or
+removed) were caused by the empty testing release. Attaching the accepted
+build 7 cleared both errors and Play showed **Ready to release** before
+submission. No new binary or version code was needed.
+
+Publishing status: https://play.google.com/console/u/0/developers/5891027044453857427/app/4973371552052367519/publishing
+
+Open-testing release: https://play.google.com/console/u/0/developers/5891027044453857427/app/4973371552052367519/tracks/4699064594245287204/releases/1/review
 
 Play draft: https://play.google.com/console/u/0/developers/5891027044453857427/app/4973371552052367519/tracks/4697283739472337143/releases/1/prepare
 
 The live API smoke test returned a valid one-vehicle route for two public Beirut
 demo stops. Attempts to request seven vehicles or use the new ID for tracking
 and privileged B2B optimization were rejected.
+
+The subsequent web/backend release `9b8a35f` is live. It adds one fleet-wide
+Deliver/Pickup/Indifferent preference, phone layouts, and explicit kg·km and
+driving tradeoffs. It also fixes the cumulative 2% detour limit and the pickup
+carried-load calculation. Validation: 145 backend tests and 13 frontend tests
+passed, along with the production frontend build and responsive browser checks.
 
 ## Rebuild and verify
 
