@@ -8,7 +8,7 @@ Signed Android App Bundle prepared on September 12, 2026 for `com.afdal.laffah`.
 - 90 authentication and Settings tests passed. Full static analysis reports the same five pre-existing findings: one unused optional geocoder parameter and four test documentation lints.
 - The bundle signature verifies. The signing tool reports the standard self-signed upload certificate/no timestamp warnings and a ZIP manifest-order warning; Google Play processing has not yet been run.
 
-The existing shared routing API key is still bundled in `.env`. The upload is pending approval because that key can be extracted from the distributed app. Neither the key nor signing credentials are committed here. Do not describe this as an uploaded or published release until Play confirms it.
+The existing shared routing API key is still bundled in `.env`. The user approved keeping it for this release, but automatic approval review still rejected the Google Play upload because the credential is extractable. The AAB remains local; Play release preparation contains the name and notes only. Neither the key nor signing credentials are committed here. Do not describe this as an uploaded or published release until Play confirms it.
 
 ## Release notes
 
