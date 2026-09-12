@@ -23,8 +23,10 @@ The generator rejects service-role keys and excludes the unused Mapbox token.
 
 Existing B2B keys remain server-side for older clients; rotating/revoking those
 would require a separate migration. The blocked build 6 is superseded and must
-not be uploaded. Build 7's Google Play name and notes are saved; bundle upload
-and processing are pending verification.
+not be uploaded. Build 7's Google Play name and notes are saved. The browser file chooser
+opened, but Chrome rejected `setFiles` with `Not allowed`; the extension needs
+Allow access to file URLs enabled. No successful bundle upload or Google Play
+processing has been confirmed yet.
 
 ## Rebuild and verify
 
