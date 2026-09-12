@@ -1,5 +1,17 @@
 # Laffah 1.0.6
 
+## iOS build 8 — App Store Connect
+
+- Archived September 12, 2026 with Xcode 26.5: `build/ios/archive/Runner.xcarchive` (209.8 MB).
+- Main app `com.afdal.laffah` and share extension `com.afdal.laffah.ShareExtension` both report version `1.0.6`, build `8`.
+- Archive verification passed: only the allowlisted public configuration, no private `.env` asset or legacy routing field.
+- Command-line IPA export could not locate distribution assets. Xcode Organizer resolved the existing Apple Distribution signing assets and uploaded successfully at 18:34 CEST.
+- App Store Connect version 1.0.6 created with release notes in Arabic, English (U.S.) and French. Existing screenshots and listing details retained; automatic release after approval retained.
+- Upload accepted with non-blocking warnings: document-opening mode is not explicitly declared, iOS 14 minimum support needs updating before Apple's spring 2027 requirement, and the upstream MapLibre framework has no matching dSYM.
+- Build processing completed successfully; build UUID `0c8c0235-324c-4cd1-9834-34f491edadb4`. Attached build 8 to App Store version 1.0.6 and submitted September 12, 2026 at approximately 18:40 CEST. App Store Connect confirmed **1 Item Submitted** and **Waiting for Review**. Automatic release after approval is enabled.
+- Review submission: https://appstoreconnect.apple.com/apps/6802438232/distribution/reviewsubmissions/details/80bafba9-f2c8-4350-ae8d-d2ac3ff1a202
+- Related web mobile-viewport fix `1995770` is live on production. Map and fixed controls now use the same viewport; responsive checks confirmed no gap above navigation or in Focus mode at 393×740 and 393×840.
+
 ## Build 8 — POI imports and map taps
 
 Signed bundle prepared September 12, 2026; not uploaded or submitted yet.
