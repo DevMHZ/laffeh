@@ -5,7 +5,7 @@ Everything needed to take the app from this repo to a Play Console upload.
 | Fact | Value |
 |---|---|
 | Package name (`applicationId`) | `com.afdal.laffah` — **permanent**, can never change after the first release |
-| Current version | `1.0.0+1` (`versionName+versionCode` in `pubspec.yaml`) |
+| Current version | `1.0.6+6` (`versionName+versionCode` in `pubspec.yaml`) |
 | `minSdk` / `targetSdk` | 24 / 36 (Flutter defaults — meets Play's current target-API requirement) |
 | Suggested category | Maps & Navigation |
 | Contains ads | No |
