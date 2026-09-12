@@ -105,6 +105,7 @@ class RouteMapViewState extends State<RouteMapView>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   MapLibreMapController? _controller;
   bool _styleLoaded = false;
+  bool _mapPlaceSheetOpen = false;
 
   /// Compass bearing (degrees clockwise from north). Updated on every camera
   /// move so the compass widget can counter-rotate the needle in real time.
@@ -1243,15 +1244,14 @@ class RouteMapViewState extends State<RouteMapView>
         'place=${_labelLayers.place.length} other=${_labelLayers.other.length}',
       );
     } catch (e) {
-      // A style that will not enumerate its layers costs us tap-to-add and
-      // nothing else; everything on this map keeps working.
+      // Without label layers, taps still offer the exact coordinate.
       DebugLog.map('getLayerIds failed: $e');
       _labelLayers = MapLabelLayers.empty;
     }
   }
 
-  /// Tapping a name printed on the map opens it, the way every map app has
-  /// trained every driver to expect.
+  /// Every planning-map tap offers a stop. A rendered label enriches it
+  /// with a place name; empty map space keeps the exact tapped coordinate.
   ///
   /// The answer comes out of the vector tile already on screen — the map
   /// drew that label, so it knows the name, the category and the exact
@@ -1267,46 +1267,47 @@ class RouteMapViewState extends State<RouteMapView>
     math.Point<double> screenPoint,
     LatLng coordinates,
   ) async {
-    if (!mounted) return;
-    final c = _controller;
-    if (c == null || _labelLayers.isEmpty) return;
+    if (!mounted || _mapPlaceSheetOpen) return;
+    final cubit = context.read<RoutePlannerCubit>();
+    bool tapIsClaimed() =>
+        cubit.state.navigationActive ||
+        cubit.state.simulationActive ||
+        cubit.state.manualPlacement ||
+        cubit.state.movingPointId != null;
+    if (tapIsClaimed()) return;
 
-    final state = context.read<RoutePlannerCubit>().state;
-    // Every mode that has already claimed the tap keeps it: mid-drive the
-    // map is for looking at, and while a pin is being aimed or moved the
-    // next tap belongs to that flow.
-    if (state.navigationActive ||
-        state.simulationActive ||
-        state.manualPlacement ||
-        state.movingPointId != null) {
-      return;
-    }
-
-    final tap = ll.LatLng(coordinates.latitude, coordinates.longitude);
-
-    // A tap on one of our own stop markers belongs to the marker's sheet,
-    // which `onSymbolTapped` is already opening. Both callbacks fire for
-    // the same touch, so without this the driver gets two sheets.
-    //
-    // Measured on screen, not on the ground. Projecting each marker costs
-    // a call per stop and is worth it: a metre-based radius means something
-    // different at every zoom level, and at street zoom a generous one eats
-    // every label within a block of a stop.
-    final hitPad = MapConfig.markerTapRadiusPx * _aimScale;
-    for (final p in state.points) {
-      final marker = await c.toScreenLocation(_ml(p.latLng));
-      if ((marker.x - screenPoint.x).abs() < hitPad &&
-          (marker.y - screenPoint.y).abs() < hitPad) {
-        return;
+    _mapPlaceSheetOpen = true;
+    try {
+      final tap = ll.LatLng(coordinates.latitude, coordinates.longitude);
+      final c = _controller;
+      // Our marker callback already opens its own sheet. Keep the hit test
+      // in screen units so it does not swallow a whole block at street zoom.
+      if (c != null) {
+        final hitPad = MapConfig.markerTapRadiusPx * _aimScale;
+        for (final p in cubit.state.points) {
+          final marker = await c.toScreenLocation(_ml(p.latLng));
+          if ((marker.x - screenPoint.x).abs() < hitPad &&
+              (marker.y - screenPoint.y).abs() < hitPad) {
+            return;
+          }
+        }
       }
+      final label = await _queryLabelAt(screenPoint, tap);
+      if (!mounted || tapIsClaimed()) return;
+      final place =
+          label ??
+          PlaceSuggestion(
+            id: 'pin:${tap.latitude},${tap.longitude}',
+            name: AppStrings.mapDroppedPin,
+            latLng: tap,
+            kind: PlaceKind.coordinate,
+            source: PlaceSource.coordinate,
+          );
+      HapticFeedback.selectionClick();
+      await showMapPlaceSheet(context, cubit, place);
+    } finally {
+      _mapPlaceSheetOpen = false;
     }
-    if (!mounted) return;
-
-    final place = await _queryLabelAt(screenPoint, tap);
-    if (place == null || !mounted) return;
-
-    HapticFeedback.selectionClick();
-    await showMapPlaceSheet(context, context.read<RoutePlannerCubit>(), place);
   }
 
   /// Asks the three label tiers in turn and returns the first named hit.

@@ -3,8 +3,63 @@ import 'package:latlong2/latlong.dart';
 class LinkParser {
   LinkParser._();
 
+  static bool isGoogleMapsHost(String host) => RegExp(
+    r'^(?:(?:www|maps|consent)\.)?google\.(?:com|[a-z]{2}|(?:co|com)\.[a-z]{2})$',
+  ).hasMatch(host.toLowerCase());
+
+  static bool isMapUri(Uri uri) {
+    if (uri.scheme != 'https' && uri.scheme != 'http') return false;
+    final host = uri.host.toLowerCase();
+    return isGoogleMapsHost(host) ||
+        host == 'maps.app.goo.gl' ||
+        (host == 'goo.gl' && uri.path.startsWith('/maps')) ||
+        host == 'maps.apple' ||
+        host == 'maps.apple.com';
+  }
+
+  /// A share may contain a business name before its URL. Extract only map
+  /// URLs; ordinary addresses still go through the existing text importer.
+  static List<String> extractMapUrls(String text) {
+    final urls = <String>[];
+    for (final match in RegExp(r'''https?://[^\s<>"']+''').allMatches(text)) {
+      var value = match.group(0)!;
+      while (value.endsWith('.') ||
+          value.endsWith(',') ||
+          (value.endsWith(')') &&
+              ')'.allMatches(value).length > '('.allMatches(value).length)) {
+        value = value.substring(0, value.length - 1);
+      }
+      final uri = Uri.tryParse(value);
+      if (uri != null && isMapUri(uri)) urls.add(value);
+    }
+    return urls;
+  }
+
+  static String? placeLabel(Uri uri) {
+    if (uri.host.startsWith('consent.google.')) {
+      final next = Uri.tryParse(uri.queryParameters['continue'] ?? '');
+      if (next != null && next.host != uri.host && isMapUri(next)) {
+        return placeLabel(next);
+      }
+      return null;
+    }
+    final parts = uri.pathSegments;
+    final place = parts.indexOf('place');
+    if (place >= 0 && place + 1 < parts.length) {
+      final name = parts[place + 1].replaceAll('+', ' ').trim();
+      if (name.isNotEmpty &&
+          !name.startsWith('data=') &&
+          !name.startsWith('@') &&
+          parseLatLngPair(name) == null) {
+        return name;
+      }
+    }
+    final name = uri.queryParameters['name'];
+    return name == null || name.trim().isEmpty ? null : name.trim();
+  }
+
   static LatLng? tryParseMapUrl(String input) {
-    final trimmed = input.trim();
+    final trimmed = extractMapUrls(input).firstOrNull ?? input.trim();
 
     final uri = Uri.tryParse(trimmed);
     if (uri == null) return null;
@@ -28,12 +83,12 @@ class LinkParser {
     final host = uri.host;
 
     // ── Google Maps ────────────────────────────────────────────
-    if (host.contains('google')) {
+    if (isGoogleMapsHost(host)) {
       return _parseGoogleMaps(uri);
     }
 
     // ── Apple Maps ────────────────────────────────────────────
-    if (host.contains('apple')) {
+    if (host == 'maps.apple.com' || host == 'maps.apple') {
       return _parseAppleMaps(uri);
     }
 
@@ -58,6 +113,17 @@ class LinkParser {
       return null;
     }
 
+    // The POI coordinates take priority over @lat,lng: @ is only the
+    // camera centre, which moves when Google opens its business sidebar.
+    final decoded = Uri.decodeFull(uri.toString());
+    final dataMatch = RegExp(
+      r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)',
+    ).firstMatch(decoded);
+    if (dataMatch != null) {
+      final point = parseLatLngPair('${dataMatch[1]},${dataMatch[2]}');
+      if (point != null) return point;
+    }
+
     // Format 1:  ?q=lat,lng
     //   https://maps.google.com/?q=33.5131,36.2767
     //   https://www.google.com/maps?q=33.5131,36.2767
@@ -79,36 +145,18 @@ class LinkParser {
       if (result != null) return result;
     }
 
-    // Format 2:  @lat,lng,zoom   (often in paths)
-    //   https://www.google.com/maps/place/.../@33.5131,36.2767,15z
-    final atMatch = RegExp(
-      r'@(-?\d+\.\d+),(-?\d+\.\d+)',
-    ).firstMatch(uri.toString());
-    if (atMatch != null) {
-      final lat = double.tryParse(atMatch.group(1)!);
-      final lng = double.tryParse(atMatch.group(2)!);
-      if (lat != null && lng != null) return LatLng(lat, lng);
-    }
-
-    // Format 3:  ll=lat,lng   (old-style)
     final ll = uri.queryParameters['ll'];
     if (ll != null && ll.trim().isNotEmpty) {
       final result = parseLatLngPair(ll);
       if (result != null) return result;
     }
 
-    // Format 4:  !3d<lat>!4d<lon> inside a `data=` blob.
-    //   .../maps/place/Name/data=!4m6!3m5!1s0x47e6…!8m2!3d49.0369!4d2.0631
-    // This is how Google encodes a *place* today. Sharing a pin gives this
-    // and often no `@lat,lng` at all — `@` is the map *view*, which a share
-    // of a specific place does not always carry.
-    final dataMatch = RegExp(
-      r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)',
-    ).firstMatch(uri.toString());
-    if (dataMatch != null) {
-      final lat = double.tryParse(dataMatch.group(1)!);
-      final lng = double.tryParse(dataMatch.group(2)!);
-      if (lat != null && lng != null) return LatLng(lat, lng);
+    final atMatch = RegExp(
+      r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)',
+    ).firstMatch(decoded);
+    if (atMatch != null) {
+      final point = parseLatLngPair('${atMatch[1]},${atMatch[2]}');
+      if (point != null) return point;
     }
 
     // Format 5:  /maps/search/lat,lng   (short-link redirect target — no
@@ -147,7 +195,9 @@ class LinkParser {
     if (parts.length < 2) return null;
     final lat = double.tryParse(parts[0]);
     final lng = double.tryParse(parts[1]);
-    if (lat == null || lng == null) return null;
+    if (lat == null || lng == null || !lat.isFinite || !lng.isFinite) {
+      return null;
+    }
     if (lat < -90 || lat > 90) return null;
     if (lng < -180 || lng > 180) return null;
     return LatLng(lat, lng);

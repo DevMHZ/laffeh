@@ -1,4 +1,21 @@
-# Laffah 1.0.6 (build 7)
+# Laffah 1.0.6
+
+## Build 8 — POI imports and map taps
+
+Signed bundle prepared September 12, 2026; not uploaded or submitted yet.
+
+- Output: `build/app/outputs/bundle/release/laffah-1.0.6-build8.aab` (87,712,841 bytes).
+- SHA-256: `f5f0545f3d1f46069d59e36f865bf19343e611954158c29b0cd7f64a4e07054a`.
+- Package `com.afdal.laffah`, version name `1.0.6`, version code `8`, existing upload keystore.
+- Google POI imports follow the new HTML share landing page and bounded redirects, and prefer the business pin over the map camera centre. Sharing and pasting preserve the POI name; share captions do not add extra stops.
+- A tap anywhere on the planning map offers Add as a stop / Start the trip here. Labelled places keep their names; unlabeled points show exact coordinates. Existing marker, driving, preview and manual-placement gestures remain separate.
+- Tests cover Google/Apple links, redirect loops, off-provider redirects, POI/camera priority, shared captions, pasted rows and first-tap behaviour. A live Dart lookup of the public Coral Basta Maps share resolved to its exact business pin. Simulator tapping unlabeled space displayed the sheet and successfully added a point.
+- Static analysis retains only the five pre-existing findings documented below. The bundle configuration verifier passed.
+- Google Play now shows the open-testing track paused and build 7 superseded. Build 8 destination is awaiting the owner’s choice; no Play release was changed for this build.
+
+Release notes: Fixed Google Maps business and restaurant link imports. Tap anywhere on the planning map to add a stop or set your departure. Shared places now retain their names and use the correct pin location.
+
+## Build 7 — submission history
 
 Signed Android App Bundle rebuilt on September 12, 2026 for `com.afdal.laffah`.
 

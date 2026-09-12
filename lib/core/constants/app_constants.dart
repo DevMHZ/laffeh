@@ -885,6 +885,7 @@ class AppStrings {
   static String get mapLabelKindArea => _t('mapLabelKindArea');
   static String get mapLabelKindRegion => _t('mapLabelKindRegion');
   static String get mapLabelKindStreet => _t('mapLabelKindStreet');
+  static String get mapDroppedPin => _t('mapDroppedPin');
   static String get mapPlaceAddStop => _t('mapPlaceAddStop');
   static String get mapPlaceSetDeparture => _t('mapPlaceSetDeparture');
   static String get mapPlaceAlreadyAdded => _t('mapPlaceAlreadyAdded');
@@ -1545,6 +1546,7 @@ const Map<String, Map<String, String>> _copy = {
     'mapLabelKindArea': 'Neighbourhood',
     'mapLabelKindRegion': 'Region',
     'mapLabelKindStreet': 'Street',
+    'mapDroppedPin': 'Dropped pin',
     'mapPlaceAddStop': 'Add as a stop',
     'mapPlaceSetDeparture': 'Start the trip here',
     'mapPlaceAlreadyAdded': 'This place is already on the route',
@@ -2182,6 +2184,7 @@ const Map<String, Map<String, String>> _copy = {
     'mapLabelKindArea': 'حي',
     'mapLabelKindRegion': 'محافظة',
     'mapLabelKindStreet': 'شارع',
+    'mapDroppedPin': 'نقطة على الخريطة',
     'mapPlaceAddStop': 'أضِفها كمحطة',
     'mapPlaceSetDeparture': 'ابدأ الرحلة من هنا',
     'mapPlaceAlreadyAdded': 'هذا المكان موجود في المسار',
@@ -2836,6 +2839,7 @@ const Map<String, Map<String, String>> _copy = {
     'mapLabelKindArea': 'Quartier',
     'mapLabelKindRegion': 'Région',
     'mapLabelKindStreet': 'Rue',
+    'mapDroppedPin': 'Point sur la carte',
     'mapPlaceAddStop': 'Ajouter comme arrêt',
     'mapPlaceSetDeparture': 'Partir d\'ici',
     'mapPlaceAlreadyAdded': 'Ce lieu est déjà sur l\'itinéraire',

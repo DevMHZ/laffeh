@@ -13,7 +13,7 @@ import '../../domain/entities/place_suggestion.dart';
 import '../pages/route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
 
-/// What opens when the driver taps a name printed on the map.
+/// Offers a stop or departure at a map tap, with a place name when available.
 ///
 /// The gesture that every map app has taught every driver: you see a place
 /// on the map, you touch it, and the app tells you what it is and offers to
@@ -54,13 +54,20 @@ Future<void> showMapPlaceSheet(
           context,
           cubit,
           place.latLng,
-          address: place.fullLabel,
+          address: place.kind == PlaceKind.coordinate ? null : place.fullLabel,
         );
         unawaited(cubit.rememberPlace(place));
       },
       onSetDeparture: () {
         Navigator.pop(sheetCtx);
-        unawaited(cubit.setDeparture(place.latLng, address: place.fullLabel));
+        unawaited(
+          cubit.setDeparture(
+            place.latLng,
+            address: place.kind == PlaceKind.coordinate
+                ? null
+                : place.fullLabel,
+          ),
+        );
         unawaited(cubit.rememberPlace(place));
       },
     ),

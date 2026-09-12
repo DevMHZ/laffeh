@@ -236,7 +236,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     if (!mounted) return;
     final cubit = context.read<RoutePlannerCubit>();
     EasyLoading.show(status: AppStrings.searchingAddresses);
-    final count = await cubit.addPointsFromText(text);
+    final count = await cubit.addPointsFromSharedText(text);
     EasyLoading.dismiss();
     if (mounted) {
       AppToast.show(

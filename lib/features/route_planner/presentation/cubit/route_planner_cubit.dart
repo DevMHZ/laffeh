@@ -1342,6 +1342,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   // ── Bulk add from text ─────────────────────────────────────
 
+  /// Maps share captions describe the linked place, not extra stops.
+  Future<int> addPointsFromSharedText(String text) {
+    final links = LinkParser.extractMapUrls(text);
+    return addPointsFromText(links.isEmpty ? text : links.join('\n'));
+  }
+
   /// Parse multi-line text (one address per line), forward-geocode each,
   /// and add matching points to the map. Returns the count of points added.
   /// Adds every line of shared / pasted [text] as a stop. Each line is a map
@@ -1369,10 +1375,11 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     for (final stop in stops) {
       try {
         // 1- Try to parse as a map URL (Google Maps, Apple Maps, …)
-        final parsed = await MapLinkResolver.parseMapLine(stop.locator);
+        final parsed = await MapLinkResolver.resolveMapLine(stop.locator);
+        final label = stop.label ?? parsed?.label;
         LatLng? latLng;
         if (parsed != null) {
-          latLng = parsed;
+          latLng = parsed.latLng;
         } else {
           // 2- Try raw lat,lng pair (e.g. "33.5131, 36.2767")
           latLng = LinkParser.parseLatLngPair(stop.locator);
@@ -1380,27 +1387,27 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         // 3- Fall back to forward-geocoding
         // Biased to where the round is: an imported "شارع بغداد" means the
         // one in this city, not the best-known one on the continent.
-        latLng ??= await _places.resolveOne(stop.locator, near: searchAnchor);
+        // A failed map link is not an address. Sending the whole URL to
+        // an address search can select an unrelated business or locality.
+        if (latLng == null && LinkParser.extractMapUrls(stop.locator).isEmpty) {
+          latLng = await _places.resolveOne(stop.locator, near: searchAnchor);
+        }
         if (latLng == null) continue;
         // Armed from the "start from" sheet: the first place that lands is
         // where the trip begins, and everything after it is a stop again.
         if (_importAsDeparture) {
           _importAsDeparture = false;
-          await setDeparture(latLng, address: stop.label);
+          await setDeparture(latLng, address: label);
           added++;
           continue;
         }
         if (_importAsFinish) {
           _importAsFinish = false;
-          await setRouteFinish(RouteFinish.at(latLng, label: stop.label));
+          await setRouteFinish(RouteFinish.at(latLng, label: label));
           added++;
           continue;
         }
-        final point = await addPoint(
-          latLng,
-          label: stop.label,
-          phone: stop.phone,
-        );
+        final point = await addPoint(latLng, label: label, phone: stop.phone);
         if (point != null) added++;
       } catch (_) {
         continue;
