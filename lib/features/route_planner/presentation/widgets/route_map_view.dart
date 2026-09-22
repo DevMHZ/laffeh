@@ -36,6 +36,7 @@ import '../cubit/route_planner_state.dart';
 import 'map_action_button.dart';
 import '../utils/sim_visit_states.dart';
 import '../utils/route_motion_frame.dart';
+import '../utils/route_motion_path.dart';
 import '../utils/simulation_motion.dart';
 import 'sheet_extent.dart';
 import 'map_compass.dart';
@@ -279,7 +280,11 @@ class RouteMapViewState extends State<RouteMapView>
 
   final _previewMotion = SimulationMotion();
   final _previewHeading = MotionHeading();
+  final _previewCameraMotion = PreviewCameraMotion();
+  bool _previewCameraTransition = false;
   final _vehicleHeadingFrame = VehicleHeadingFrame();
+  RouteMotionPath? _motionPath;
+  OptimizedRoute? _motionPathRoute;
 
   // Both preview and drive render a geographic vehicle and the joining
   // route lines in one native GeoJSON source, never a screen-fixed overlay.
@@ -504,9 +509,10 @@ class RouteMapViewState extends State<RouteMapView>
     // existing route position; camera movement never changes its coordinates.
     if (_motionState?.navigationActive == true) {
       _publishMotionFrame(navigation: true);
-    } else if (_simRunning) {
-      _publishMotionFrame(navigation: false);
     }
+    // Preview is sampled only by its display ticker, including while paused.
+    // Native camera callbacks must not feed back into camera writes or steal
+    // the next frame from the display clock.
 
     // Toggle the "return to my location" control as the user pans away from
     // their current position. The threshold scales with zoom so it triggers
@@ -829,7 +835,6 @@ class RouteMapViewState extends State<RouteMapView>
 
     // ── Trip preview / simulation ──
     if (state.simulationActive) {
-      _publishMotionFrame(navigation: false);
       if (restyle) {
         await c.setGeoJsonSource(_srcBg, MapGeometry.lineGeoJson(full));
         await c.setGeoJsonSource(_srcFg, MapGeometry.emptyGeoJson);
@@ -1463,7 +1468,7 @@ class RouteMapViewState extends State<RouteMapView>
         elapsed: _cameraClock.elapsed,
         reset: reset,
       );
-      if (reset || !state.simulationPlaying) _previewHeading.reset();
+      if (reset) _previewHeading.reset();
       _renderProgress = _previewMotion.sample(_cameraClock.elapsed);
       _simRunning = true;
       _simMode = state.simulationCameraMode;
@@ -1537,21 +1542,26 @@ class RouteMapViewState extends State<RouteMapView>
         '${navigation ? VehicleMarkerConfig.navigationSize : VehicleMarkerConfig.previewSize}';
     if (_motionImage == null || _motionImageKind != expectedKey) return;
     final now = _cameraClock.elapsed;
-    if (!force &&
+    if (navigation &&
+        !force &&
         _lastMotionFrameAt != null &&
         now - _lastMotionFrameAt! < SimulationConfig.tickInterval) {
       return;
     }
     if (!navigation) _renderProgress = _previewMotion.sample(now);
     final progress = navigation ? _navRenderProgress : _renderProgress;
-    final sample = PolylineUtils.sampleAt(path, progress);
+    if (_motionPath == null || !identical(route, _motionPathRoute)) {
+      _motionPathRoute = route;
+      _motionPath = RouteMotionPath(path);
+    }
+    final sample = _motionPath!.sampleAt(progress);
     final anchor = sample?.point ?? (navigation ? state.userLocation : null);
     if (anchor == null) return;
     final rawTangent = sample?.bearing ?? state.navigationHeading ?? 0;
     final tangent = navigation
         ? rawTangent
         : _previewHeading.update(rawTangent, now);
-    final camera = !navigation ? _previewCamera(anchor, tangent) : null;
+    final camera = !navigation ? _previewCamera(anchor, tangent, now) : null;
     // In a coordinated preview frame the camera is applied immediately with
     // this marker, so rotation uses that same bearing. While exploring (and
     // during live GPS navigation) use the actual map bearing instead.
@@ -1598,6 +1608,7 @@ class RouteMapViewState extends State<RouteMapView>
       _MapMotionUpdate(
         RouteMotionFrame.build(
           path: path,
+          motionPath: _motionPath,
           progress: progress,
           image: image,
           imageScale: scale,
@@ -1625,7 +1636,11 @@ class RouteMapViewState extends State<RouteMapView>
     return MapGeometry.nextStopFraction(route, index, progress);
   }
 
-  CameraPosition? _previewCamera(ll.LatLng point, double heading) {
+  CameraPosition? _previewCamera(
+    ll.LatLng point,
+    double heading,
+    Duration elapsed,
+  ) {
     if (_simMode == SimulationCameraMode.overview ||
         _navExploring.value ||
         _lastSimCameraMode != _simMode) {
@@ -1640,13 +1655,32 @@ class RouteMapViewState extends State<RouteMapView>
     // its old zoom while the first frame is queued can undo a mode change.
     final zoom = _previewFollowZoom ??= defaultZoom;
     _simCameraAnchored = true;
-    return CameraPosition(
-      target: _ml(point),
+    final pose = _previewCameraMotion.update(
       zoom: zoom,
       bearing: headingUp ? heading : 0,
       tilt:
           _previewTiltOverride ?? (headingUp ? SimulationConfig.chaseTilt : 0),
+      elapsed: elapsed,
+      transition: _previewCameraTransition,
     );
+    _previewCameraTransition = false;
+    return CameraPosition(
+      target: _ml(point),
+      zoom: pose.zoom,
+      bearing: pose.bearing,
+      tilt: pose.tilt,
+    );
+  }
+
+  void _seedPreviewCamera() {
+    final camera = _controller?.cameraPosition;
+    _previewCameraMotion.reset(
+      zoom: camera?.zoom ?? SimulationConfig.followZoom,
+      tilt: camera?.tilt ?? 0,
+      bearing: camera?.bearing ?? 0,
+      elapsed: _cameraClock.elapsed,
+    );
+    _previewCameraTransition = true;
   }
 
   Future<void> _drainApply() async {
@@ -1817,6 +1851,7 @@ class RouteMapViewState extends State<RouteMapView>
       _overviewAdjusted = false;
       _lastSimCameraMode = mode;
       _stopExploring(resumeCamera: false);
+      _seedPreviewCamera();
     }
 
     if (mode == SimulationCameraMode.overview) {
@@ -2106,6 +2141,7 @@ class RouteMapViewState extends State<RouteMapView>
     _navExploring.value = false;
     if (resumeCamera && mounted) {
       _simCameraAnchored = false;
+      if (_simRunning) _seedPreviewCamera();
       unawaited(_syncCamera(context.read<RoutePlannerCubit>().state));
     }
   }
@@ -2126,6 +2162,7 @@ class RouteMapViewState extends State<RouteMapView>
     double? maxZoom,
   }) async {
     if (points.isEmpty) return;
+    final generation = _motionGeneration;
     final b = DistanceUtils.boundsOf(points);
     final bounds = LatLngBounds(
       southwest: _ml(b.southWest),
@@ -2140,6 +2177,7 @@ class RouteMapViewState extends State<RouteMapView>
         bottom: padding.bottom,
       ),
     );
+    if (_disposed || generation != _motionGeneration) return;
     if (maxZoom != null) {
       final zoom = _controller?.cameraPosition?.zoom;
       if (zoom != null && zoom > maxZoom) {
@@ -2167,9 +2205,11 @@ class RouteMapViewState extends State<RouteMapView>
         0;
     final target = current.abs() > 1 ? 0.0 : NavigationConfig.exploreTilt;
     if (state.simulationActive) {
-      // Store the intent before animating. Every following playback tick
-      // honors it, including a second tap before the first animation ends.
+      // The display ticker eases this intent together with position, heading
+      // and zoom. A separate native animation would be cancelled by the next
+      // follow frame, producing a visible jump into/out of 3D.
       _previewTiltOverride = target;
+      if (_ownsPreviewCamera) return;
     }
     await _animateCamera(CameraUpdate.tiltTo(target));
   }
@@ -2184,19 +2224,32 @@ class RouteMapViewState extends State<RouteMapView>
     _northLock = true;
     if (state.simulationActive) {
       _previewTiltOverride = 0;
+      if (_ownsPreviewCamera) {
+        _previewCameraTransition = true;
+        return;
+      }
     }
     unawaited(_flattenView());
   }
 
   /// Animates the planning camera back to flat and north-up.
   ///
-  /// Two updates rather than a `newCameraPosition`, so neither the centre
-  /// nor the zoom is touched — the driver keeps looking at exactly what
-  /// they were looking at, from above.
+  /// Keep the current centre and zoom and change both angles in one update.
+  /// A delayed second animation could override a newly selected preview mode.
   Future<void> _flattenView() async {
-    await _animateCamera(CameraUpdate.bearingTo(0));
-    await _animateCamera(CameraUpdate.tiltTo(0));
+    final camera = _controller?.cameraPosition;
+    if (camera == null) return;
+    await _animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: camera.target, zoom: camera.zoom),
+      ),
+    );
   }
+
+  bool get _ownsPreviewCamera =>
+      _simRunning &&
+      _simMode != SimulationCameraMode.overview &&
+      !_navExploring.value;
 
   /// Re-frame the whole route in panoramic mode after the user zoomed or
   /// panned away.

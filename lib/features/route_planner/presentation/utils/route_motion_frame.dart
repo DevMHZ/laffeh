@@ -1,7 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 import '../widgets/map_geometry.dart';
-import '../../../../core/utils/polyline_utils.dart';
+import 'route_motion_path.dart';
 
 /// One native-map update owns both the vehicle and the line meeting it.
 /// Camera position is deliberately absent: panning must never move the
@@ -15,10 +15,11 @@ class RouteMotionFrame {
     required double rotation,
     double? nextStop,
     LatLng? fallbackPosition,
+    RouteMotionPath? motionPath,
   }) {
     final p = progress.isFinite ? progress.clamp(0.0, 1.0) : 0.0;
-    final anchor =
-        PolylineUtils.interpolateByLength(path, p) ?? fallbackPosition;
+    final geometry = motionPath ?? RouteMotionPath(path);
+    final anchor = geometry.sampleAt(p)?.point ?? fallbackPosition;
     if (anchor == null) return MapGeometry.emptyGeoJson;
     final features = <Map<String, dynamic>>[];
     void line(String role, List<LatLng> points) {
@@ -38,13 +39,13 @@ class RouteMotionFrame {
 
     // Explicitly use the same anchor object for every joining endpoint,
     // including duplicate vertices, a scrub backwards and the trip ends.
-    final done = MapGeometry.subPath(path, 0, p);
+    final done = geometry.subPath(0, p);
     if (done.isNotEmpty) done[done.length - 1] = anchor;
     if (nextStop == null) {
       line('trail', done);
     } else {
       line('done', done);
-      final current = MapGeometry.subPath(path, p, nextStop.clamp(p, 1.0));
+      final current = geometry.subPath(p, nextStop.clamp(p, 1.0));
       if (current.isNotEmpty) current[0] = anchor;
       line('trail', current);
     }

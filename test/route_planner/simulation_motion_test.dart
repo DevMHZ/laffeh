@@ -151,4 +151,145 @@ void main() {
       },
     );
   });
+
+  group('preview camera transitions', () {
+    PreviewCameraMotion seeded({double bearing = 0}) =>
+        PreviewCameraMotion()
+          ..reset(zoom: 14, tilt: 0, bearing: bearing, elapsed: Duration.zero);
+
+    test('follow to chase eases zoom, tilt and heading on one clock', () {
+      final motion = seeded();
+      final start = motion.update(
+        zoom: 16.5,
+        tilt: 60,
+        bearing: 90,
+        elapsed: Duration.zero,
+      );
+      expect(start.zoom, 14);
+      expect(start.tilt, 0);
+      expect(start.bearing, 0);
+      final middle = motion.sample(const Duration(milliseconds: 200))!;
+      expect(middle.zoom, 15.25);
+      expect(middle.tilt, 30);
+      expect(middle.bearing, 45);
+      final end = motion.sample(const Duration(milliseconds: 400))!;
+      expect(end.zoom, 16.5);
+      expect(end.tilt, 60);
+      expect(end.bearing, 90);
+    });
+
+    test('rapid 3D reversal continues from the displayed angle', () {
+      final motion = seeded();
+      motion.update(zoom: 14, tilt: 60, bearing: 0, elapsed: Duration.zero);
+      final reversal = motion.update(
+        zoom: 14,
+        tilt: 0,
+        bearing: 0,
+        elapsed: const Duration(milliseconds: 100),
+      );
+      expect(reversal.tilt, closeTo(9.375, 1e-10));
+      expect(motion.sample(const Duration(milliseconds: 300))!.tilt, 4.6875);
+      expect(motion.sample(const Duration(milliseconds: 500))!.tilt, 0);
+    });
+
+    test('changing road headings never restart the mode transition', () {
+      final motion = seeded();
+      motion.update(zoom: 16.5, tilt: 60, bearing: 90, elapsed: Duration.zero);
+      for (var ms = 10; ms <= 400; ms += 10) {
+        final pose = motion.update(
+          zoom: 16.5,
+          tilt: 60,
+          bearing: 90 + ms / 10,
+          elapsed: Duration(milliseconds: ms),
+        );
+        if (ms == 400) {
+          expect(pose.zoom, 16.5);
+          expect(pose.tilt, 60);
+          expect(pose.bearing, 130);
+        }
+      }
+      final following = motion.update(
+        zoom: 16.5,
+        tilt: 60,
+        bearing: 132,
+        elapsed: const Duration(milliseconds: 416),
+      );
+      expect(following.bearing, 132);
+    });
+
+    test('bearing-only reset takes the shortest arc across north', () {
+      final motion = seeded(bearing: 350);
+      motion.update(
+        zoom: 14,
+        tilt: 0,
+        bearing: 10,
+        elapsed: Duration.zero,
+        transition: true,
+      );
+      expect(motion.sample(const Duration(milliseconds: 200))!.bearing, 0);
+      expect(motion.sample(const Duration(milliseconds: 400))!.bearing, 10);
+    });
+
+    test('a moving heading cannot flip the transition at 180 degrees', () {
+      final motion = seeded();
+      motion.update(zoom: 16.5, tilt: 60, bearing: 179, elapsed: Duration.zero);
+      final before = motion.sample(const Duration(milliseconds: 200))!;
+      final after = motion.update(
+        zoom: 16.5,
+        tilt: 60,
+        bearing: 181,
+        elapsed: const Duration(milliseconds: 200),
+      );
+      expect(before.bearing, 89.5);
+      expect(after.bearing, 90.5);
+      expect(motion.sample(const Duration(milliseconds: 400))!.bearing, 181);
+    });
+
+    test('paused playback and display frequency do not change the pose', () {
+      final low = seeded();
+      final high = seeded();
+      for (final motion in [low, high]) {
+        motion.update(zoom: 14, tilt: 60, bearing: 0, elapsed: Duration.zero);
+      }
+      for (var ms = 10; ms < 400; ms += 10) {
+        high.update(
+          zoom: 14,
+          tilt: 60,
+          bearing: 0,
+          elapsed: Duration(milliseconds: ms),
+        );
+      }
+      expect(
+        high.sample(const Duration(milliseconds: 395))!.tilt,
+        low.sample(const Duration(milliseconds: 395))!.tilt,
+      );
+      expect(high.sample(const Duration(milliseconds: 400))!.tilt, 60);
+    });
+
+    test('seeding and clearing do not reuse a previous camera mode', () {
+      final motion = seeded();
+      motion.update(zoom: 16.5, tilt: 60, bearing: 90, elapsed: Duration.zero);
+      motion.reset(
+        zoom: 12,
+        tilt: 45,
+        bearing: -10,
+        elapsed: const Duration(seconds: 1),
+      );
+      final reset = motion.sample(const Duration(seconds: 1))!;
+      expect(reset.zoom, 12);
+      expect(reset.tilt, 45);
+      expect(reset.bearing, 350);
+      motion.clear();
+      expect(motion.sample(const Duration(seconds: 1)), isNull);
+      final fresh = motion.update(
+        zoom: 13,
+        tilt: 10,
+        bearing: 370,
+        elapsed: const Duration(seconds: 2),
+      );
+      expect(fresh.zoom, 13);
+      expect(fresh.tilt, 10);
+      expect(fresh.bearing, 10);
+    });
+  });
 }
