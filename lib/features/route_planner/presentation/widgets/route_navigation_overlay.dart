@@ -18,6 +18,8 @@ import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
 import '../pages/route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
+import 'stop_arrival_actions.dart';
+import 'route_connectivity_notice.dart';
 import '../cubit/route_planner_state.dart';
 import '../utils/navigation_instructions.dart';
 import 'stop_timeline.dart';
@@ -47,11 +49,10 @@ import 'stop_timeline.dart';
 ///     again on use, and on their own if the vehicle is still moving a
 ///     few seconds later. Nothing a driver presses once per trip holds
 ///     permanent screen.
-///   * **Arrival bar.** One line that appears once the driver reaches the
-///     current stop: the button that marks it served, plus a circle each
-///     for WhatsApp and Call when the stop has a number. Serving is
-///     always the driver's own act; nothing completes a point on their
-///     behalf, and the bar waits until they press it.
+///   * **Arrival actions.** Two explicit outcomes: delivered and unable to
+///     deliver. Both advance to the next stop. Call and WhatsApp stay above
+///     them when a contact exists and never complete a stop. The actions
+///     wait for the driver's decision and scroll on short screens.
 ///
 /// Arriving also *removes* things — the maneuver banner stands down and
 /// the dock shuts itself — because the screen a driver reads at a
@@ -122,7 +123,9 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
           a.maneuverFractions != b.maneuverFractions ||
           a.userLocation != b.userLocation ||
           a.optimizedRoute != b.optimizedRoute ||
-          a.isRerouting != b.isRerouting,
+          a.skippedPointIds != b.skippedPointIds ||
+          a.isRerouting != b.isRerouting ||
+          a.isOffline != b.isOffline,
       builder: (context, state) {
         final route = state.optimizedRoute;
         if (route == null || route.orderedPoints.isEmpty) {
@@ -133,6 +136,17 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         final count = route.orderedPoints.length;
         final targetIndex = state.navigationStopIndex.clamp(0, count - 1);
         final target = route.orderedPoints[targetIndex];
+        void serveCurrent() => cubit.servePoint(
+          expectedStopIndex: targetIndex,
+          expectedRoute: route,
+        );
+        void skipCurrent() => cubit.skipPoint(
+          expectedStopIndex: targetIndex,
+          expectedRoute: route,
+        );
+        final nextActionLabel = targetIndex == count - 1
+            ? AppStrings.finishDeliveryTrip
+            : AppStrings.continueToNextStop;
         final isReturn = _isReturn(route, targetIndex);
         // A depot and one place to be: this is a plain drive somewhere, so
         // the HUD says so. "Next stop · 1 of 1" and "Point served" are the
@@ -178,7 +192,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
             ? AppStrings.endTrip
             : soleDestination
             ? AppStrings.arrivedHere
-            : AppStrings.pointServed;
+            : AppStrings.deliveredNext;
         final serveIcon = isReturn ? Iconsax.flag : Iconsax.tick_circle;
 
         // ── Reaching whoever is waiting ────────────────────────────
@@ -193,7 +207,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         //     beside the name they belong to, and WhatsApp opens saying "I'm
         //     on my way";
         //   * **at the stop** — they move down into their own card above
-        //     "Point served", because that is where the driver's eye and
+        //     the delivery outcomes, because that is where the driver's eye and
         //     thumb already are once they have parked, and WhatsApp opens
         //     saying "I've arrived".
         //
@@ -255,8 +269,71 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
         // focus mode, or the super-thin rail inside it.
         final isLandscape =
             MediaQuery.orientationOf(context) == Orientation.landscape;
+        if (arrived) {
+          return _ArrivalHudLayout(
+            landscape: isLandscape,
+            header: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _NextStopStrip(
+                  isReturn: isReturn,
+                  arrived: true,
+                  label: target.label,
+                  counter: counter,
+                  distance: null,
+                  onLongPress: serveCurrent,
+                  onWhatsapp: null,
+                  onCall: null,
+                ),
+                if (state.isOffline) ...[
+                  const SizedBox(height: 6),
+                  RouteConnectivityNotice(
+                    isDriving: true,
+                    hasSavedRoute: true,
+                    onRetry: cubit.refreshConnectivity,
+                  ),
+                ],
+                _ReroutingNotice(visible: state.isRerouting),
+              ],
+            ),
+            actions: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ArrivedBar(
+                  visible: true,
+                  label: serveLabel,
+                  icon: serveIcon,
+                  nextLabel: nextActionLabel,
+                  onSkip: isReturn ? null : skipCurrent,
+                  onServe: serveCurrent,
+                  onWhatsapp: onWhatsappStop,
+                  onCall: onCallStop,
+                ),
+                _focusMode
+                    ? _FocusExitBar(
+                        speedMps: state.navigationSpeedMps,
+                        onExit: () => _setFocusMode(false),
+                      )
+                    : _BottomDock(
+                        remainingKm: remainingKm,
+                        remainingMinutes: remainingMinutes,
+                        speedMps: state.navigationSpeedMps,
+                        arrived: true,
+                        points: route.orderedPoints,
+                        skippedPointIds: state.skippedPointIds,
+                        targetIndex: targetIndex,
+                        showTimeline: !soleDestination,
+                        onFocus: () => _setFocusMode(true),
+                        onOpenGoogleMaps: widget.onOpenGoogleMaps,
+                        onReoptimize: cubit.reoptimizeRemaining,
+                        onEndTrip: cubit.stopNavigation,
+                      ),
+              ],
+            ),
+          );
+        }
         if (isLandscape) {
-          if (_focusMode) {
+          if (_focusMode && !arrived && !state.isOffline) {
             return Positioned.fill(
               child: SafeArea(
                 child: Align(
@@ -273,7 +350,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       speedMps: state.navigationSpeedMps,
                       arrived: state.navigationArrived,
                       serveLabel: serveLabel,
-                      onServe: cubit.servePoint,
+                      onServe: serveCurrent,
                       onWhatsapp: onWhatsappStop,
                       onCall: onCallStop,
                       onExitFocus: () => _setFocusMode(false),
@@ -306,22 +383,30 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           label: target.label,
                           counter: counter,
                           distance: stripDistance,
-                          onLongPress: cubit.servePoint,
+                          onLongPress: serveCurrent,
                           onWhatsapp: arrived ? null : onWhatsappStop,
                           onCall: arrived ? null : onCallStop,
                         ),
+                        if (state.isOffline)
+                          RouteConnectivityNotice(
+                            isDriving: true,
+                            hasSavedRoute: true,
+                            onRetry: cubit.refreshConnectivity,
+                          ),
                         _ReroutingNotice(visible: state.isRerouting),
                         const Spacer(),
                         _EarlyActionChips(
-                          visible: nearStop,
-                          onServe: cubit.servePoint,
+                          visible: nearStop && !isReturn,
+                          onServe: serveCurrent,
                           onSkip: () => _confirmSkip(context, cubit),
                         ),
                         _ArrivedBar(
                           visible: arrived,
                           label: serveLabel,
                           icon: serveIcon,
-                          onServe: cubit.servePoint,
+                          nextLabel: nextActionLabel,
+                          onSkip: isReturn ? null : skipCurrent,
+                          onServe: serveCurrent,
                           onWhatsapp: onWhatsappStop,
                           onCall: onCallStop,
                         ),
@@ -331,6 +416,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           speedMps: state.navigationSpeedMps,
                           arrived: arrived,
                           points: route.orderedPoints,
+                          skippedPointIds: state.skippedPointIds,
                           targetIndex: targetIndex,
                           showTimeline: !soleDestination,
                           onFocus: () => _setFocusMode(true),
@@ -378,9 +464,15 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                           distance: stripDistance,
                           // Escape hatch: a long-press serves the point even
                           // when GPS never registers the 10 m radius.
-                          onLongPress: cubit.servePoint,
+                          onLongPress: serveCurrent,
                           onWhatsapp: arrived ? null : onWhatsappStop,
                           onCall: arrived ? null : onCallStop,
+                        ),
+                      if (state.isOffline)
+                        RouteConnectivityNotice(
+                          isDriving: true,
+                          hasSavedRoute: true,
+                          onRetry: cubit.refreshConnectivity,
                         ),
                       // Subtle live notice while a deviation triggers a
                       // background route recalculation.
@@ -405,15 +497,17 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                       // that closes the leg, and — only if there is somebody
                       // to reach — the two ways to reach them.
                       _EarlyActionChips(
-                        visible: nearStop,
-                        onServe: cubit.servePoint,
+                        visible: nearStop && !isReturn,
+                        onServe: serveCurrent,
                         onSkip: () => _confirmSkip(context, cubit),
                       ),
                       _ArrivedBar(
                         visible: arrived,
                         label: serveLabel,
                         icon: serveIcon,
-                        onServe: cubit.servePoint,
+                        nextLabel: nextActionLabel,
+                        onSkip: isReturn ? null : skipCurrent,
+                        onServe: serveCurrent,
                         onWhatsapp: onWhatsappStop,
                         onCall: onCallStop,
                       ),
@@ -428,6 +522,7 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
                               speedMps: state.navigationSpeedMps,
                               arrived: arrived,
                               points: route.orderedPoints,
+                              skippedPointIds: state.skippedPointIds,
                               targetIndex: targetIndex,
                               // The timeline is a picture of a sequence.
                               // With one place to be there is no sequence
@@ -464,6 +559,66 @@ class _RouteNavigationOverlayState extends State<RouteNavigationOverlay> {
 
   int _stopCount(OptimizedRoute route) =>
       route.orderedPoints.where((p) => !p.isDepot).length;
+}
+
+/// Arrival controls keep their natural size and stay at the bottom. On short
+/// screens or with enlarged text, each occupied band scrolls within its own
+/// bounds; the empty map between the bands still receives map gestures.
+class _ArrivalHudLayout extends StatelessWidget {
+  final bool landscape;
+  final Widget header;
+  final Widget actions;
+
+  const _ArrivalHudLayout({
+    required this.landscape,
+    required this.header,
+    required this.actions,
+  });
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+    child: SafeArea(
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 8),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: landscape ? 420 : double.infinity,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: constraints.maxHeight * 0.4,
+                    ),
+                    child: SingleChildScrollView(
+                      key: const ValueKey('arrival-header-scroll'),
+                      physics: const ClampingScrollPhysics(),
+                      child: header,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SingleChildScrollView(
+                        key: const ValueKey('arrival-actions-scroll'),
+                        physics: const ClampingScrollPhysics(),
+                        child: actions,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// Top maneuver banner: the icon, the counting-down distance, the
@@ -797,23 +952,6 @@ class _ReroutingNotice extends StatelessWidget {
   }
 }
 
-/// Everything arriving needs, on one line.
-///
-/// What used to be here was a card and a button: a titled panel naming the
-/// stop, repeating its number, offering to take one when there wasn't
-/// one — and under it a full-width "Point served". Together they took a
-/// third of the screen at the exact moment the driver is parked at a door
-/// trying to see which building it is on the map.
-///
-/// So it collapses to a single row: the button that closes the leg takes
-/// the width, and the two ways to reach the customer become plain circles
-/// beside it. Nothing is written that the driver already knows — the name
-/// is on the pill at the top, the number is on the phone once it dials —
-/// and when the stop has nobody to call, the row is only the button.
-///
-/// It appears once the driver is at the stop and does not leave again
-/// until they press it. Serving is theirs to declare now: the app no
-/// longer decides a point was done because the vehicle drove away from it.
 /// The small twin of [_ArrivedBar], offered from a couple of kilometres out.
 ///
 /// A driver often knows a stop is finished before they reach it: the customer
@@ -837,6 +975,8 @@ class _ReroutingNotice extends StatelessWidget {
 /// never happened, at a distance where the driver cannot yet see the door.
 /// One tap to think about it is cheap.
 Future<void> _confirmSkip(BuildContext context, RoutePlannerCubit cubit) async {
+  final expectedIndex = cubit.state.navigationStopIndex;
+  final expectedRoute = cubit.state.optimizedRoute;
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -858,7 +998,12 @@ Future<void> _confirmSkip(BuildContext context, RoutePlannerCubit cubit) async {
       ],
     ),
   );
-  if (confirmed == true) cubit.skipPoint();
+  if (confirmed == true && context.mounted && !cubit.isClosed) {
+    cubit.skipPoint(
+      expectedStopIndex: expectedIndex,
+      expectedRoute: expectedRoute,
+    );
+  }
 }
 
 class _EarlyActionChips extends StatelessWidget {
@@ -967,108 +1112,44 @@ class _EarlyChip extends StatelessWidget {
 class _ArrivedBar extends StatelessWidget {
   final bool visible;
   final String label;
+  final String nextLabel;
   final IconData icon;
   final VoidCallback onServe;
-
-  /// Null when the stop has no number, which is most stops — then the row
-  /// is the serve button alone, and says nothing about the absence.
+  final VoidCallback? onSkip;
   final VoidCallback? onWhatsapp;
   final VoidCallback? onCall;
 
   const _ArrivedBar({
     required this.visible,
     required this.label,
+    required this.nextLabel,
     required this.icon,
     required this.onServe,
+    required this.onSkip,
     required this.onWhatsapp,
     required this.onCall,
   });
 
-  /// One height for the whole row, so the circles read as siblings of the
-  /// button rather than as decoration on it.
   static const double _height = 60;
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOutCubic,
-      child: !visible
-          ? const SizedBox(width: double.infinity)
-          : Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: AnimatedScale(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutBack,
-                scale: visible ? 1 : 0.8,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Material(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(18),
-                        elevation: 8,
-                        shadowColor: AppColors.shadow,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            HapticFeedback.mediumImpact();
-                            onServe();
-                          },
-                          child: SizedBox(
-                            height: _height,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(icon, color: AppColors.white, size: 24),
-                                const SizedBox(width: 10),
-                                Flexible(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      label,
-                                      maxLines: 1,
-                                      style: AppTextStyles.h3.copyWith(
-                                        color: AppColors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (onWhatsapp != null) ...[
-                      const SizedBox(width: 8),
-                      _RoundContact(
-                        background: AppColors.success,
-                        onTap: onWhatsapp!,
-                        child: const WhatsappGlyph(
-                          size: 24,
-                          color: AppColors.white,
-                        ),
-                      ),
-                    ],
-                    if (onCall != null) ...[
-                      const SizedBox(width: 8),
-                      _RoundContact(
-                        background: AppColors.asphalt,
-                        onTap: onCall!,
-                        child: const Icon(
-                          Iconsax.call,
-                          size: 24,
-                          color: AppColors.white,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+  Widget build(BuildContext context) => AnimatedSize(
+    duration: const Duration(milliseconds: 200),
+    curve: Curves.easeOutCubic,
+    child: !visible
+        ? const SizedBox(width: double.infinity)
+        : Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: StopArrivalActions(
+              deliveredLabel: label,
+              nextLabel: nextLabel,
+              onDelivered: onServe,
+              onUnableToDeliver: onSkip,
+              onCall: onCall,
+              onWhatsapp: onWhatsapp,
             ),
-    );
-  }
+          ),
+  );
 }
 
 /// One way to reach the customer: a glyph in a circle, no label under it.
@@ -1151,6 +1232,7 @@ class _BottomDock extends StatefulWidget {
   final bool arrived;
 
   final List<RoutePoint> points;
+  final Set<String> skippedPointIds;
   final int targetIndex;
   final bool showTimeline;
 
@@ -1165,6 +1247,7 @@ class _BottomDock extends StatefulWidget {
     required this.speedMps,
     required this.arrived,
     required this.points,
+    required this.skippedPointIds,
     required this.targetIndex,
     required this.showTimeline,
     required this.onFocus,
@@ -1349,6 +1432,7 @@ class _BottomDockState extends State<_BottomDock> {
                   ),
                   child: StopTimeline(
                     points: widget.points,
+                    skippedPointIds: widget.skippedPointIds,
                     currentTarget: widget.targetIndex,
                     // The trip is never "finished" while navigation is
                     // active — the driver must serve the final point.
@@ -1456,21 +1540,27 @@ class _Stat extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: AppTextStyles.titleLg.copyWith(height: 1.1),
+          Flexible(
+            flex: 3,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: AppTextStyles.titleLg.copyWith(height: 1.1),
+              ),
             ),
           ),
           const SizedBox(height: 3),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              maxLines: 1,
-              style: AppTextStyles.mutedSm.copyWith(height: 1.1),
+          Flexible(
+            flex: 2,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: AppTextStyles.mutedSm.copyWith(height: 1.1),
+              ),
             ),
           ),
         ],
@@ -2058,9 +2148,14 @@ class _FocusExitBar extends StatelessWidget {
                   color: AppColors.white,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  AppStrings.exitFocus,
-                  style: AppTextStyles.titleSm.copyWith(color: AppColors.white),
+                Flexible(
+                  child: Text(
+                    AppStrings.exitFocus,
+                    maxLines: 2,
+                    style: AppTextStyles.titleSm.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
                 ),
               ],
             ),

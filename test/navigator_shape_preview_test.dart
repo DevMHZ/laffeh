@@ -329,4 +329,38 @@ void main() {
       matchesGoldenFile('goldens/destination_card_routing.png'),
     );
   });
+
+  for (final language in ['en', 'ar']) {
+    testWidgets('one destination — compact narrow, $language', (tester) async {
+      AppStrings.setLocale(Locale(language));
+      await phone(tester);
+      tester.view.physicalSize = const Size(320 * 3, 640 * 3);
+      await tester.pumpWidget(
+        _overMap(
+          DestinationCard(
+            destination: _destination,
+            route: _route(),
+            routing: false,
+            departureAt: DateTime(2026, 1, 1, 9, 0),
+            onGo: () {},
+            onAddAnotherStop: () {},
+            onChangeDestination: () {},
+            onChangeDeparture: () {},
+          ),
+          direction: language == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/destination_card_narrow_$language.png'),
+      );
+      await tester.tap(find.byKey(const ValueKey('destination-sheet-handle')));
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/destination_card_compact_$language.png'),
+      );
+    });
+  }
 }

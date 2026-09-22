@@ -25,6 +25,7 @@ class RouteMotionFrame {
       if (points.length < 2) return;
       features.add({
         'type': 'Feature',
+        'id': 'motion-$role',
         'properties': {'role': role},
         'geometry': {
           'type': 'LineString',
@@ -49,6 +50,7 @@ class RouteMotionFrame {
     }
     features.add({
       'type': 'Feature',
+      'id': 'motion-vehicle',
       'properties': {
         'role': 'vehicle',
         'image': image,

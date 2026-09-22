@@ -102,6 +102,7 @@ class AppStrings {
   // Errors / status
   static String get errMinTwoPoints => _t('errMinTwoPoints');
   static String get errLocationUnavailable => _t('errLocationUnavailable');
+  static String get errLocationTimeout => _t('errLocationTimeout');
   static String get errOptimize => _t('errOptimize');
   static String get errNoInternet => _t('errNoInternet');
   static String get errCannotDrawRoute => _t('errCannotDrawRoute');
@@ -257,6 +258,9 @@ class AppStrings {
   static String get navigateExternal => _t('navigateExternal');
   static String get sharedPointsLoaded => _t('sharedPointsLoaded');
   static String get startNavigation => _t('startNavigation');
+  static String get navigationStarting => _t('navigationStarting');
+  static String get navigationStartingShort => _t('navigationStartingShort');
+  static String get navigationStartingHint => _t('navigationStartingHint');
   static String get navigationModeTitle => _t('navigationModeTitle');
   static String get navigationSubtitle => _t('navigationSubtitle');
   static String get stopNavigation => _t('stopNavigation');
@@ -306,12 +310,20 @@ class AppStrings {
   static String get offlineTitle => _t('offlineTitle');
   static String get offlineBody => _t('offlineBody');
   static String get offlineActionUnavailable => _t('offlineActionUnavailable');
+  static String get offlineSavedRouteBody => _t('offlineSavedRouteBody');
+  static String get offlineDriveTitle => _t('offlineDriveTitle');
+  static String get offlineDriveBody => _t('offlineDriveBody');
+  static String get checkConnection => _t('checkConnection');
+  static String get checkingConnection => _t('checkingConnection');
+  static String get connectionRestored => _t('connectionRestored');
   static String get draftRestoredMsg => _t('draftRestoredMsg');
   static String get savedLocallyNote => _t('savedLocallyNote');
 
   // Error (#4)
   static String get errNoActiveStops => _t('errNoActiveStops');
   static String get noAddressesFound => _t('noAddressesFound');
+  static String get sharedPlaceUnavailable => _t('sharedPlaceUnavailable');
+  static String get sharedPlaceNeedsInternet => _t('sharedPlaceNeedsInternet');
 
   /// Localized label for an optional stop, numbered separately from
   /// mandatory stops ("Optional 1", "نقطة اختيارية 1"…).
@@ -364,6 +376,12 @@ class AppStrings {
 
   // Drive mode — service points & turn guidance
   static String get pointServed => _t('pointServed');
+  static String get deliveredNext => _t('deliveredNext');
+  static String get couldNotDeliver => _t('couldNotDeliver');
+  static String get continueToNextStop => _t('continueToNextStop');
+  static String get finishDeliveryTrip => _t('finishDeliveryTrip');
+  static String get expandTripDetails => _t('expandTripDetails');
+  static String get collapseTripDetails => _t('collapseTripDetails');
   static String get rerouting => _t('rerouting');
   static String get reoptimize => _t('reoptimize');
 
@@ -1140,6 +1158,8 @@ const Map<String, Map<String, String>> _copy = {
     'unavailable': 'Unavailable from server',
     'errMinTwoPoints': 'Please select at least two points',
     'errLocationUnavailable': 'Could not determine your current location',
+    'errLocationTimeout':
+        'No GPS signal yet. Check your location settings, move to an open area and try again.',
     'errOptimize': 'An error occurred while optimizing the route',
     'errNoInternet': 'Check your internet connection',
     'errCannotDrawRoute': 'The route cannot be drawn right now',
@@ -1277,6 +1297,9 @@ const Map<String, Map<String, String>> _copy = {
     'navigateExternal': 'Open in navigation',
     'sharedPointsLoaded': 'Shared points loaded on the map',
     'startNavigation': 'Start driving',
+    'navigationStarting': 'Getting GPS location…',
+    'navigationStartingShort': 'Locating…',
+    'navigationStartingHint': 'Your drive starts when your position is ready',
     'navigationModeTitle': 'Live route',
     'navigationSubtitle': 'Follow your real GPS location on this route',
     'stopNavigation': 'End driving',
@@ -1311,12 +1334,30 @@ const Map<String, Map<String, String>> _copy = {
     'addMethods': 'Add points',
     'keepAddingHint': 'Keep adding as many points as you need.',
     'offlineTitle': 'Offline',
-    'offlineBody': 'No internet — your changes are saved on this device.',
+    'offlineSavedRouteBody':
+        'You can follow your saved route and complete stops. Search, rerouting and unsaved map areas need internet.',
+    'offlineDriveTitle': 'Offline · following saved route',
+    'offlineDriveBody': 'Keep going. Reconnect to search or reroute.',
+    'checkConnection': 'Check connection',
+    'checkingConnection': 'Checking connection…',
+    'connectionRestored': 'Connection restored',
+    'deliveredNext': 'Delivered',
+    'couldNotDeliver': "Couldn't deliver",
+    'continueToNextStop': 'Continue to next stop',
+    'finishDeliveryTrip': 'Finish trip',
+    'expandTripDetails': 'Show trip details',
+    'collapseTripDetails': 'Hide trip details',
+    'offlineBody':
+        'Connect to plan a route or search for places. Your stops stay saved on this device.',
     'offlineActionUnavailable': 'This needs an internet connection.',
     'draftRestoredMsg': 'We restored your saved work.',
     'savedLocallyNote': 'Saved on your device',
     'errNoActiveStops': 'Activate at least one stop before optimizing.',
     'noAddressesFound': 'No addresses found. Check the text and try again.',
+    'sharedPlaceUnavailable':
+        'Could not open this shared place. Check your connection and share its link from Maps again.',
+    'sharedPlaceNeedsInternet':
+        'Connect to the internet to open this place link, then share it again.',
     'exportCsv': 'Export CSV',
     'csvImportEmpty': 'No route points were found in this CSV file',
     'csvImportFailed': 'Could not import CSV file',
@@ -1784,6 +1825,8 @@ const Map<String, Map<String, String>> _copy = {
     'unavailable': 'غير متاح من الخادم',
     'errMinTwoPoints': 'يرجى اختيار نقطتين على الأقل',
     'errLocationUnavailable': 'تعذر تحديد موقعك الحالي',
+    'errLocationTimeout':
+        'لم تصل إشارة GPS بعد. تحقق من إعدادات الموقع، وانتقل إلى مكان مكشوف ثم أعد المحاولة.',
     'errOptimize': 'حدث خطأ أثناء تحسين المسار',
     'errNoInternet': 'تحقق من الاتصال بالإنترنت',
     'errCannotDrawRoute': 'لا يمكن رسم المسار حالياً',
@@ -1917,6 +1960,9 @@ const Map<String, Map<String, String>> _copy = {
     'navigateExternal': 'فتح في الملاحة',
     'sharedPointsLoaded': 'تم تحميل النقاط المشاركة على الخريطة',
     'startNavigation': 'ابدأ القيادة',
+    'navigationStarting': 'جارٍ تحديد موقعك…',
+    'navigationStartingShort': 'تحديد الموقع…',
+    'navigationStartingHint': 'تبدأ القيادة فور تحديد موقعك الحالي',
     'navigationModeTitle': 'قيادة المسار',
     'navigationSubtitle': 'تتبّع موقعك الحقيقي على هذا المسار',
     'stopNavigation': 'إنهاء القيادة',
@@ -1951,13 +1997,31 @@ const Map<String, Map<String, String>> _copy = {
     'addMethods': 'إضافة نقاط',
     'keepAddingHint': 'يمكنك متابعة إضافة أي عدد من النقاط.',
     'offlineTitle': 'غير متصل',
-    'offlineBody': 'لا يوجد إنترنت — يتم حفظ تعديلاتك على هذا الجهاز.',
+    'offlineSavedRouteBody':
+        'يمكنك متابعة المسار المحفوظ وإتمام النقاط. البحث وتعديل المسار ومناطق الخريطة غير المحفوظة تحتاج الإنترنت.',
+    'offlineDriveTitle': 'دون إنترنت · متابعة المسار المحفوظ',
+    'offlineDriveBody': 'يمكنك المتابعة. أعد الاتصال للبحث أو تعديل المسار.',
+    'checkConnection': 'التحقق من الاتصال',
+    'checkingConnection': 'جارٍ التحقق من الاتصال…',
+    'connectionRestored': 'عاد الاتصال بالإنترنت',
+    'deliveredNext': 'تم التوصيل',
+    'couldNotDeliver': 'تعذّر التوصيل',
+    'continueToNextStop': 'الانتقال للنقطة التالية',
+    'finishDeliveryTrip': 'إنهاء الرحلة',
+    'expandTripDetails': 'عرض تفاصيل الرحلة',
+    'collapseTripDetails': 'طي تفاصيل الرحلة',
+    'offlineBody':
+        'اتصل بالإنترنت لتخطيط مسار أو البحث عن أماكن. نقاطك تبقى محفوظة على هذا الجهاز.',
     'offlineActionUnavailable': 'هذه العملية تحتاج اتصالاً بالإنترنت.',
     'draftRestoredMsg': 'تمت استعادة عملك المحفوظ.',
     'savedLocallyNote': 'محفوظ على جهازك',
     'errNoActiveStops': 'فعّل نقطة واحدة على الأقل قبل تحسين المسار.',
     'noAddressesFound':
         'لم يتم العثور على أي عنوان. تحقق من النص وحاول مجدداً.',
+    'sharedPlaceUnavailable':
+        'تعذر فتح المكان المشارَك. تحقق من اتصالك وأعد مشاركة رابطه من تطبيق الخرائط.',
+    'sharedPlaceNeedsInternet':
+        'اتصل بالإنترنت لفتح رابط هذا المكان، ثم أعد مشاركته.',
     'exportCsv': 'تصدير CSV',
     'csvImportEmpty': 'لم يتم العثور على نقاط ضمن ملف CSV',
     'csvImportFailed': 'تعذر استيراد ملف CSV',
@@ -2419,6 +2483,8 @@ const Map<String, Map<String, String>> _copy = {
     'errMinTwoPoints': 'Veuillez selectionner au moins deux points',
     'errLocationUnavailable':
         'Impossible de determiner votre position actuelle',
+    'errLocationTimeout':
+        'Signal GPS introuvable. Vérifiez les réglages de localisation, placez-vous à découvert et réessayez.',
     'errOptimize': 'Une erreur est survenue pendant l\'optimisation du trajet',
     'errNoInternet': 'Verifiez votre connexion Internet',
     'errCannotDrawRoute': 'Impossible de tracer le trajet pour le moment',
@@ -2562,6 +2628,10 @@ const Map<String, Map<String, String>> _copy = {
     'navigateExternal': 'Ouvrir dans la navigation',
     'sharedPointsLoaded': 'Points partages charges sur la carte',
     'startNavigation': 'Demarrer la conduite',
+    'navigationStarting': 'Recherche du signal GPS…',
+    'navigationStartingShort': 'Localisation…',
+    'navigationStartingHint':
+        'Le guidage démarre dès que votre position est connue',
     'navigationModeTitle': 'Conduite du trajet',
     'navigationSubtitle': 'Suivez votre position GPS reelle sur ce trajet',
     'stopNavigation': 'Arreter la conduite',
@@ -2597,8 +2667,22 @@ const Map<String, Map<String, String>> _copy = {
     'addMethods': 'Ajouter des points',
     'keepAddingHint': 'Continuez à ajouter autant de points que nécessaire.',
     'offlineTitle': 'Hors ligne',
+    'offlineSavedRouteBody':
+        'Suivez le trajet enregistré et validez vos arrêts. La recherche, le recalcul et les cartes non enregistrées nécessitent Internet.',
+    'offlineDriveTitle': 'Hors ligne · trajet enregistré',
+    'offlineDriveBody':
+        'Continuez. Reconnectez-vous pour chercher ou recalculer.',
+    'checkConnection': 'Vérifier la connexion',
+    'checkingConnection': 'Vérification de la connexion…',
+    'connectionRestored': 'Connexion rétablie',
+    'deliveredNext': 'Livré',
+    'couldNotDeliver': 'Livraison impossible',
+    'continueToNextStop': 'Passer au prochain arrêt',
+    'finishDeliveryTrip': 'Terminer le trajet',
+    'expandTripDetails': 'Afficher les détails du trajet',
+    'collapseTripDetails': 'Masquer les détails du trajet',
     'offlineBody':
-        'Pas de connexion — vos modifications sont enregistrées sur cet appareil.',
+        'Connectez-vous pour préparer un trajet ou chercher un lieu. Vos arrêts restent enregistrés sur cet appareil.',
     'offlineActionUnavailable':
         'Cette action nécessite une connexion Internet.',
     'draftRestoredMsg': 'Nous avons restauré votre travail enregistré.',
@@ -2606,6 +2690,10 @@ const Map<String, Map<String, String>> _copy = {
     'errNoActiveStops': 'Activez au moins un arrêt avant l\'optimisation.',
     'noAddressesFound':
         'Aucune adresse trouvée. Vérifiez le texte et réessayez.',
+    'sharedPlaceUnavailable':
+        'Impossible d’ouvrir ce lieu partagé. Vérifiez votre connexion et partagez à nouveau son lien depuis Maps.',
+    'sharedPlaceNeedsInternet':
+        'Connectez-vous à Internet pour ouvrir ce lien, puis partagez-le à nouveau.',
     'exportCsv': 'Exporter CSV',
     'csvImportEmpty': 'Aucun point trouve dans ce fichier CSV',
     'csvImportFailed': 'Impossible d\'importer le fichier CSV',

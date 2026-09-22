@@ -111,7 +111,11 @@ class _ReportsExtentState extends State<ReportsExtent> {
       final box = _key.currentContext?.findRenderObject() as RenderBox?;
       final screen = MediaQuery.maybeSizeOf(context)?.height ?? 0;
       if (box == null || !box.hasSize || screen <= 0) return;
-      SheetExtent.publish(context, box.size.height / screen);
+      // This callback already runs after layout. Deferring a second time can
+      // leave the last drag extent unpublished when no new frame is scheduled.
+      final notifier = SheetExtent.writerOf(context);
+      final extent = (box.size.height / screen).clamp(0.0, 1.0);
+      if (notifier != null && notifier.value != extent) notifier.value = extent;
     });
   }
 

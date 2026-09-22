@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../domain/entities/route_point.dart';
@@ -83,12 +84,17 @@ class StopTimeline extends StatefulWidget {
   /// Tighter sizing for the drive HUD, where vertical space is scarce.
   final bool compact;
 
+  /// Failed deliveries retain a red X after the driver moves on. Preview
+  /// callers omit this, so their simulated visit states stay unchanged.
+  final Set<String> skippedPointIds;
+
   const StopTimeline({
     super.key,
     required this.points,
     required this.currentTarget,
     this.finished = false,
     this.compact = false,
+    this.skippedPointIds = const {},
   });
 
   @override
@@ -176,6 +182,7 @@ class _StopTimelineState extends State<StopTimeline>
               number: p.isDepot ? null : _stopNumber(points, i),
               caption: p.label,
               done: done,
+              failed: done && widget.skippedPointIds.contains(p.id),
               active: active,
               pulse: _pulse,
               compact: widget.compact,
@@ -205,6 +212,7 @@ class _TimelineItem extends StatelessWidget {
   final int? number;
   final String caption;
   final bool done;
+  final bool failed;
   final bool active;
   final Animation<double> pulse;
   final bool drawLeftLine;
@@ -218,6 +226,7 @@ class _TimelineItem extends StatelessWidget {
     required this.number,
     required this.caption,
     required this.done,
+    required this.failed,
     required this.active,
     required this.pulse,
     required this.drawLeftLine,
@@ -229,7 +238,9 @@ class _TimelineItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = done
+    final color = failed
+        ? AppColors.danger
+        : done
         ? AppColors.primary
         : active
         ? AppColors.pinOrange
@@ -237,7 +248,7 @@ class _TimelineItem extends StatelessWidget {
 
     final dot = compact ? 22.0 : 27.0;
 
-    return Column(
+    final item = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
@@ -315,7 +326,13 @@ class _TimelineItem extends StatelessWidget {
                       // Depot entries show their icon (flag / repeat).
                       // Regular stops always show their number — green
                       // fill communicates "done", no checkmark overlay.
-                      child: label != null
+                      child: failed
+                          ? Icon(
+                              Icons.close_rounded,
+                              size: compact ? 13 : 15,
+                              color: AppColors.white,
+                            )
+                          : label != null
                           ? Icon(
                               label,
                               size: compact ? 11 : 13,
@@ -349,12 +366,23 @@ class _TimelineItem extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTextStyles.mutedSm.copyWith(
               fontSize: compact ? 9 : 10,
-              color: active ? AppColors.textPrimary : AppColors.textMuted,
+              color: failed
+                  ? AppColors.danger
+                  : active
+                  ? AppColors.textPrimary
+                  : AppColors.textMuted,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
       ],
     );
+    return failed
+        ? Semantics(
+            label: '$caption, ${AppStrings.couldNotDeliver}',
+            excludeSemantics: true,
+            child: item,
+          )
+        : item;
   }
 }

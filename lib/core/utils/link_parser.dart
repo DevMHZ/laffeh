@@ -1,5 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
+import 'google_place_identity.dart';
+
 class LinkParser {
   LinkParser._();
 
@@ -30,7 +32,9 @@ class LinkParser {
         value = value.substring(0, value.length - 1);
       }
       final uri = Uri.tryParse(value);
-      if (uri != null && isMapUri(uri)) urls.add(value);
+      if (uri != null && isMapUri(uri) && !urls.contains(value)) {
+        urls.add(value);
+      }
     }
     return urls;
   }
@@ -59,6 +63,14 @@ class LinkParser {
   }
 
   static LatLng? tryParseMapUrl(String input) {
+    try {
+      return _tryParseMapUrl(input);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static LatLng? _tryParseMapUrl(String input) {
     final trimmed = extractMapUrls(input).firstOrNull ?? input.trim();
 
     final uri = Uri.tryParse(trimmed);
@@ -113,6 +125,11 @@ class LinkParser {
       return null;
     }
 
+    // An explicit query identity overrides even coordinates in a reused path.
+    if (GooglePlaceIdentity.fromUri(uri, includeEmbedded: false) != null) {
+      return null;
+    }
+
     // The POI coordinates take priority over @lat,lng: @ is only the
     // camera centre, which moves when Google opens its business sidebar.
     final decoded = Uri.decodeFull(uri.toString());
@@ -123,6 +140,10 @@ class LinkParser {
       final point = parseLatLngPair('${dataMatch[1]},${dataMatch[2]}');
       if (point != null) return point;
     }
+
+    // Google prioritizes a specific place ID over query coordinates. Resolve
+    // that place online instead of importing a fallback query or camera centre.
+    if (GooglePlaceIdentity.fromUri(uri) != null) return null;
 
     // Format 1:  ?q=lat,lng
     //   https://maps.google.com/?q=33.5131,36.2767

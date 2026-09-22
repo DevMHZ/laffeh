@@ -34,11 +34,13 @@ import '../../data/datasources/planner_draft_local_datasource.dart';
 import '../../data/repositories/place_search_repository.dart';
 import '../../data/models/planner_draft_model.dart';
 import '../utils/route_csv_utils.dart';
+import '../utils/navigation_route_progress.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/place_suggestion.dart';
 import '../../data/models/laffa_file.dart';
 import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
+import '../../domain/entities/route_maneuver.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../../domain/usecases/optimize_route_usecase.dart';
 import '../widgets/map_geometry.dart';
@@ -81,6 +83,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// Last emitted navigation progress — used to prevent GPS noise from
   /// regressing the trail (you can't un-drive a segment).
   double _lastNavProgress = 0.0;
+  double _navigationLegStart = 0.0;
+  int _navigationRevision = 0;
+  // Stop transitions invalidate reroutes while keeping GPS updates alive.
+  int _navigationStreamRevision = 0;
+  DateTime? _lastStopActionAt;
+  Timer? _connectivityTimer;
+  Future<void>? _connectivityProbe;
 
   /// Service-point state machine: true once the driver has reached the
   /// *current* target stop — entered its service radius, or driven past it
@@ -136,7 +145,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
     // 2) Probe connectivity and location access in the background
     //    (non-blocking — neither gates the map appearing).
-    unawaited(_refreshConnectivity());
+    _startConnectivityMonitor();
     unawaited(refreshLocationAccess());
 
     try {
@@ -322,6 +331,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// mid-trip still expects to be navigated. The planning dot has nothing
   /// to update while no map is on screen, so it stands down instead.
   void setAppForeground(bool foreground) {
+    if (foreground) {
+      _startConnectivityMonitor();
+    } else {
+      _connectivityTimer?.cancel();
+      _connectivityTimer = null;
+    }
     if (state.navigationActive || state.simulationActive) return;
     if (foreground) {
       if (_liveWanted) _startLiveLocation();
@@ -378,11 +393,25 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// Safe to call from app-resume, banner retry, etc.
   Future<void> refreshConnectivity() => _refreshConnectivity();
 
-  Future<void> _refreshConnectivity() async {
+  void _startConnectivityMonitor() {
+    unawaited(_refreshConnectivity());
+    _connectivityTimer ??= Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => unawaited(_refreshConnectivity()),
+    );
+  }
+
+  Future<void> _refreshConnectivity() =>
+      _connectivityProbe ??= _probeConnectivity().whenComplete(() {
+        _connectivityProbe = null;
+      });
+
+  Future<void> _probeConnectivity() async {
     try {
       final connected = await _network.isConnected;
       if (isClosed) return;
       if (state.isOffline == !connected) return; // no change
+      if (connected) _rerouteBackoffUntil = null;
       emit(state.copyWith(isOffline: !connected));
     } catch (_) {
       // Never let a connectivity probe crash anything.
@@ -1625,8 +1654,9 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   Future<void> startNavigation() async {
     DebugLog.nav('startNavigation() ENTER');
+    if (isClosed || state.navigationStarting || state.navigationActive) return;
     final route = state.optimizedRoute;
-    if (route == null) {
+    if (route == null || route.orderedPoints.length < 2) {
       DebugLog.nav('startNavigation() ✋ no optimizedRoute → abort');
       return;
     }
@@ -1634,13 +1664,35 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     _cancelSimTimer();
     _cancelNavigationStream();
 
+    final revision = _navigationRevision;
+    emit(state.copyWith(navigationStarting: true, clearError: true));
     try {
       DebugLog.nav('startNavigation() requesting current GPS fix…');
-      final loc = await LocationUtils.getCurrentLatLng();
+      final loc = await LocationUtils.getCurrentLatLng(
+        timeout: NavigationConfig.startFixTimeout,
+        maxCachedAge: NavigationConfig.startFixMaxAge,
+        maxCachedAccuracyMeters: NavigationConfig.maxAccuracyMeters,
+      );
+      if (isClosed ||
+          revision != _navigationRevision ||
+          !identical(route, state.optimizedRoute)) {
+        return;
+      }
+      final fractions = _fractionsFor(route);
       // Only trust GPS for the starting progress when the fix is actually on
       // the route. Off-route (Simulator, or before reaching the start) we
       // begin at 0 instead of snapping near the end of the polyline.
-      final initialProgress = _onRouteProgress(route.fullPolyline, loc) ?? 0.0;
+      final projection = NavigationRouteProgress.project(
+        route.fullPolyline,
+        loc,
+        to: fractions.length > 1 ? fractions[1] : 1,
+      );
+      final initialProgress =
+          projection != null &&
+              projection.offRouteMeters <=
+                  NavigationConfig.onRouteThresholdMeters
+          ? projection.progress
+          : 0.0;
       DebugLog.nav(
         'startNavigation() got fix=${loc.latitude.toStringAsFixed(6)},'
         '${loc.longitude.toStringAsFixed(6)} '
@@ -1660,9 +1712,12 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           userLocation: loc,
           cameraTarget: firstStop,
           navigationActive: true,
+          navigationStarting: false,
           navigationProgress: initialProgress,
           navigationStopIndex: 1,
           navigationArrived: false,
+          skippedPointIds: const {},
+          clearNavigationStopRouteDistance: true,
           clearNavigationHeading: true,
           clearNavigationSpeed: true,
           clearNavigationStopDistance: true,
@@ -1684,19 +1739,38 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         ),
       );
 
-      _navSub = Geolocator.getPositionStream(
-        locationSettings: _navLocationSettings(),
-      ).listen(_onNavigationPosition, onError: _onNavigationError);
+      final streamRevision = _navigationStreamRevision;
+      _navSub =
+          Geolocator.getPositionStream(
+            locationSettings: _navLocationSettings(),
+          ).listen(
+            (position) {
+              if (!isClosed && streamRevision == _navigationStreamRevision) {
+                _onNavigationPosition(position);
+              }
+            },
+            onError: (Object error) {
+              if (!isClosed && streamRevision == _navigationStreamRevision) {
+                _onNavigationError(error);
+              }
+            },
+          );
       DebugLog.nav(
         'startNavigation() ✅ subscribed to position stream '
         '(navigation accuracy, distanceFilter='
         '${NavigationConfig.distanceFilterMeters}m). Waiting for GPS ticks…',
       );
     } on LocationException catch (e) {
+      if (isClosed ||
+          revision != _navigationRevision ||
+          !identical(route, state.optimizedRoute)) {
+        return;
+      }
       DebugLog.nav('startNavigation() ✋ LocationException: ${e.message}');
       emit(
         state.copyWith(
           errorMessage: _mapLocationError(e),
+          navigationStarting: false,
           navigationActive: false,
           navigationProgress: 0.0,
           clearNavigationHeading: true,
@@ -1704,11 +1778,17 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         ),
       );
     } catch (e) {
+      if (isClosed ||
+          revision != _navigationRevision ||
+          !identical(route, state.optimizedRoute)) {
+        return;
+      }
       DebugLog.nav('startNavigation() ✋ error: $e');
       developer.log('startNavigation() failed', error: e);
       emit(
         state.copyWith(
           errorMessage: AppStrings.errLocationUnavailable,
+          navigationStarting: false,
           navigationActive: false,
           navigationProgress: 0.0,
           clearNavigationHeading: true,
@@ -1752,6 +1832,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationProgress: 0.0,
         navigationStopIndex: 1,
         navigationArrived: false,
+        clearNavigationStopRouteDistance: true,
         isRerouting: false,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
@@ -1763,38 +1844,52 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// Driver taps the serve button — the only way a point is completed.
   /// Marks the current target stop as done and activates the next one;
   /// serving the last point ends the trip.
-  void servePoint() {
-    if (state.optimizedRoute == null || !state.navigationActive) return;
-    HapticFeedback.mediumImpact();
-    _advanceServicePoint();
+  void servePoint({int? expectedStopIndex, OptimizedRoute? expectedRoute}) {
+    _completeServicePoint(
+      skipped: false,
+      expectedStopIndex: expectedStopIndex,
+      expectedRoute: expectedRoute,
+    );
   }
 
   /// Back-compat alias for [servePoint].
   void markCurrentStopDone() => servePoint();
 
-  /// Driver gives up on the current stop — nobody in, gate locked, delivery
-  /// refused — and moves on to the next one.
-  ///
-  /// Deliberately not the same call as [servePoint]. Both advance the trip,
-  /// but only one of them means the parcel was handed over, and a round
-  /// where three customers were out should not read afterwards as a round
-  /// where everything went fine. The id is recorded before the index moves,
-  /// because afterwards the stop is behind the driver and harder to name.
-  void skipPoint() {
-    final route = state.optimizedRoute;
-    if (route == null || !state.navigationActive) return;
-    final index = state.navigationStopIndex;
-    if (index >= route.orderedPoints.length) return;
+  void skipPoint({int? expectedStopIndex, OptimizedRoute? expectedRoute}) {
+    _completeServicePoint(
+      skipped: true,
+      expectedStopIndex: expectedStopIndex,
+      expectedRoute: expectedRoute,
+    );
+  }
 
+  void _completeServicePoint({
+    required bool skipped,
+    int? expectedStopIndex,
+    OptimizedRoute? expectedRoute,
+  }) {
+    final route = state.optimizedRoute;
+    final index = state.navigationStopIndex;
+    if (isClosed ||
+        route == null ||
+        !state.navigationActive ||
+        index < 1 ||
+        index >= route.orderedPoints.length ||
+        (expectedStopIndex != null && index != expectedStopIndex) ||
+        (expectedRoute != null && !identical(route, expectedRoute))) {
+      return;
+    }
+    final now = DateTime.now();
+    // A double tap can straddle a rebuild and otherwise finish two stops.
+    if (expectedStopIndex != null &&
+        _lastStopActionAt != null &&
+        now.difference(_lastStopActionAt!) <
+            const Duration(milliseconds: 700)) {
+      return;
+    }
+    _lastStopActionAt = now;
     HapticFeedback.mediumImpact();
-    final skipped = route.orderedPoints[index];
-    DebugLog.nav(
-      'SKIPPED stop $index (${skipped.label}) — driver could not serve it',
-    );
-    emit(
-      state.copyWith(skippedPointIds: {...state.skippedPointIds, skipped.id}),
-    );
-    _advanceServicePoint();
+    _advanceServicePoint(skipped: skipped);
   }
 
   /// Mid-trip re-plan: the trip went sideways (wrong turns, traffic, a
@@ -1804,6 +1899,10 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// deactivated optional points survive on the map; a simulated debug
   /// drive restarts simulated so desk testing keeps working.
   Future<void> reoptimizeRemaining() async {
+    if (state.isOffline) {
+      emit(state.copyWith(errorMessage: AppStrings.offlineActionUnavailable));
+      return;
+    }
     final route = state.optimizedRoute;
     if (route == null || !state.navigationActive || state.isOptimizing) {
       return;
@@ -1873,24 +1972,67 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     }
   }
 
-  /// Closes the current leg: advances to the next service point, or ends
-  /// the trip after the final one. Only [servePoint] reaches it — nothing
-  /// completes a point on the driver's behalf.
-  void _advanceServicePoint() {
+  /// Commits the outcome and the next target in one emission. All geometry
+  /// already belongs to the saved trip, so this transition works offline.
+  void _advanceServicePoint({required bool skipped}) {
     final route = state.optimizedRoute;
     if (route == null || !state.navigationActive) return;
+    final current = state.navigationStopIndex;
+    final outcomes = skipped
+        ? {...state.skippedPointIds, route.orderedPoints[current].id}
+        : state.skippedPointIds;
     _enteredServiceRadius = false;
-    final next = state.navigationStopIndex + 1;
+    _navigationRevision++;
+    _offRouteFixCount = 0;
+    _lastOffRouteCounted = null;
+    _rerouteBackoffUntil = null;
+    final next = current + 1;
     if (next >= route.orderedPoints.length) {
+      _cancelNavigationStream();
+      emit(
+        state.copyWith(
+          navigationActive: false,
+          navigationProgress: 1,
+          navigationStopIndex: current,
+          navigationArrived: false,
+          skippedPointIds: outcomes,
+          isRerouting: false,
+          clearNavigationHeading: true,
+          clearNavigationSpeed: true,
+          clearNavigationStopDistance: true,
+          clearNavigationStopRouteDistance: true,
+        ),
+      );
       HapticFeedback.heavyImpact();
-      stopNavigation();
       return;
     }
+    final fractions = state.stopFractions;
+    final boundary = current < fractions.length ? fractions[current] : 0.0;
+    // Early completion keeps the road from the driver's actual position.
+    _navigationLegStart = math.min(state.navigationProgress, boundary);
+    _lastNavProgress = _navigationLegStart;
+    final loc = state.userLocation;
+    final distance = loc == null
+        ? null
+        : DistanceUtils.haversineKm(loc, route.orderedPoints[next].latLng) *
+              1000;
+    final routeDistance = _routeDistanceToStop(
+      route: route,
+      stopIndex: next,
+      progress: _lastNavProgress,
+    );
     emit(
       state.copyWith(
         navigationStopIndex: next,
+        navigationProgress: _lastNavProgress,
         navigationArrived: false,
-        clearNavigationStopDistance: true,
+        skippedPointIds: outcomes,
+        isRerouting: false,
+        navigationStopDistanceMeters: distance,
+        clearNavigationStopDistance: distance == null,
+        navigationStopRouteDistanceMeters: routeDistance,
+        clearNavigationStopRouteDistance: routeDistance == null,
+        clearError: true,
       ),
     );
   }
@@ -2044,6 +2186,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         navigationProgress: 0.0,
         navigationStopIndex: 1,
         navigationArrived: false,
+        skippedPointIds: const {},
+        clearNavigationStopRouteDistance: true,
         clearNavigationHeading: true,
         clearNavigationSpeed: true,
         clearNavigationStopDistance: true,
@@ -2149,8 +2293,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       // hops onto fresh geometry the instant a reroute lands.
       final totalKm = DistanceUtils.pathLengthKm(poly);
       if (totalKm <= 0) return;
-      final t0 = _progressAlongPath(poly, pos0);
-      final t = (t0 + stepMeters / 1000.0 / totalKm).clamp(0.0, 1.0);
+      final t0 = state.navigationProgress;
+      final limit = state.navigationStopIndex < state.stopFractions.length
+          ? state.stopFractions[state.navigationStopIndex]
+          : 1.0;
+      final t = state.navigationArrived
+          ? t0
+          : (t0 + stepMeters / 1000.0 / totalKm)
+                .clamp(t0, math.max(t0, limit))
+                .toDouble();
       pos = PolylineUtils.interpolateByLength(poly, t) ?? pos0;
       heading = PolylineUtils.lookAheadBearing(poly, t, 15);
     }
@@ -2183,64 +2334,34 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// Advances the debug driver forward along the planned polyline.
   /// DEBUG ONLY — no-op in release builds; remove before publishing.
   void debugStepForward() {
-    if (!kDebugMode) return;
+    if (!kDebugMode || !state.navigationActive || state.navigationArrived) {
+      return;
+    }
     final route = state.optimizedRoute;
-    if (route == null || !state.navigationActive) return;
-
+    if (route == null) return;
     final totalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
     if (totalKm <= 0) return;
-
-    final newProgress =
+    final limit = state.navigationStopIndex < state.stopFractions.length
+        ? state.stopFractions[state.navigationStopIndex]
+        : 1.0;
+    final progress =
         (state.navigationProgress + NavigationConfig.debugStepKm / totalKm)
-            .clamp(0.0, 1.0);
-    final sample = PolylineUtils.sampleAt(route.fullPolyline, newProgress);
+            .clamp(0.0, limit);
+    final sample = PolylineUtils.sampleAt(route.fullPolyline, progress);
     if (sample == null) return;
-    final loc = sample.point;
-    _lastNavProgress = newProgress;
-
-    // Auto-advance the target stop as the synthetic driver steps past it,
-    // ending the trip once the final stop is reached.
-    var stopIndex = state.navigationStopIndex;
-    while (stopIndex < state.stopFractions.length &&
-        newProgress >= state.stopFractions[stopIndex]) {
-      if (stopIndex + 1 >= route.orderedPoints.length) {
-        HapticFeedback.heavyImpact();
-        stopNavigation();
-        return;
-      }
-      stopIndex++;
-    }
-
-    // Mirror the live service-point fields so the debug drive exercises
-    // the same HUD (Point Served button, distances) as a real trip.
-    double? distToStop;
-    var arrived = false;
-    if (stopIndex < route.orderedPoints.length) {
-      distToStop =
-          DistanceUtils.haversineKm(
-            loc,
-            route.orderedPoints[stopIndex].latLng,
-          ) *
-          1000;
-      arrived =
-          distToStop <=
-          NavigationConfig.serviceRadiusMeters +
-              NavigationConfig.serviceRadiusAccuracySlack;
-    }
-
-    emit(
-      state.copyWith(
-        userLocation: loc,
-        cameraTarget: loc,
-        navigationProgress: newProgress,
-        navigationStopIndex: stopIndex,
-        navigationArrived: arrived,
-        navigationStopDistanceMeters: distToStop,
-        navigationStopRouteDistanceMeters: _routeDistanceToStop(
-          route: route,
-          stopIndex: stopIndex,
-          progress: newProgress,
-        ),
+    _driveSimPos = sample.point;
+    _onNavigationPosition(
+      Position(
+        latitude: sample.point.latitude,
+        longitude: sample.point.longitude,
+        timestamp: DateTime.now(),
+        accuracy: 5,
+        altitude: 0,
+        altitudeAccuracy: 5,
+        heading: sample.bearing,
+        headingAccuracy: 5,
+        speed: 0,
+        speedAccuracy: 1,
       ),
     );
   }
@@ -2327,7 +2448,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     // Off-route fixes would otherwise snap progress to the nearest polyline
     // point (often near the end); when off-route we freeze it and keep
     // whatever the last good value was.
-    final projection = _routeProjection(route.fullPolyline, loc);
+    final stopLimit = state.navigationStopIndex < state.stopFractions.length
+        ? state.stopFractions[state.navigationStopIndex]
+        : 1.0;
+    final projection = NavigationRouteProgress.project(
+      route.fullPolyline,
+      loc,
+      from: _navigationLegStart,
+      to: stopLimit,
+      previousProgress: _lastNavProgress,
+      heading: speed != null && speed > NavigationConfig.minSpeedForHeadingMps
+          ? rawHeading
+          : null,
+      accuracyMeters: position.accuracy,
+    );
     final onRouteProg =
         (projection != null &&
             projection.offRouteMeters <=
@@ -2396,6 +2530,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
         // without hunting for the long-press escape hatch.
         final passedStop =
             onRouteProg != null &&
+            distToStop <= NavigationConfig.onRouteThresholdMeters / 2 &&
             stopIndex < state.stopFractions.length &&
             progress >= state.stopFractions[stopIndex];
         if (passedStop) {
@@ -2476,7 +2611,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     required double accuracy,
     required bool atStop,
   }) {
-    if (offRouteMeters == null) return;
+    if (offRouteMeters == null || state.isOffline) return;
 
     // The threshold widens on poor fixes: 40 m off-route means nothing
     // when the fix itself is only good to ±30 m.
@@ -2526,7 +2661,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// swaps it in without touching the rest of the navigation state.
   Future<void> _reroute(LatLng from) async {
     final route = state.optimizedRoute;
-    if (route == null || !state.navigationActive || _rerouting) return;
+    if (route == null ||
+        !state.navigationActive ||
+        _rerouting ||
+        state.isOffline) {
+      return;
+    }
+    final revision = _navigationRevision;
     final stopIdx = state.navigationStopIndex.clamp(
       0,
       route.orderedPoints.length - 1,
@@ -2556,6 +2697,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       // was served and re-triggered, or the route was replaced outright.
       if (isClosed ||
           !state.navigationActive ||
+          revision != _navigationRevision ||
+          state.navigationStopIndex != stopIdx ||
           !identical(state.optimizedRoute, route)) {
         return;
       }
@@ -2606,13 +2749,16 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       // the new route re-traverses old roads (a U-turn reroute — the most
       // common kind), silently hiding its instruction.
       final newKm = DistanceUtils.pathLengthKm(fresh.polyline);
+      // The connector from the frozen route position to the new road is
+      // real distance too. Omitting it places every arrival before its stop.
+      final freshStartKm = totalKm - newKm;
       final maneuverFractions = newKm > 0
           ? [
               for (final f in PolylineUtils.orderedFractionsAlong(
                 fresh.polyline,
                 [for (final m in fresh.maneuvers) m.latLng],
               ))
-                ((drivenKm + f * newKm) / totalKm).clamp(0.0, 1.0),
+                ((freshStartKm + f * newKm) / totalKm).clamp(0.0, 1.0),
             ]
           : const <double>[];
 
@@ -2636,6 +2782,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       );
 
       _lastNavProgress = newProgress;
+      _navigationLegStart = newProgress;
       _offRouteFixCount = 0;
       _lastOffRouteCounted = null;
       _rerouteBackoffUntil = DateTime.now().add(
@@ -2649,7 +2796,16 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       emit(
         state.copyWith(
           optimizedRoute: newRoute,
-          stopFractions: _fractionsFor(newRoute),
+          stopFractions: [
+            for (final f in state.stopFractions.take(stopIdx))
+              (f * DistanceUtils.pathLengthKm(route.fullPolyline) / totalKm)
+                  .clamp(0.0, newProgress),
+            for (final f in PolylineUtils.stopFractions(fresh.polyline, [
+              from,
+              ...remaining.map((p) => p.latLng),
+            ]).skip(1))
+              ((freshStartKm + f * newKm) / totalKm).clamp(newProgress, 1.0),
+          ],
           maneuverFractions: maneuverFractions,
           navigationProgress: newProgress,
           isRerouting: false,
@@ -2660,9 +2816,14 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       _rerouteBackoffUntil = DateTime.now().add(
         NavigationConfig.rerouteCooldown,
       );
-      if (!isClosed) emit(state.copyWith(isRerouting: false));
+      if (!isClosed && revision == _navigationRevision) {
+        emit(state.copyWith(isRerouting: false));
+      }
     } finally {
       _rerouting = false;
+      if (!isClosed && state.isRerouting) {
+        emit(state.copyWith(isRerouting: false));
+      }
     }
   }
 
@@ -2690,6 +2851,13 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   }
 
   void _cancelNavigationStream() {
+    _navigationRevision++;
+    _navigationStreamRevision++;
+    if (!isClosed && state.navigationStarting) {
+      emit(state.copyWith(navigationStarting: false));
+    }
+    _navigationLegStart = 0;
+    _lastStopActionAt = null;
     _cancelDriveSim();
     _navSub?.cancel();
     _navSub = null;
@@ -3149,6 +3317,15 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// aren't evenly spaced). Computed once per route.
   List<double> _fractionsFor(OptimizedRoute route) {
     if (route.fullPolyline.length < 2) return const [];
+    final maneuverFractions = _maneuverFractionsFor(route);
+    final arrivals = <double>[
+      for (var i = 0; i < route.maneuvers.length; i++)
+        if (route.maneuvers[i].kind == ManeuverKind.arrive)
+          maneuverFractions[i],
+    ];
+    if (arrivals.length == route.orderedPoints.length - 1) {
+      return [0.0, ...arrivals.take(arrivals.length - 1), 1.0];
+    }
     return PolylineUtils.stopFractions(
       route.fullPolyline,
       route.orderedPoints.map((p) => p.latLng).toList(),
@@ -3214,6 +3391,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       case 'LOCATION_PERMISSION_DENIED':
       case 'LOCATION_PERMISSION_DENIED_FOREVER':
         return AppStrings.errLocationPermissionDenied;
+      case 'LOCATION_TIMEOUT':
+        return AppStrings.errLocationTimeout;
       default:
         return AppStrings.errLocationUnavailable;
     }
@@ -3221,6 +3400,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   @override
   Future<void> close() {
+    _connectivityTimer?.cancel();
     _cancelSimTimer();
     _cancelNavigationStream();
     _stopLiveLocation();

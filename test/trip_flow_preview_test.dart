@@ -351,16 +351,19 @@ void main() {
         // reaches it: open the bottom dock, then press it. Same two taps
         // in both orientations — in landscape the dock is the foot of the
         // side column.
-        await tester.tap(
+        await tester.ensureVisible(
           find.byIcon(Icons.keyboard_arrow_up_rounded),
-          warnIfMissed: false,
         );
+        await tester.tap(find.byIcon(Icons.keyboard_arrow_up_rounded));
+        await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
-        await tester.tap(
+        await tester.ensureVisible(
           find.byIcon(Icons.center_focus_strong_rounded),
-          warnIfMissed: false,
         );
+        await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
+        await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byIcon(Icons.fullscreen_exit_rounded), findsOneWidget);
 
         await expectLater(
           find.byType(Scaffold),
@@ -372,6 +375,47 @@ void main() {
       },
     );
   }
+
+  testWidgets('drive hud arrived — offline Arabic landscape', (tester) async {
+    AppStrings.setLocale(const Locale('ar'));
+    addTearDown(() => AppStrings.setLocale(const Locale('en')));
+    tester.view.physicalSize = const Size(844 * 3, 390 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final route = _fixtureRoute(includeDuration: false);
+    final reachable = route.withPoints([
+      for (final point in route.orderedPoints)
+        point.id == '1' ? point.copyWith(phone: '+963944123456') : point,
+    ]);
+    final state = RoutePlannerState(
+      optimizedRoute: reachable,
+      navigationActive: true,
+      navigationProgress: 0.12,
+      navigationStopIndex: 1,
+      navigationArrived: true,
+      isOffline: true,
+      navigationStopRouteDistanceMeters: 4,
+      navigationSpeedMps: 0,
+    );
+    await tester.pumpWidget(
+      _harness(
+        state,
+        Directionality(
+          textDirection: TextDirection.rtl,
+          child: Stack(
+            children: [RouteNavigationOverlay(onOpenGoogleMaps: () {})],
+          ),
+        ),
+        inStack: true,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.takeException(), isNull);
+    await expectLater(
+      find.byType(Scaffold),
+      matchesGoldenFile('goldens/drive_hud_arrived_offline_landscape_ar.png'),
+    );
+  });
 
   testWidgets('summary sheet', (tester) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);

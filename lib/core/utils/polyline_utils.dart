@@ -164,6 +164,15 @@ class PolylineUtils {
     final nearestKm = <double>[];
     var from = 0;
     for (var k = 0; k < stops.length; k++) {
+      // Route endpoints are authoritative, even when a return pass snaps
+      // closer to the depot than the outbound road does.
+      if (k == 0 || (k == stops.length - 1 && stops.length > 1)) {
+        final endpoint = k == 0 ? 0 : path.length - 1;
+        idx.add(endpoint);
+        nearestKm.add(DistanceUtils.haversineKm(path[endpoint], stops[k]));
+        from = endpoint;
+        continue;
+      }
       final s = stops[k];
       final reserve = stops.length - 1 - k;
       final ceiling = math.max(from + 1, path.length - reserve);
@@ -185,7 +194,7 @@ class PolylineUtils {
     // never as far as the next stop (so two doors on the same street keep
     // their own fractions, and a drive-by that happens later in the trip
     // can't claim this stop).
-    for (var k = 0; k < stops.length; k++) {
+    for (var k = 1; k < stops.length - 1; k++) {
       final limit = k + 1 < idx.length ? idx[k + 1] - 1 : path.length - 1;
       final ceiling = nearestKm[k] + _stopPassToleranceKm;
       for (var i = limit; i > idx[k]; i--) {
@@ -222,22 +231,41 @@ class PolylineUtils {
     if (total <= 0) return List.filled(targets.length, 0.0);
 
     var startIdx = 0;
+    var startFraction = 0.0;
     final out = <double>[];
-    for (final t in targets) {
+    for (final target in targets) {
       var best = double.infinity;
       var bestIdx = startIdx;
-      for (var i = startIdx; i < path.length; i++) {
-        final d = DistanceUtils.haversineKm(path[i], t);
-        if (d < best) {
-          best = d;
+      var bestT = startFraction;
+      for (var i = startIdx; i < path.length - 1; i++) {
+        final a = path[i];
+        final b = path[i + 1];
+        final scale = math.cos((a.latitude + b.latitude) * math.pi / 360);
+        final dx = (b.longitude - a.longitude) * scale;
+        final dy = b.latitude - a.latitude;
+        final px = (target.longitude - a.longitude) * scale;
+        final py = target.latitude - a.latitude;
+        final squared = dx * dx + dy * dy;
+        final fraction = (squared == 0 ? 0.0 : (px * dx + py * dy) / squared)
+            .clamp(i == startIdx ? startFraction : 0.0, 1.0);
+        final projected = LatLng(
+          a.latitude + (b.latitude - a.latitude) * fraction,
+          a.longitude + (b.longitude - a.longitude) * fraction,
+        );
+        final distance = DistanceUtils.haversineKm(projected, target);
+        if (distance < best - 0.000001) {
+          best = distance;
           bestIdx = i;
+          bestT = fraction;
         }
-        // Found a near-exact vertex and we're now clearly walking away
-        // from it — no need to scan the rest of the route.
-        if (best < 0.005 && d > best + 0.05) break;
+        if (best < 0.005 && distance > best + 0.05) break;
       }
       startIdx = bestIdx;
-      out.add((cum[bestIdx] / total).clamp(0.0, 1.0));
+      startFraction = bestT;
+      out.add(
+        ((cum[bestIdx] + (cum[bestIdx + 1] - cum[bestIdx]) * bestT) / total)
+            .clamp(0.0, 1.0),
+      );
     }
     return out;
   }

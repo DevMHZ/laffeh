@@ -52,7 +52,11 @@ class NavigationInstructions {
   /// legacy saved routes). Null when navigation isn't running.
   static NavInstruction? compute(RoutePlannerState state) {
     final route = state.optimizedRoute;
-    if (!state.navigationActive || route == null) return null;
+    if (!state.navigationActive ||
+        route == null ||
+        route.orderedPoints.isEmpty) {
+      return null;
+    }
     if (route.fullPolyline.length < 2) return _fallback(state, route);
 
     final progress = state.navigationProgress.clamp(0.0, 1.0);
@@ -68,10 +72,40 @@ class NavigationInstructions {
     // First maneuver still ahead of the vehicle. A small epsilon keeps an
     // instruction on screen until the turn is genuinely behind the car.
     const passedEpsilon = 0.00001;
+    final arrivalCount = maneuvers
+        .where((m) => m.kind == ManeuverKind.arrive)
+        .length;
+    final hasLegs =
+        arrivalCount > 0 &&
+        arrivalCount < route.orderedPoints.length &&
+        maneuvers.last.kind == ManeuverKind.arrive;
+    // Reroutes contain only the remaining legs; their final arrival still
+    // corresponds to the route's final stop. Count back from that endpoint.
+    var leg = route.orderedPoints.length - arrivalCount;
+    final target = state.navigationStopIndex;
+    final previousBoundary =
+        target > 0 && target - 1 < state.stopFractions.length
+        ? state.stopFractions[target - 1]
+        : 0.0;
+    final targetBoundary = target < state.stopFractions.length
+        ? state.stopFractions[target]
+        : 1.0;
     for (var i = 0; i < maneuvers.length; i++) {
       final f = fractions[i];
-      if (f <= progress + passedEpsilon) continue;
       final m = maneuvers[i];
+      final maneuverLeg = leg;
+      if (m.kind == ManeuverKind.arrive) leg++;
+      if (hasLegs &&
+          (maneuverLeg > target ||
+              (maneuverLeg < target && m.kind == ManeuverKind.arrive))) {
+        continue;
+      }
+      if (!hasLegs &&
+          (f > targetBoundary ||
+              (m.kind == ManeuverKind.arrive && f <= previousBoundary))) {
+        continue;
+      }
+      if (f <= progress + passedEpsilon) continue;
       return NavInstruction(
         icon: iconFor(m.kind),
         text: textFor(m),
@@ -107,11 +141,13 @@ class NavigationInstructions {
     } else if (route.fullPolyline.length >= 2 &&
         idx < state.stopFractions.length) {
       final totalKm = DistanceUtils.pathLengthKm(route.fullPolyline);
-      meters =
-          ((state.stopFractions[idx] - state.navigationProgress) *
-                  totalKm *
-                  1000)
-              .clamp(0.0, double.infinity);
+      final remaining =
+          (state.stopFractions[idx] - state.navigationProgress) *
+          totalKm *
+          1000;
+      meters = remaining > 0
+          ? remaining
+          : state.navigationStopDistanceMeters ?? 0;
     } else {
       meters = state.navigationStopDistanceMeters ?? 0;
     }

@@ -21,6 +21,8 @@ import 'package:laffeh/features/route_planner/domain/usecases/optimize_route_use
 import 'package:laffeh/features/route_planner/presentation/cubit/route_planner_cubit.dart';
 import 'package:laffeh/features/route_planner/presentation/cubit/route_planner_state.dart';
 import 'package:laffeh/features/route_planner/presentation/widgets/route_navigation_overlay.dart';
+import 'package:laffeh/features/route_planner/presentation/widgets/route_connectivity_notice.dart';
+import 'package:laffeh/features/route_planner/presentation/widgets/stop_timeline.dart';
 import 'package:laffeh/features/saved_routes/domain/repositories/saved_routes_repository.dart';
 
 /// Reaching the customer from inside drive mode.
@@ -49,6 +51,21 @@ class _FakeDraft extends Fake implements PlannerDraftModel {}
 class _FakeRouteCubit extends Cubit<RoutePlannerState>
     implements RoutePlannerCubit {
   _FakeRouteCubit(super.initialState);
+  final delivered = <(int?, OptimizedRoute?)>[];
+  final skipped = <(int?, OptimizedRoute?)>[];
+
+  @override
+  void servePoint({int? expectedStopIndex, OptimizedRoute? expectedRoute}) {
+    delivered.add((expectedStopIndex, expectedRoute));
+  }
+
+  @override
+  void skipPoint({int? expectedStopIndex, OptimizedRoute? expectedRoute}) {
+    skipped.add((expectedStopIndex, expectedRoute));
+  }
+
+  @override
+  Future<void> refreshConnectivity() async {}
 
   @override
   bool get debugDriveSimActive => false;
@@ -95,11 +112,26 @@ OptimizedRoute _route({String? firstStopPhone}) {
   );
 }
 
-Widget _harness(RoutePlannerState state) => MaterialApp(
+Widget _harness(
+  RoutePlannerState state, {
+  _FakeRouteCubit? cubit,
+  double textScale = 1,
+}) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: AppTheme.data,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(
+      context,
+    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    child: Directionality(
+      textDirection: AppStrings.isArabic
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+      child: child!,
+    ),
+  ),
   home: BlocProvider<RoutePlannerCubit>.value(
-    value: _FakeRouteCubit(state),
+    value: cubit ?? _FakeRouteCubit(state),
     child: Scaffold(
       body: Stack(children: [RouteNavigationOverlay(onOpenGoogleMaps: () {})]),
     ),
@@ -126,6 +158,7 @@ void main() {
   setUpAll(() => registerFallbackValue(_FakeDraft()));
 
   setUp(() => AppStrings.setLocale(const Locale('en')));
+  tearDown(() => AppStrings.setLocale(const Locale('en')));
 
   testWidgets('the stop being driven to can be reached, both ways', (
     tester,
@@ -194,12 +227,12 @@ void main() {
 
   // ── Arrival ────────────────────────────────────────────────────────────
   //
-  // The moment the driver actually asked about. Everything collapses to one
-  // row — serve, and the two ways to reach the customer as bare circles —
-  // and the pill above gives its own pair up, because two identical sets of
-  // buttons on one screen is worse than none.
+  // Arrival offers two distinct outcomes, with contact above them. The
+  // next-stop strip removes its pair so each contact method appears once.
 
-  testWidgets('arriving puts serve and contact on one row', (tester) async {
+  testWidgets('arriving separates contact from the two delivery outcomes', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
@@ -211,12 +244,19 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text(AppStrings.pointServed), findsOneWidget);
-    // Glyphs, not words: the circles carry no label at the stop.
+    expect(find.text(AppStrings.deliveredNext), findsOneWidget);
+    expect(find.text(AppStrings.couldNotDeliver), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.text(AppStrings.stopCall)).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const ValueKey('arrival-delivered'))).dy,
+      ),
+    );
+    // Contact is separate from the outcomes and appears only once.
     expect(find.byType(WhatsappGlyph), findsOneWidget);
     expect(find.byIcon(Iconsax.call), findsOneWidget);
-    expect(find.text(AppStrings.stopWhatsapp), findsNothing);
-    expect(find.text(AppStrings.stopCall), findsNothing);
+    expect(find.text(AppStrings.stopWhatsapp), findsOneWidget);
+    expect(find.text(AppStrings.stopCall), findsOneWidget);
     // Nothing recites the number back at a driver standing at the door.
     expect(find.text('+963944123456'), findsNothing);
   });
@@ -238,7 +278,7 @@ void main() {
     expect(find.byType(WhatsappGlyph), findsNothing);
     expect(find.byIcon(Iconsax.call), findsNothing);
     // The one thing that does belong there is still there.
-    expect(find.text(AppStrings.pointServed), findsOneWidget);
+    expect(find.text(AppStrings.deliveredNext), findsOneWidget);
   });
 
   testWidgets('arriving back at the depot ends the trip, alone', (
@@ -339,6 +379,30 @@ void main() {
       expect(find.text(AppStrings.endTrip), findsNothing);
     });
 
+    testWidgets('the dock receives failed outcomes without a target change', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final state = _driving(_route(), stopIndex: 2);
+      final cubit = _FakeRouteCubit(state);
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_harness(state, cubit: cubit));
+      await tester.pump(const Duration(milliseconds: 400));
+      await openDock(tester);
+      expect(
+        tester.widget<StopTimeline>(find.byType(StopTimeline)).skippedPointIds,
+        isEmpty,
+      );
+      cubit.emit(state.copyWith(skippedPointIds: {'1'}));
+      await tester.pump();
+      expect(
+        tester.widget<StopTimeline>(find.byType(StopTimeline)).skippedPointIds,
+        {'1'},
+      );
+    });
+
     testWidgets('arriving takes the screen back for the serve button', (
       tester,
     ) async {
@@ -352,9 +416,70 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text(AppStrings.endTrip), findsNothing);
-      expect(find.text(AppStrings.pointServed), findsOneWidget);
+      expect(find.text(AppStrings.deliveredNext), findsOneWidget);
     });
   });
+
+  for (final locale in ['en', 'ar', 'fr']) {
+    for (final focus in [false, true]) {
+      for (final offline in [false, true]) {
+        testWidgets(
+          'landscape arrival: $locale, focus=$focus, offline=$offline',
+          (tester) async {
+            AppStrings.setLocale(Locale(locale));
+            tester.view.physicalSize = const Size(390, 844);
+            tester.view.devicePixelRatio = 1;
+            addTearDown(tester.view.reset);
+            final route = _route(firstStopPhone: '+963944123456');
+            final state = _driving(
+              route,
+              arrived: true,
+            ).copyWith(isOffline: offline);
+            final cubit = _FakeRouteCubit(state);
+            addTearDown(cubit.close);
+            await tester.pumpWidget(_harness(state, cubit: cubit));
+            await tester.pump(const Duration(milliseconds: 400));
+            if (focus) {
+              await tester.tap(find.byIcon(Icons.keyboard_arrow_up_rounded));
+              await tester.pump();
+              await tester.pump(const Duration(milliseconds: 400));
+              await tester.ensureVisible(
+                find.byIcon(Icons.center_focus_strong_rounded),
+              );
+              await tester.tap(find.byIcon(Icons.center_focus_strong_rounded));
+              await tester.pump();
+              await tester.pump(const Duration(milliseconds: 400));
+            }
+            tester.view.physicalSize = const Size(640, 320);
+            await tester.pumpWidget(
+              _harness(state, cubit: cubit, textScale: 1.8),
+            );
+            await tester.pump(const Duration(milliseconds: 400));
+            expect(tester.takeException(), isNull);
+            expect(
+              find.byType(RouteConnectivityNotice),
+              offline ? findsOneWidget : findsNothing,
+            );
+            expect(find.text(AppStrings.stopCall), findsOneWidget);
+            expect(find.text(AppStrings.stopWhatsapp), findsOneWidget);
+            await tester.ensureVisible(find.text(AppStrings.deliveredNext));
+            await tester.tap(find.text(AppStrings.deliveredNext));
+            await tester.ensureVisible(find.text(AppStrings.couldNotDeliver));
+            await tester.tap(find.text(AppStrings.couldNotDeliver));
+            expect(cubit.delivered, [(1, route)]);
+            expect(cubit.skipped, [(1, route)]);
+            if (focus) {
+              expect(
+                find.byIcon(Icons.fullscreen_exit_rounded),
+                findsOneWidget,
+              );
+            }
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+  }
 
   // ── The write-through that makes the in-drive "add a number" work ──────
 

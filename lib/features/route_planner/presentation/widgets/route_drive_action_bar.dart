@@ -22,6 +22,7 @@ import '../../../../core/theme/app_text_styles.dart';
 /// which pins "optimize" for exactly the reason.
 class RouteDriveActionBar extends StatelessWidget {
   final VoidCallback onDrive;
+  final bool starting;
 
   /// DEBUG ONLY: long-press starts the synthetic drive simulator instead of a
   /// real GPS trip. Null in release builds.
@@ -30,6 +31,7 @@ class RouteDriveActionBar extends StatelessWidget {
   const RouteDriveActionBar({
     super.key,
     required this.onDrive,
+    this.starting = false,
     this.onDebugLongPress,
   });
 
@@ -42,8 +44,12 @@ class RouteDriveActionBar extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: '${AppStrings.startNavigation}. ${AppStrings.navigationSubtitle}',
-      onTap: onDrive,
+      enabled: !starting,
+      liveRegion: starting,
+      label: starting
+          ? '${AppStrings.navigationStarting}. ${AppStrings.navigationStartingHint}'
+          : '${AppStrings.startNavigation}. ${AppStrings.navigationSubtitle}',
+      onTap: starting ? null : onDrive,
       excludeSemantics: true,
       child: DecoratedBox(
         // Only a hairline: the bar shares the sheet's surface, so anything
@@ -57,11 +63,13 @@ class RouteDriveActionBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             color: Colors.transparent,
             child: InkWell(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                onDrive();
-              },
-              onLongPress: onDebugLongPress == null
+              onTap: starting
+                  ? null
+                  : () {
+                      HapticFeedback.mediumImpact();
+                      onDrive();
+                    },
+              onLongPress: starting || onDebugLongPress == null
                   ? null
                   : () {
                       HapticFeedback.heavyImpact();
@@ -92,11 +100,19 @@ class RouteDriveActionBar extends StatelessWidget {
                         color: AppColors.onAction.withValues(alpha: 0.07),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(
-                        Icons.navigation_rounded,
-                        color: AppColors.onAction,
-                        size: 20,
-                      ),
+                      child: starting
+                          ? SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.onAction,
+                              ),
+                            )
+                          : Icon(
+                              Icons.navigation_rounded,
+                              color: AppColors.onAction,
+                              size: 20,
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -105,7 +121,9 @@ class RouteDriveActionBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            AppStrings.startNavigation,
+                            starting
+                                ? AppStrings.navigationStarting
+                                : AppStrings.startNavigation,
                             style: AppTextStyles.titleLg.copyWith(
                               color: AppColors.onAction,
                             ),
@@ -114,7 +132,9 @@ class RouteDriveActionBar extends StatelessWidget {
                           // this is: the one that follows the driver's real
                           // position, not the one that plays the route back.
                           Text(
-                            AppStrings.navigationSubtitle,
+                            starting
+                                ? AppStrings.navigationStartingHint
+                                : AppStrings.navigationSubtitle,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.bodySm.copyWith(
@@ -124,7 +144,8 @@ class RouteDriveActionBar extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Icon(arrowIcon, color: AppColors.onAction, size: 22),
+                    if (!starting)
+                      Icon(arrowIcon, color: AppColors.onAction, size: 22),
                   ],
                 ),
               ),

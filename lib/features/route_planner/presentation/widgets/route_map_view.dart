@@ -20,7 +20,6 @@ import '../../../../core/config/vehicle_marker_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/vehicle_kind.dart';
-import '../../../../core/theme/vehicle_nav_sheet.dart';
 import '../../../../core/theme/vehicle_prefs.dart';
 import '../../../../core/theme/vehicle_sprites.dart';
 import '../../../../core/utils/debug_log.dart';
@@ -37,6 +36,7 @@ import '../cubit/route_planner_state.dart';
 import 'map_action_button.dart';
 import '../utils/sim_visit_states.dart';
 import '../utils/route_motion_frame.dart';
+import '../utils/simulation_motion.dart';
 import 'sheet_extent.dart';
 import 'map_compass.dart';
 import 'map_geometry.dart';
@@ -67,6 +67,16 @@ class _SymbolSpec {
     required this.position,
     this.pointId,
   });
+}
+
+/// One coalesced platform update. Preview position, route endpoint and camera
+/// target belong to the same frame instead of independent animation clocks.
+class _MapMotionUpdate {
+  final Map<String, dynamic> geometry;
+  final CameraPosition? camera;
+  final int generation;
+
+  const _MapMotionUpdate(this.geometry, this.generation, {this.camera});
 }
 
 /// OpenFreeMap-backed map surface using MapLibre GL vector tiles. Renders
@@ -267,20 +277,20 @@ class RouteMapViewState extends State<RouteMapView>
   // Image IDs already registered with the map style via controller.addImage.
   final Set<String> _registeredImages = {};
 
-  /// Smoothed direction of travel for the preview chase camera.
-  double? _travelBearing;
+  final _previewMotion = SimulationMotion();
+  final _previewHeading = MotionHeading();
+  final _vehicleHeadingFrame = VehicleHeadingFrame();
 
   // Both preview and drive render a geographic vehicle and the joining
   // route lines in one native GeoJSON source, never a screen-fixed overlay.
   Ticker? _vehicleTicker;
   bool _simRunning = false;
   double _renderProgress = 0;
-  double _targetProgress = 0;
   OptimizedRoute? _simRoute;
   SimulationCameraMode _simMode = SimulationCameraMode.follow;
   double? _previewTiltOverride;
+  double? _previewFollowZoom;
   double _dpr = 1;
-  Duration _lastSimTick = Duration.zero;
   RoutePlannerState? _motionState;
   bool _motionVisible = false;
   String? _motionImage;
@@ -288,18 +298,35 @@ class RouteMapViewState extends State<RouteMapView>
   bool _loadingMotionImage = false;
   String? _motionImageKind;
   int? _motionHeadingFrame;
-  DateTime _lastMotionFrameAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Duration? _lastMotionFrameAt;
   double? _lastMotionProgress;
   double? _lastMotionBearing;
   OptimizedRoute? _lastMotionRoute;
   int? _lastMotionStop;
   ll.LatLng? _lastMotionAnchor;
   String? _lastMotionImage;
+  CameraPosition? _lastMotionCamera;
+  int _motionGeneration = 0;
   final _mapPointers = <int>{};
-  late final _motionWriter = LatestFrameWriter<Map<String, dynamic>>(
+  late final _motionWriter = LatestFrameWriter<_MapMotionUpdate>(
     (frame) async {
-      if (_disposed || !_styleLoaded) return;
-      await _controller?.setGeoJsonSource(_srcTrail, frame);
+      final controller = _controller;
+      if (_disposed ||
+          !_styleLoaded ||
+          controller == null ||
+          frame.generation != _motionGeneration) {
+        return;
+      }
+      // Dispatch both native changes together and wait before the next pair.
+      // A slow device drops intermediate pairs rather than applying an old
+      // camera target after a newer vehicle position.
+      await Future.wait<void>([
+        controller.setGeoJsonSource(_srcTrail, frame.geometry),
+        if (frame.camera != null && !_navExploring.value)
+          controller
+              .moveCamera(CameraUpdate.newCameraPosition(frame.camera!))
+              .then((_) {}),
+      ]);
     },
     onError: (error, _) {
       _lastMotionProgress = null;
@@ -309,9 +336,9 @@ class RouteMapViewState extends State<RouteMapView>
 
   // ── Pseudo-3D vehicle frames ────────────────────────────────────────────────
   // The decoded nav sheet for the picked vehicle (48 headings × 4 phases,
-  // see [VehicleNavSheet]): the native symbol modes pick the frame nearest
-  // the vehicle-minus-camera bearing each tick and rotate only the ±3.75°
-  // residual, so the car shows real 3D perspective while turning stays
+  // see VehicleNavSheet): the native symbol modes pick the frame nearest
+  // the vehicle-minus-camera bearing and rotate the small remaining
+  // difference, so the car shows real 3D perspective while turning stays
   // smooth. Null while decoding — and permanently for painter-drawn kinds
   // (arrow) or a missing bake — which keeps the legacy flat-sprite path.
   // Native heading frames share this decoded sheet.
@@ -371,6 +398,7 @@ class RouteMapViewState extends State<RouteMapView>
   double _navTargetProgress = 0.0;
   DateTime _navTargetAt = DateTime.fromMillisecondsSinceEpoch(0);
   double _navProgressRatePerSec = 0.0;
+  double _navProgressCeiling = 1.0;
   OptimizedRoute? _navRoute;
   double _navRouteTotalKm = 0.0;
 
@@ -468,6 +496,9 @@ class RouteMapViewState extends State<RouteMapView>
     // Keep the drop point (= camera centre) continuously fresh, so adding
     // a point is accurate even if onCameraIdle is unreliable on a device.
     _mapCenter = ll.LatLng(position.target.latitude, position.target.longitude);
+    if (_simRunning && _navExploring.value) {
+      _previewFollowZoom = position.zoom;
+    }
 
     // Rotation may change while paused. Reorient the native avatar at its
     // existing route position; camera movement never changes its coordinates.
@@ -768,11 +799,7 @@ class RouteMapViewState extends State<RouteMapView>
     //   done (light green) → current leg to next stop (blue) → ahead (green)
     if (state.navigationActive) {
       final p = state.navigationProgress.clamp(0.0, 1.0);
-      final nextFrac = MapGeometry.nextStopFraction(
-        route,
-        state.navigationStopIndex,
-        p,
-      );
+      final nextFrac = _nextNavigationStopFraction(state, route, p);
 
       if (restyle) await c.setGeoJsonSource(_srcBg, MapGeometry.emptyGeoJson);
       await c.setGeoJsonSource(
@@ -1036,12 +1063,6 @@ class RouteMapViewState extends State<RouteMapView>
       }
     }
     final navTarget = state.navigationActive ? state.navigationStopIndex : null;
-    final navFinished =
-        state.navigationActive &&
-        state.optimizedRoute != null &&
-        state.navigationStopIndex >=
-            state.optimizedRoute!.orderedPoints.length - 1;
-
     // A depot and one place to be: the marker is a pin, not the first entry
     // in a sequence the driver never asked for.
     final soleDestination = state.isSingleDestination;
@@ -1073,10 +1094,12 @@ class RouteMapViewState extends State<RouteMapView>
         StopVisitState? visit;
         if (simActive) {
           visit = i < simStates.length ? simStates[i] : null;
+        } else if (state.skippedPointIds.contains(p.id)) {
+          visit = StopVisitState.skipped;
         } else if (navTarget != null) {
           final oi = orderedIndex(orderedIndexById, p.id);
           if (oi != null) {
-            visit = navFinished || oi < navTarget
+            visit = oi < navTarget
                 ? StopVisitState.visited
                 : oi == navTarget
                 ? StopVisitState.visiting
@@ -1390,8 +1413,13 @@ class RouteMapViewState extends State<RouteMapView>
   void _scheduleApply(RoutePlannerState state) {
     final previous = _motionState;
     if (previous?.simulationActive != state.simulationActive ||
+        previous?.navigationActive != state.navigationActive ||
         previous?.simulationCameraMode != state.simulationCameraMode ||
         !identical(previous?.optimizedRoute, state.optimizedRoute)) {
+      _motionGeneration++;
+      _motionWriter.discardPending();
+      _lastMotionCamera = null;
+      _lastMotionProgress = null;
       _previewTiltOverride = null;
       if (previous?.simulationActive == true && !state.simulationActive) {
         // Cancel an in-flight follow animation immediately, even if the
@@ -1425,18 +1453,22 @@ class RouteMapViewState extends State<RouteMapView>
     if (shouldRun) {
       final changedRoute = !identical(_simRoute, route);
       _simRoute = route;
-      _targetProgress = state.simulationProgress;
-      if (!_simRunning ||
+      final reset =
+          !_simRunning ||
           changedRoute ||
-          state.simulationProgress < _renderProgress) {
-        _renderProgress = state.simulationProgress;
-        _travelBearing = null;
-      }
+          state.simulationProgress < _renderProgress;
+      _previewMotion.update(
+        progress: state.simulationProgress,
+        playing: state.simulationPlaying,
+        elapsed: _cameraClock.elapsed,
+        reset: reset,
+      );
+      if (reset || !state.simulationPlaying) _previewHeading.reset();
+      _renderProgress = _previewMotion.sample(_cameraClock.elapsed);
       _simRunning = true;
       _simMode = state.simulationCameraMode;
       final ticker = _vehicleTicker ??= createTicker(_onPreviewTick);
       if (!ticker.isActive) {
-        _lastSimTick = Duration.zero;
         ticker.start();
       }
     } else {
@@ -1449,11 +1481,6 @@ class RouteMapViewState extends State<RouteMapView>
 
   void _onPreviewTick(Duration elapsed) {
     if (!_simRunning || _simRoute == null || !_styleLoaded) return;
-    if (elapsed - _lastSimTick < SimulationConfig.tickInterval) return;
-    _lastSimTick = elapsed;
-    // The logical clock is already sampled at 30 Hz. A second easing clock
-    // used to leave the car behind the growing line, especially at 8×.
-    _renderProgress = _targetProgress;
     _publishMotionFrame(navigation: false);
   }
 
@@ -1461,7 +1488,10 @@ class RouteMapViewState extends State<RouteMapView>
     if (!_motionVisible) return;
     _motionVisible = false;
     _lastMotionProgress = null;
-    _motionWriter.submit(MapGeometry.emptyGeoJson);
+    _lastMotionCamera = null;
+    _motionWriter.submit(
+      _MapMotionUpdate(MapGeometry.emptyGeoJson, _motionGeneration),
+    );
   }
 
   /// Preload a visible fallback, then use baked heading frames when ready.
@@ -1485,6 +1515,7 @@ class RouteMapViewState extends State<RouteMapView>
         _motionImage = id;
         _motionImageScale = _dpr / VehicleMarkerConfig.badgeIconDivisor;
         _motionHeadingFrame = null;
+        _vehicleHeadingFrame.reset();
         _lastMotionProgress = null;
       } catch (error) {
         DebugLog.cam('vehicle image: $error');
@@ -1494,31 +1525,42 @@ class RouteMapViewState extends State<RouteMapView>
     }());
   }
 
-  void _publishMotionFrame({required bool navigation}) {
+  void _publishMotionFrame({required bool navigation, bool force = false}) {
     final state = _motionState;
     if (!_styleLoaded || state == null || _disposed) return;
     if (navigation ? !state.navigationActive : !_simRunning) return;
     final route = navigation ? _navRoute ?? state.optimizedRoute : _simRoute;
     final path = route?.fullPolyline ?? const <ll.LatLng>[];
-    final progress = navigation ? _navRenderProgress : _renderProgress;
     _prepareMotionImage(navigation);
     final expectedKey =
         '${VehiclePrefs.current.id}-$navigation-'
         '${navigation ? VehicleMarkerConfig.navigationSize : VehicleMarkerConfig.previewSize}';
     if (_motionImage == null || _motionImageKind != expectedKey) return;
-    final now = DateTime.now();
-    if (now.difference(_lastMotionFrameAt).inMilliseconds < 33) return;
+    final now = _cameraClock.elapsed;
+    if (!force &&
+        _lastMotionFrameAt != null &&
+        now - _lastMotionFrameAt! < SimulationConfig.tickInterval) {
+      return;
+    }
+    if (!navigation) _renderProgress = _previewMotion.sample(now);
+    final progress = navigation ? _navRenderProgress : _renderProgress;
     final sample = PolylineUtils.sampleAt(path, progress);
     final anchor = sample?.point ?? (navigation ? state.userLocation : null);
     if (anchor == null) return;
-    final tangent = sample?.bearing ?? state.navigationHeading ?? 0;
-    // Relative to the actual native camera, not its future animated target.
-    final rotation = _wrap180(tangent - _bearing.value);
+    final rawTangent = sample?.bearing ?? state.navigationHeading ?? 0;
+    final tangent = navigation
+        ? rawTangent
+        : _previewHeading.update(rawTangent, now);
+    final camera = !navigation ? _previewCamera(anchor, tangent) : null;
+    // In a coordinated preview frame the camera is applied immediately with
+    // this marker, so rotation uses that same bearing. While exploring (and
+    // during live GPS navigation) use the actual map bearing instead.
+    final rotation = _wrap180(tangent - (camera?.bearing ?? _bearing.value));
     var image = _motionImage!;
     var scale = _motionImageScale;
     var iconRotation = rotation;
     if (_currentNavSheet != null) {
-      final desired = VehicleNavSheet.headingIndex(rotation);
+      final desired = _vehicleHeadingFrame.select(rotation, now);
       if (_readyNavFrameId(desired, 0, halo: navigation) != null) {
         _motionHeadingFrame = desired;
       }
@@ -1532,13 +1574,15 @@ class RouteMapViewState extends State<RouteMapView>
       }
     }
     final stop = navigation ? state.navigationStopIndex : null;
-    if (_motionVisible &&
+    if (!force &&
+        _motionVisible &&
         identical(route, _lastMotionRoute) &&
         progress == _lastMotionProgress &&
         rotation == _lastMotionBearing &&
         stop == _lastMotionStop &&
         image == _lastMotionImage &&
-        anchor == _lastMotionAnchor) {
+        anchor == _lastMotionAnchor &&
+        camera == _lastMotionCamera) {
       return;
     }
     _lastMotionFrameAt = now;
@@ -1548,23 +1592,60 @@ class RouteMapViewState extends State<RouteMapView>
     _lastMotionRoute = route;
     _lastMotionImage = image;
     _lastMotionAnchor = anchor;
+    _lastMotionCamera = camera;
     _motionVisible = true;
     _motionWriter.submit(
-      RouteMotionFrame.build(
-        path: path,
-        progress: progress,
-        image: image,
-        imageScale: scale,
-        rotation: iconRotation,
-        fallbackPosition: anchor,
-        nextStop: navigation && route != null
-            ? MapGeometry.nextStopFraction(
-                route,
-                state.navigationStopIndex,
-                progress,
-              )
-            : null,
+      _MapMotionUpdate(
+        RouteMotionFrame.build(
+          path: path,
+          progress: progress,
+          image: image,
+          imageScale: scale,
+          rotation: iconRotation,
+          fallbackPosition: anchor,
+          nextStop: navigation && route != null
+              ? _nextNavigationStopFraction(state, route, progress)
+              : null,
+        ),
+        _motionGeneration,
+        camera: camera,
       ),
+    );
+  }
+
+  double _nextNavigationStopFraction(
+    RoutePlannerState state,
+    OptimizedRoute route,
+    double progress,
+  ) {
+    final index = state.navigationStopIndex;
+    if (index >= 0 && index < state.stopFractions.length) {
+      return state.stopFractions[index].clamp(progress, 1.0);
+    }
+    return MapGeometry.nextStopFraction(route, index, progress);
+  }
+
+  CameraPosition? _previewCamera(ll.LatLng point, double heading) {
+    if (_simMode == SimulationCameraMode.overview ||
+        _navExploring.value ||
+        _lastSimCameraMode != _simMode) {
+      return null;
+    }
+    final chase = _simMode == SimulationCameraMode.chase;
+    final headingUp = chase && !_northLock;
+    final defaultZoom = chase
+        ? SimulationConfig.chaseZoom
+        : SimulationConfig.followZoom;
+    // Keep the intended zoom until the native camera catches up. Reading
+    // its old zoom while the first frame is queued can undo a mode change.
+    final zoom = _previewFollowZoom ??= defaultZoom;
+    _simCameraAnchored = true;
+    return CameraPosition(
+      target: _ml(point),
+      zoom: zoom,
+      bearing: headingUp ? heading : 0,
+      tilt:
+          _previewTiltOverride ?? (headingUp ? SimulationConfig.chaseTilt : 0),
     );
   }
 
@@ -1731,6 +1812,7 @@ class RouteMapViewState extends State<RouteMapView>
     if (_lastSimCameraMode != mode) {
       _hasFitOverviewBounds = false;
       _simCameraAnchored = false;
+      _previewFollowZoom = null;
       _northLock = false;
       _overviewAdjusted = false;
       _lastSimCameraMode = mode;
@@ -1767,57 +1849,10 @@ class RouteMapViewState extends State<RouteMapView>
 
     if (_navExploring.value) return;
 
-    // ── Follow / chase ──
-    // Follow the same geographic progress used by the native motion frame.
-    // First frame snaps into place; after that we *animate* toward each
-    // 30 fps target so the map glides via native interpolation — no 60 fps
-    // moveCamera spam (which janks on real devices).
-    final sample = PolylineUtils.sampleAt(route.fullPolyline, _renderProgress);
-    if (sample == null) return;
-
-    final isChase = mode == SimulationCameraMode.chase;
-    final headingUp = isChase && !_northLock;
-    _travelBearing = _blendAngle(_travelBearing, sample.bearing);
-    final travel = _travelBearing ?? sample.bearing;
-
-    final firstFrame = !_simCameraAnchored;
-    _simCameraAnchored = true;
-    final zoom = firstFrame
-        ? (isChase ? SimulationConfig.chaseZoom : SimulationConfig.followZoom)
-        : (_controller?.cameraPosition?.zoom ??
-              (isChase
-                  ? SimulationConfig.chaseZoom
-                  : SimulationConfig.followZoom));
-    final update = CameraUpdate.newCameraPosition(
-      CameraPosition(
-        target: _ml(sample.point),
-        zoom: zoom,
-        bearing: headingUp ? travel : 0.0,
-        tilt:
-            _previewTiltOverride ??
-            (headingUp ? SimulationConfig.chaseTilt : 0.0),
-      ),
-    );
-    if (firstFrame) {
-      await _moveCamera(update);
-    } else {
-      // Retarget the native animation at playback cadence. Waiting for its
-      // completion creates a stop/start cycle, especially in tilted views.
-      // Completion has no follow-up work, so an old animation cannot enqueue
-      // a stale target after the user pans, changes mode or exits preview.
-      unawaited(_easePreviewCamera(update));
-    }
-  }
-
-  Future<void> _easePreviewCamera(CameraUpdate update) async {
-    try {
-      await _controller?.easeCamera(
-        update,
-        duration: MapConfig.followCamDuration,
-        interpolation: CameraAnimationInterpolation.linear,
-      );
-    } catch (error) {
-      DebugLog.cam('preview camera: $error');
+    // Only entering/re-centering needs an immediate frame. Playback frames
+    // own the follow camera thereafter, including a paused tilt change.
+    if (!_simCameraAnchored) {
+      _publishMotionFrame(navigation: false, force: true);
     }
   }
 
@@ -1968,9 +2003,24 @@ class RouteMapViewState extends State<RouteMapView>
     }
     _navTargetProgress = state.navigationProgress;
     _navTargetAt = DateTime.now();
+    _navProgressCeiling = _nextNavigationStopFraction(
+      state,
+      route,
+      state.navigationProgress,
+    );
+    // Arrival is a waiting state. A last moving GPS speed must not keep
+    // dead-reckoning the marker beyond the customer's doorstep.
+    if (state.navigationArrived) {
+      _navRenderProgress = state.navigationProgress;
+      _navProgressCeiling = state.navigationProgress;
+    } else {
+      _navRenderProgress = math.min(_navRenderProgress, _navProgressCeiling);
+    }
     final routeMeters = _navRouteTotalKm * 1000;
-    _navProgressRatePerSec = routeMeters > 0
-        ? (state.navigationSpeedMps ?? 0.0) / routeMeters
+    final speed = state.navigationSpeedMps ?? 0;
+    _navProgressRatePerSec =
+        routeMeters > 0 && !state.navigationArrived && speed.isFinite
+        ? math.max(0, speed) / routeMeters
         : 0.0;
     _startNavTicker();
   }
@@ -2008,7 +2058,7 @@ class RouteMapViewState extends State<RouteMapView>
         );
     final predicted = math.min(
       _navTargetProgress + _navProgressRatePerSec * sinceFix,
-      1.0,
+      _navProgressCeiling,
     );
 
     final diff = predicted - _navRenderProgress;
@@ -2055,6 +2105,7 @@ class RouteMapViewState extends State<RouteMapView>
     if (!_navExploring.value) return;
     _navExploring.value = false;
     if (resumeCamera && mounted) {
+      _simCameraAnchored = false;
       unawaited(_syncCamera(context.read<RoutePlannerCubit>().state));
     }
   }
@@ -2168,10 +2219,14 @@ class RouteMapViewState extends State<RouteMapView>
           a.optimizedRoute != b.optimizedRoute ||
           a.simulationActive != b.simulationActive ||
           a.simulationProgress != b.simulationProgress ||
+          a.simulationPlaying != b.simulationPlaying ||
+          a.simulationSpeed != b.simulationSpeed ||
           a.simulationCameraMode != b.simulationCameraMode ||
           a.navigationActive != b.navigationActive ||
           a.navigationProgress != b.navigationProgress ||
           a.navigationStopIndex != b.navigationStopIndex ||
+          a.navigationArrived != b.navigationArrived ||
+          a.skippedPointIds != b.skippedPointIds ||
           a.navigationHeading != b.navigationHeading ||
           a.navigationSpeedMps != b.navigationSpeedMps ||
           a.userLocation != b.userLocation ||

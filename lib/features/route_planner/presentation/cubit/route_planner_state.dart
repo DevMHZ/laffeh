@@ -91,6 +91,10 @@ class RoutePlannerState extends Equatable {
   final SimulationCameraMode simulationCameraMode;
 
   // ── Live navigation ─────────────────────────────────────
+  /// True while an explicit start is waiting for the first usable GPS fix.
+  /// Keeps the start action visible but prevents duplicate requests.
+  final bool navigationStarting;
+
   /// True while the driver is using the optimized route as a real
   /// route with GPS updates.
   final bool navigationActive;
@@ -209,6 +213,7 @@ class RoutePlannerState extends Equatable {
     this.simulationProgress = 0.0,
     this.simulationSpeed = 1.0,
     this.simulationCameraMode = SimulationCameraMode.overview,
+    this.navigationStarting = false,
     this.navigationActive = false,
     this.navigationProgress = 0.0,
     this.navigationStopIndex = 1,
@@ -300,6 +305,7 @@ class RoutePlannerState extends Equatable {
     double? simulationProgress,
     double? simulationSpeed,
     SimulationCameraMode? simulationCameraMode,
+    bool? navigationStarting,
     bool? navigationActive,
     double? navigationProgress,
     int? navigationStopIndex,
@@ -347,6 +353,7 @@ class RoutePlannerState extends Equatable {
       simulationProgress: simulationProgress ?? this.simulationProgress,
       simulationSpeed: simulationSpeed ?? this.simulationSpeed,
       simulationCameraMode: simulationCameraMode ?? this.simulationCameraMode,
+      navigationStarting: navigationStarting ?? this.navigationStarting,
       navigationActive: navigationActive ?? this.navigationActive,
       navigationProgress: navigationProgress ?? this.navigationProgress,
       navigationStopIndex: navigationStopIndex ?? this.navigationStopIndex,
@@ -399,6 +406,7 @@ class RoutePlannerState extends Equatable {
     simulationProgress,
     simulationSpeed,
     simulationCameraMode,
+    navigationStarting,
     navigationActive,
     navigationProgress,
     navigationStopIndex,

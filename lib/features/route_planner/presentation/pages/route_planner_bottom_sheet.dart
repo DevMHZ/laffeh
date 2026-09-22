@@ -18,7 +18,7 @@ import 'route_planner_actions.dart';
 /// The bottom half of the planner screen, in whichever shape the trip is in.
 ///
 ///   * **One destination** — a [DestinationCard]: time, distance, and a Go
-///     button. No sheet, no list, no optimize step, because there is nothing
+///     button, with a compact snap to expose the map. No optimize step, because there is nothing
 ///     to order. This is the app behaving like any other navigator.
 ///   * **Two or more** — the draggable planner sheet: the points list before
 ///     optimization, the route summary after. This is the app doing the thing
@@ -59,6 +59,7 @@ class BottomSheetHost extends StatelessWidget {
           a.status != b.status ||
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
+          a.navigationStarting != b.navigationStarting ||
           a.manualPlacement != b.manualPlacement ||
           a.quietRouting != b.quietRouting ||
           a.departureAt != b.departureAt ||
@@ -79,31 +80,30 @@ class BottomSheetHost extends StatelessWidget {
           SheetExtent.publish(context, 0);
           return const SizedBox.shrink();
         }
-        // One place to go: the navigator card, docked rather than draggable.
-        // Its height is its content — a card that can be dragged over the map
-        // implies there is more underneath it, and here there isn't.
+        // One place to go: tuck the details away to inspect the map while
+        // keeping the destination and Go reachable. The card reports its live
+        // height, including during a drag, so the map controls follow it.
         if (state.isSingleDestination) {
           return Align(
             alignment: Alignment.bottomCenter,
-            child: ReportsExtent(
-              child: DestinationCard(
-                destination: state.points.firstWhere((p) => !p.isDepot),
-                route: state.optimizedRoute,
-                routing: state.quietRouting || state.isOptimizing,
-                departureAt: state.departureAt,
-                // Null while the trip starts from wherever the driver is —
-                // the card says so in its own words rather than naming a
-                // place that will have moved by the time they set off.
-                departureFrom: state.departureIsCurrentLocation
-                    ? null
-                    : state.departurePoint,
-                onGo: cubit.driveToDestination,
-                onAddAnotherStop: () =>
-                    RoutePlannerActions.showAddMethodChooser(context, cubit),
-                onChangeDestination: cubit.clearDestination,
-                onChangeDeparture: () =>
-                    RoutePlannerActions.showDeparturePicker(context, cubit),
-              ),
+            child: DestinationCard(
+              destination: state.points.firstWhere((p) => !p.isDepot),
+              route: state.optimizedRoute,
+              routing: state.quietRouting || state.isOptimizing,
+              starting: state.navigationStarting,
+              departureAt: state.departureAt,
+              // Null while the trip starts from wherever the driver is —
+              // the card says so in its own words rather than naming a
+              // place that will have moved by the time they set off.
+              departureFrom: state.departureIsCurrentLocation
+                  ? null
+                  : state.departurePoint,
+              onGo: cubit.driveToDestination,
+              onAddAnotherStop: () =>
+                  RoutePlannerActions.showAddMethodChooser(context, cubit),
+              onChangeDestination: cubit.clearDestination,
+              onChangeDeparture: () =>
+                  RoutePlannerActions.showDeparturePicker(context, cubit),
             ),
           );
         }
@@ -236,6 +236,7 @@ class BottomSheetHost extends StatelessWidget {
                       else
                         RouteDriveActionBar(
                           onDrive: cubit.startNavigation,
+                          starting: state.navigationStarting,
                           // DEBUG: long-press drives the route with the
                           // synthetic driver (no real GPS needed).
                           onDebugLongPress: kDebugMode

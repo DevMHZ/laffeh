@@ -20,6 +20,14 @@ class NavigationConfig {
   static const Duration exploreResumeDelay = Duration(seconds: 3);
 
   // ── GPS stream ───────────────────────────────────────────
+  /// A missing GPS signal must produce a retryable start error, not leave
+  /// the driver's button waiting indefinitely.
+  static const Duration startFixTimeout = Duration(seconds: 8);
+
+  /// Reuse a recent, accurate OS fix to enter driving without another cold
+  /// GPS request. Live updates take over immediately afterwards.
+  static const Duration startFixMaxAge = Duration(seconds: 10);
+
   /// Minimum movement (metres) between position updates. Zero = continuous:
   /// the platform delivers every fix (~1 Hz on both OSes) so the render
   /// interpolator always has a fresh target, even at low speed.

@@ -11,6 +11,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/distance_utils.dart';
 import '../../domain/entities/optimized_route.dart';
 import '../../domain/entities/route_point.dart';
+import 'sheet_extent.dart';
 
 /// What the driver sees when they have asked for exactly one place: a
 /// navigator's trip card, not a plan.
@@ -24,7 +25,7 @@ import '../../domain/entities/route_point.dart';
 /// driver would look after deciding this trip has more than one errand in it,
 /// it says what the app will do for them, and pressing it turns this card
 /// into the planner. Discovery by use, not by banner.
-class DestinationCard extends StatelessWidget {
+class DestinationCard extends StatefulWidget {
   final RoutePoint destination;
 
   /// The routed trip, once it exists. Null while it is still being fetched
@@ -33,6 +34,9 @@ class DestinationCard extends StatelessWidget {
 
   /// True while the route is being fetched in the background.
   final bool routing;
+
+  /// A drive was requested and the first usable GPS fix is pending.
+  final bool starting;
 
   /// When the driver sets off. Null — the usual case — means now, which is
   /// what a navigator assumes; a departure the driver actually set is what
@@ -53,6 +57,7 @@ class DestinationCard extends StatelessWidget {
     required this.destination,
     required this.route,
     required this.routing,
+    this.starting = false,
     this.departureAt,
     this.departureFrom,
     required this.onGo,
@@ -62,67 +67,256 @@ class DestinationCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // The address leads. Until the reverse lookup lands the point's own name
-    // stands in — and for a lone destination that name is already "the
-    // destination", so there is no second line to add underneath it.
-    final address = destination.address?.trim();
-    final hasAddress = address != null && address.isNotEmpty;
-    final title = hasAddress ? address : destination.label;
+  State<DestinationCard> createState() => _DestinationCardState();
+}
 
-    return Material(
-      color: AppColors.surface,
-      elevation: 12,
-      shadowColor: AppColors.shadow,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Handle(),
-              const SizedBox(height: 10),
-              // The trip starts where the driver is — an assumption right
-              // almost every time, and wrong often enough that it has to be
-              // visible and one tap from being replaced.
-              _DepartureRow(from: departureFrom, onTap: onChangeDeparture),
-              const SizedBox(height: 6),
-              _TitleRow(title: title, onChange: onChangeDestination),
-              const SizedBox(height: 12),
-              _TripLine(
-                route: route,
-                routing: routing,
-                departureAt: departureAt,
+class _DestinationCardState extends State<DestinationCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _reveal = AnimationController(
+    vsync: this,
+    value: 1,
+    duration: const Duration(milliseconds: 240),
+  );
+  final _detailsKey = GlobalKey();
+  final _scrollController = ScrollController();
+
+  bool get _expanded => _reveal.value >= 0.5;
+
+  @override
+  void didUpdateWidget(DestinationCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A background route/address update must not reopen a card the driver
+    // tucked away. A genuinely new destination starts with its details visible.
+    if (oldWidget.destination.id != widget.destination.id) {
+      _reveal.value = 1;
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _reveal.dispose();
+    super.dispose();
+  }
+
+  void _snap(bool expanded) {
+    HapticFeedback.selectionClick();
+    _reveal.animateTo(
+      expanded ? 1 : 0,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _drag(DragUpdateDetails details) {
+    final box = _detailsKey.currentContext?.findRenderObject() as RenderBox?;
+    final travel = box?.size.height ?? 220;
+    _reveal.value = (_reveal.value - details.delta.dy / travel.clamp(80, 500))
+        .clamp(0, 1);
+  }
+
+  void _endDrag(DragEndDetails details) {
+    final speed = details.primaryVelocity ?? 0;
+    _snap(speed.abs() > 350 ? speed < 0 : _expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final address = widget.destination.address?.trim();
+    final title = address != null && address.isNotEmpty
+        ? address
+        : widget.destination.label;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Reserve the status bar even on short landscape screens. The details
+        // scroll within the available space; Go and the handle stay reachable.
+        final maxHeight =
+            (constraints.maxHeight - MediaQuery.paddingOf(context).top - 12)
+                .clamp(0.0, double.infinity);
+        return AnimatedBuilder(
+          animation: _reveal,
+          builder: (context, _) {
+            final toggleLabel = _expanded
+                ? AppStrings.collapseTripDetails
+                : AppStrings.expandTripDetails;
+            return ReportsExtent(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: Material(
+                  key: const ValueKey('destination-sheet-surface'),
+                  color: AppColors.surface,
+                  elevation: 12,
+                  shadowColor: AppColors.shadow,
+                  clipBehavior: Clip.antiAlias,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildHandle(toggleLabel),
+                          _buildDetails(title),
+                          _buildFooter(title),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 14),
-              _GoButton(onTap: onGo),
-              const SizedBox(height: 10),
-              _AddAnotherStopRow(onTap: onAddAnotherStop),
-            ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildHandle(String toggleLabel) => GestureDetector(
+    excludeFromSemantics: true,
+    behavior: HitTestBehavior.opaque,
+    onVerticalDragStart: (_) => _reveal.stop(),
+    onVerticalDragUpdate: _drag,
+    onVerticalDragEnd: _endDrag,
+    onVerticalDragCancel: () => _snap(_expanded),
+    child: Semantics(
+      key: const ValueKey('destination-sheet-handle'),
+      label: toggleLabel,
+      button: true,
+      expanded: _expanded,
+      onTap: () => _snap(!_expanded),
+      onIncrease: () => _snap(true),
+      onDecrease: () => _snap(false),
+      excludeSemantics: true,
+      child: Tooltip(
+        message: toggleLabel,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _snap(!_expanded),
+          child: SizedBox(
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_up_rounded,
+                    size: 22,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-}
+    ),
+  );
 
-class _Handle extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 40,
-        height: 4,
-        decoration: BoxDecoration(
-          color: AppColors.border,
-          borderRadius: BorderRadius.circular(99),
+  Widget _buildDetails(String title) => Flexible(
+    child: SizeTransition(
+      sizeFactor: _reveal,
+      axisAlignment: -1,
+      child: IgnorePointer(
+        ignoring: _reveal.value < 1,
+        child: ExcludeSemantics(
+          excluding: _reveal.value < 1,
+          child: SingleChildScrollView(
+            key: _detailsKey,
+            controller: _scrollController,
+            physics: const ClampingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _DepartureRow(
+                  from: widget.departureFrom,
+                  onTap: widget.onChangeDeparture,
+                ),
+                const SizedBox(height: 6),
+                _TitleRow(title: title, onChange: widget.onChangeDestination),
+                const SizedBox(height: 12),
+                _TripLine(
+                  route: widget.route,
+                  routing: widget.routing,
+                  departureAt: widget.departureAt,
+                ),
+                const SizedBox(height: 14),
+                _AddAnotherStopRow(onTap: widget.onAddAnotherStop),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ),
         ),
       ),
-    );
-  }
+    ),
+  );
+
+  Widget _buildFooter(String title) => LayoutBuilder(
+    builder: (context, footerConstraints) => Row(
+      children: [
+        SizeTransition(
+          sizeFactor: ReverseAnimation(_reveal),
+          axis: Axis.horizontal,
+          axisAlignment: -1,
+          child: ExcludeSemantics(
+            excluding: _reveal.value > 0,
+            child: SizedBox(
+              width: footerConstraints.maxWidth * 0.55,
+              height: 56,
+              child: Semantics(
+                button: true,
+                label: '$title. ${AppStrings.expandTripDetails}',
+                onTap: () => _snap(true),
+                excludeSemantics: true,
+                child: InkWell(
+                  onTap: () => _snap(true),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 12),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.titleSm,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _GoButton(
+            onTap: widget.onGo,
+            compact: _reveal.value < 1,
+            starting: widget.starting,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// "From · my current location", quiet and tappable.
@@ -301,32 +495,38 @@ class _TripLine extends StatelessWidget {
             ),
           );
 
-    return Row(
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 10,
+      runSpacing: 8,
       children: [
-        if (minutes != null) ...[
+        if (minutes != null)
           Text(
             MetricFormat.duration(minutes),
             style: AppTextStyles.titleLg.copyWith(color: AppColors.primary),
           ),
-          const SizedBox(width: 10),
-        ],
         if (km != null)
-          Flexible(
-            child: Text(
-              MetricFormat.distance(km),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.titleSm.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          Text(
+            MetricFormat.distance(km),
+            style: AppTextStyles.titleSm.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
-        if (eta != null) ...[
-          const Spacer(),
-          Icon(Iconsax.clock, size: 14, color: AppColors.textSecondary),
-          const SizedBox(width: 5),
-          Text('${AppStrings.arrivalLabel} $eta', style: AppTextStyles.mutedSm),
-        ],
+        if (eta != null)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Iconsax.clock, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  '${AppStrings.arrivalLabel} $eta',
+                  style: AppTextStyles.mutedSm,
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -337,7 +537,13 @@ class _TripLine extends StatelessWidget {
 /// starts a trip.
 class _GoButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _GoButton({required this.onTap});
+  final bool compact;
+  final bool starting;
+  const _GoButton({
+    required this.onTap,
+    this.compact = false,
+    this.starting = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -345,49 +551,82 @@ class _GoButton extends StatelessWidget {
         ? Icons.arrow_back_rounded
         : Icons.arrow_forward_rounded;
 
-    return Material(
-      borderRadius: BorderRadius.circular(16),
-      color: Colors.transparent,
-      child: InkWell(
+    return Semantics(
+      button: true,
+      enabled: !starting,
+      liveRegion: starting,
+      label: starting
+          ? '${AppStrings.navigationStarting}. ${AppStrings.navigationStartingHint}'
+          : AppStrings.goNow,
+      onTap: starting ? null : onTap,
+      excludeSemantics: true,
+      child: Material(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          onTap();
-        },
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.centerRight,
-              end: Alignment.centerLeft,
-              colors: [AppColors.accent, AppColors.accentDark],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.accent.withValues(alpha: 0.32),
-                blurRadius: 16,
-                offset: const Offset(0, 7),
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: starting
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  onTap();
+                },
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.centerRight,
+                end: Alignment.centerLeft,
+                colors: [AppColors.accent, AppColors.accentDark],
               ),
-            ],
-          ),
-          child: SizedBox(
-            height: 56,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.navigation_rounded,
-                  color: AppColors.white,
-                  size: 22,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.accent.withValues(alpha: 0.32),
+                  blurRadius: 16,
+                  offset: const Offset(0, 7),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  AppStrings.goNow,
-                  style: AppTextStyles.button.copyWith(color: AppColors.white),
-                ),
-                const SizedBox(width: 8),
-                Icon(arrow, color: AppColors.white, size: 20),
               ],
+            ),
+            child: SizedBox(
+              height: 56,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (starting)
+                    const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.navigation_rounded,
+                      color: AppColors.white,
+                      size: 22,
+                    ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      starting
+                          ? (compact
+                                ? AppStrings.navigationStartingShort
+                                : AppStrings.navigationStarting)
+                          : AppStrings.goNow,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.button.copyWith(
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+                  if (!compact && !starting) ...[
+                    const SizedBox(width: 8),
+                    Icon(arrow, color: AppColors.white, size: 20),
+                  ],
+                ],
+              ),
             ),
           ),
         ),

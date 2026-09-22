@@ -8,7 +8,7 @@ import '../theme/app_colors.dart';
 /// Visit state of a stop during trip playback — mirrors the stop
 /// timeline in the preview/drive headline so map and list speak the
 /// same color language.
-enum StopVisitState { upcoming, visiting, visited }
+enum StopVisitState { upcoming, visiting, visited, skipped }
 
 class MarkerFactory {
   MarkerFactory._();
@@ -25,6 +25,7 @@ class MarkerFactory {
   ///   * upcoming — white dot with a green ring (still to do)
   ///   * visiting — orange, slightly bigger, glowing (current target)
   ///   * visited  — green with a white check (done)
+  ///   * skipped  — red with a white X (could not deliver)
   static Widget stop(int index, {String? tooltip, StopVisitState? visit}) {
     final child = switch (visit) {
       null => _DotMarker(
@@ -50,8 +51,25 @@ class MarkerFactory {
           size: 13,
         ),
       ),
+      StopVisitState.skipped => _DotMarker(
+        color: AppColors.danger,
+        child: const Icon(
+          Icons.close_rounded,
+          color: AppColors.white,
+          size: 13,
+        ),
+      ),
     };
-    return _MarkerTooltip(message: tooltip, child: child);
+    final message = visit == StopVisitState.skipped
+        ? [
+            if (tooltip != null && tooltip.isNotEmpty) tooltip,
+            AppStrings.couldNotDeliver,
+          ].join(' · ')
+        : tooltip;
+    final marker = _MarkerTooltip(message: message, child: child);
+    return visit == StopVisitState.skipped
+        ? Semantics(label: message, excludeSemantics: true, child: marker)
+        : marker;
   }
 
   static TextStyle _numStyle(Color color) => TextStyle(

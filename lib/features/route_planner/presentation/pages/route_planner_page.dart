@@ -18,6 +18,7 @@ import '../../../../core/di/service_locator.dart';
 import '../../../../core/routing/registration_guard.dart';
 import '../../../../core/services/location_ping_service.dart';
 import '../../../../core/utils/share_intent_handler.dart';
+import '../../../../core/utils/link_parser.dart';
 import '../../../auth/presentation/account_nudge.dart';
 import '../../../auth/presentation/cubit/auth_cubit.dart';
 import '../cubit/route_planner_cubit.dart';
@@ -239,9 +240,15 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     final count = await cubit.addPointsFromSharedText(text);
     EasyLoading.dismiss();
     if (mounted) {
+      final failedMapShare =
+          count == 0 && LinkParser.extractMapUrls(text).isNotEmpty;
       AppToast.show(
         context,
-        RoutePlannerActions.addedMessage(count),
+        failedMapShare
+            ? (cubit.state.isOffline
+                  ? AppStrings.sharedPlaceNeedsInternet
+                  : AppStrings.sharedPlaceUnavailable)
+            : RoutePlannerActions.addedMessage(count),
         tone: count > 0 ? ToastTone.success : ToastTone.info,
       );
     }
@@ -249,8 +256,37 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<RoutePlannerCubit, RoutePlannerState>(
-      listener: (_, state) => _autoPreview.update(state),
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<RoutePlannerCubit, RoutePlannerState>(
+          // The points sheet renders planning errors inline. During a GPS
+          // start (or a live stream failure), that sheet is absent, so report
+          // the error here where it remains visible above either trip card.
+          listenWhen: (previous, current) =>
+              current.errorMessage != null &&
+              current.errorMessage != previous.errorMessage &&
+              (previous.navigationStarting || previous.navigationActive),
+          listener: (context, state) => AppToast.show(
+            context,
+            state.errorMessage!,
+            tone: ToastTone.failure,
+            duration: const Duration(seconds: 6),
+          ),
+        ),
+        BlocListener<RoutePlannerCubit, RoutePlannerState>(
+          listener: (_, state) => _autoPreview.update(state),
+        ),
+        BlocListener<RoutePlannerCubit, RoutePlannerState>(
+          listenWhen: (previous, current) =>
+              previous.isOffline && !current.isOffline,
+          listener: (context, _) => AppToast.show(
+            context,
+            AppStrings.connectionRestored,
+            tone: ToastTone.success,
+            duration: const Duration(seconds: 2),
+          ),
+        ),
+      ],
       child: AutoPreviewScope(
         controller: _autoPreview,
         child: Listener(
@@ -295,6 +331,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
                         ),
                         const TopBar(),
                         const LocationAccessChip(),
+                        const PlannerConnectivityNotice(),
                         CenterPin(mapKey: _mapKey),
                         const BottomSheetHost(),
                         const AddOptionsHost(),

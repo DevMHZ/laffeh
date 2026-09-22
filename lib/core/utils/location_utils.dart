@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -13,7 +15,11 @@ import 'debug_log.dart';
 class LocationUtils {
   LocationUtils._();
 
-  static Future<LatLng> getCurrentLatLng() async {
+  static Future<LatLng> getCurrentLatLng({
+    Duration timeout = const Duration(seconds: 15),
+    Duration? maxCachedAge,
+    double maxCachedAccuracyMeters = 40,
+  }) async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     DebugLog.loc('getCurrentLatLng() serviceEnabled=$serviceEnabled');
     if (!serviceEnabled) {
@@ -30,12 +36,54 @@ class LocationUtils {
     if (permission == LocationPermission.deniedForever) {
       throw const LocationException('LOCATION_PERMISSION_DENIED_FOREVER');
     }
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
+      throw const LocationException('LOCATION_PERMISSION_DENIED');
+    }
+    // Never use the route's origin as a pretend GPS fix. Only a recent,
+    // accurate OS position is eligible for an immediate navigation start.
+    if (maxCachedAge != null) {
+      try {
+        final cached = await Geolocator.getLastKnownPosition().timeout(
+          const Duration(milliseconds: 250),
+          onTimeout: () => null,
+        );
+        if (cached != null) {
+          final age = DateTime.now().difference(cached.timestamp);
+          if (age >= Duration.zero &&
+              age <= maxCachedAge &&
+              cached.accuracy.isFinite &&
+              cached.accuracy >= 0 &&
+              cached.accuracy <= maxCachedAccuracyMeters &&
+              cached.latitude.isFinite &&
+              cached.latitude.abs() <= 90 &&
+              cached.longitude.isFinite &&
+              cached.longitude.abs() <= 180) {
+            DebugLog.loc(
+              'getCurrentLatLng() using recent GPS fix (${age.inSeconds}s old)',
+            );
+            return LatLng(cached.latitude, cached.longitude);
+          }
+        }
+      } catch (_) {
+        // Cache support is optional. A failed cache read must not prevent
+        // asking for a fresh position.
+      }
+    }
     DebugLog.loc('getCurrentLatLng() permission=$permission — fetching fix…');
 
-    final pos = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-      timeLimit: const Duration(seconds: 15),
-    );
+    final Position pos;
+    try {
+      pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: timeout,
+      ).timeout(timeout);
+    } on TimeoutException {
+      DebugLog.loc(
+        'getCurrentLatLng() no GPS fix within ${timeout.inSeconds}s',
+      );
+      throw const LocationException('LOCATION_TIMEOUT');
+    }
 
     // Raw fix detail: on the Simulator this is the static "custom location"
     // (accuracy fixed, mocked=true), versus a noisy real fix on a phone.

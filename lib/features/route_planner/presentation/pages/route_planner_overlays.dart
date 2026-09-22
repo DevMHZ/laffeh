@@ -13,6 +13,7 @@ import '../widgets/aim_aligned_reticle.dart';
 import '../widgets/center_pin_widget.dart';
 import '../widgets/glass_panel.dart';
 import '../widgets/route_map_view.dart';
+import '../widgets/route_connectivity_notice.dart';
 import '../widgets/route_navigation_overlay.dart';
 import '../widgets/route_simulation_overlay.dart';
 import 'route_planner_actions.dart';
@@ -110,6 +111,69 @@ class LoadingOverlay extends StatelessWidget {
       builder: (context, state) {
         if (!state.isOptimizing) return const SizedBox.shrink();
         return AppLoadingOverlay(message: AppStrings.bestRouteTitle);
+      },
+    );
+  }
+}
+
+/// Remains visible when the planning sheet is collapsed, including an empty
+/// offline launch and a single-destination preview. The expanded sheet has
+/// its own notice, so this stays below the sheet in the page's stacking order.
+class PlannerConnectivityNotice extends StatelessWidget {
+  const PlannerConnectivityNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+      buildWhen: (a, b) =>
+          a.isOffline != b.isOffline ||
+          a.optimizedRoute != b.optimizedRoute ||
+          a.locationAccess != b.locationAccess ||
+          a.simulationActive != b.simulationActive ||
+          a.navigationActive != b.navigationActive ||
+          a.movingPointId != b.movingPointId,
+      builder: (context, state) {
+        if (!state.isOffline ||
+            state.simulationActive ||
+            state.navigationActive ||
+            state.movingPointId != null) {
+          return const SizedBox.shrink();
+        }
+        final hasLocationChip =
+            state.locationAccess != null &&
+            state.locationAccess != LocationAccess.granted;
+        final route = state.optimizedRoute;
+        return Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                14,
+                hasLocationChip ? 110 : 62,
+                14,
+                0,
+              ),
+              child: Align(
+                alignment: AlignmentDirectional.topStart,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: RouteConnectivityNotice(
+                    hasSavedRoute:
+                        route != null &&
+                        route.hasRoadGeometry &&
+                        route.fullPolyline.length > 1,
+                    onRetry: context
+                        .read<RoutePlannerCubit>()
+                        .refreshConnectivity,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
       },
     );
   }

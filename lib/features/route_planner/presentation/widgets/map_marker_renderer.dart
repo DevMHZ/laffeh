@@ -109,6 +109,15 @@ class MapMarkerRenderer {
           fontSize: 13,
           color: AppColors.white,
         );
+      case StopVisitState.skipped:
+        _dot(c, sz, fill: AppColors.danger, r: 10);
+        _glyph(
+          c,
+          sz,
+          String.fromCharCode(Icons.close_rounded.codePoint),
+          fontSize: 13,
+          color: AppColors.white,
+        );
     }
   });
 
@@ -146,6 +155,15 @@ class MapMarkerRenderer {
             c,
             sz,
             String.fromCharCode(Icons.check_rounded.codePoint),
+            fontSize: 13,
+            color: AppColors.white,
+          );
+        case StopVisitState.skipped:
+          _dot(c, sz, fill: AppColors.danger, r: 10);
+          _glyph(
+            c,
+            sz,
+            String.fromCharCode(Icons.close_rounded.codePoint),
             fontSize: 13,
             color: AppColors.white,
           );

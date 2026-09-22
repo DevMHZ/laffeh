@@ -37,6 +37,23 @@ List<dynamic> coordinates(Map<String, dynamic> value, String role) =>
 
 void main() {
   group('a native frame joins the route exactly at the car', () {
+    test(
+      'motion features retain identity across positions and mode changes',
+      () {
+        final start = frame(0.2);
+        final advanced = frame(0.7, nextStop: 0.9);
+        expect(feature(start, 'vehicle')['id'], 'motion-vehicle');
+        expect(
+          feature(advanced, 'vehicle')['id'],
+          feature(start, 'vehicle')['id'],
+        );
+        expect(feature(start, 'trail')['id'], feature(advanced, 'trail')['id']);
+        final ids = features(advanced).map((f) => f['id']).toSet();
+        expect(ids, hasLength(features(advanced).length));
+        expect(ids, isNot(contains(null)));
+      },
+    );
+
     test('preview stays joined at normal speed, fast playback and rewinds', () {
       for (final p in [0.001, 0.015, 0.3, 0.92, 0.2, 0.21, 1.0]) {
         final value = frame(p);
