@@ -334,10 +334,7 @@ class _StopEta extends StatelessWidget {
           if (eta != null)
             _EtaLine(
               label: window == null ? null : AppStrings.expectedArrival,
-              value: formatMinuteOfDay(
-                context,
-                StopTimeWindow.clockFromRelative(departureMinute, eta),
-              ),
+              value: formatRelativeArrival(context, departureMinute, eta),
               color: tone,
               emphasised: true,
             ),

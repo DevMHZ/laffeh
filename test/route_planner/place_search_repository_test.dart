@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:laffeh/core/config/geocoding_config.dart';
 import 'package:laffeh/core/constants/app_constants.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osm_geocoding_datasource.dart';
+import 'package:laffeh/features/route_planner/data/datasources/google_mobile_places_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/overpass_poi_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/photon_geocoding_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/place_category_lexicon.dart';
@@ -19,6 +20,8 @@ class _MockPhoton extends Mock implements PhotonGeocodingDataSource {}
 class _MockNominatim extends Mock implements OsmGeocodingDataSource {}
 
 class _MockOverpass extends Mock implements OverpassPoiDataSource {}
+
+class _MockGoogle extends Mock implements GoogleMobilePlacesDataSource {}
 
 const _damascus = LatLng(33.5138, 36.2765);
 const _aleppo = LatLng(36.2021, 37.1343);
@@ -316,6 +319,85 @@ void main() {
       expect(snapshots.first, isNotEmpty);
       expect(snapshots.last.length, greaterThan(snapshots.first.length));
     });
+  });
+
+  group('Google cascade', () {
+    test(
+      'uses Google for address resolution, then Photon on fallback',
+      () async {
+        final google = _MockGoogle();
+        final prefs = await SharedPreferences.getInstance();
+        final cascade = PlaceSearchRepository(
+          photon: photon,
+          nominatim: nominatim,
+          overpass: overpass,
+          recents: RecentPlacesLocalDataSource(prefs),
+          google: google,
+        );
+        when(
+          () => google.geocode(any(), language: any(named: 'language')),
+        ).thenAnswer(
+          (_) async => const GoogleGeocodedPlace(_aleppo, 'Aleppo', 'place-1'),
+        );
+        expect(await cascade.resolveOne('Aleppo'), _aleppo);
+        verifyNever(
+          () => photon.search(
+            any(),
+            near: any(named: 'near'),
+            radiusKm: any(named: 'radiusKm'),
+            limit: any(named: 'limit'),
+            language: any(named: 'language'),
+          ),
+        );
+
+        when(
+          () => google.geocode(any(), language: any(named: 'language')),
+        ).thenAnswer((_) async => null);
+        when(
+          () => photon.search(
+            any(),
+            near: any(named: 'near'),
+            radiusKm: any(named: 'radiusKm'),
+            limit: any(named: 'limit'),
+            language: any(named: 'language'),
+          ),
+        ).thenAnswer((_) async => [_place('Hamra', at: _damascus)]);
+        expect(await cascade.resolveOne('Hamra'), _damascus);
+      },
+    );
+
+    test(
+      'resolves a Google prediction through the geocoding service',
+      () async {
+        final google = _MockGoogle();
+        final prefs = await SharedPreferences.getInstance();
+        final cascade = PlaceSearchRepository(
+          photon: photon,
+          nominatim: nominatim,
+          overpass: overpass,
+          recents: RecentPlacesLocalDataSource(prefs),
+          google: google,
+        );
+        const prediction = GooglePlacePrediction(
+          placeId: 'ChIJ12345678',
+          name: 'Hospital',
+          context: 'Beirut',
+        );
+        when(
+          () => google.resolve(any(), language: any(named: 'language')),
+        ).thenAnswer(
+          (_) async => const GoogleGeocodedPlace(
+            _damascus,
+            'Hospital, Beirut',
+            'ChIJ12345678',
+          ),
+        );
+        final result = await cascade.resolveGooglePrediction(prediction);
+        expect(result?.latLng, _damascus);
+        expect(result?.source, PlaceSource.google);
+        expect(result?.id, 'ChIJ12345678');
+      },
+    );
   });
 
   group('recents', () {

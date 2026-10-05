@@ -5,6 +5,7 @@ import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
 import '../widgets/route_address_search_sheet.dart';
 import '../widgets/where_to_bar.dart';
+import '../widgets/sheet_extent.dart';
 import 'route_planner_actions.dart';
 
 /// Screen-level entry point shown while the route is still empty: the
@@ -21,7 +22,9 @@ import 'route_planner_actions.dart';
 /// pin manually, or a full-screen flow (preview / drive / move-a-point) is
 /// active.
 class AddOptionsHost extends StatelessWidget {
-  const AddOptionsHost({super.key});
+  const AddOptionsHost({super.key, required this.extent});
+
+  final ValueNotifier<double> extent;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +62,7 @@ class AddOptionsHost extends StatelessWidget {
           ),
           child: hide
               ? const SizedBox.shrink()
-              : _OptionsCard(multiStop: state.multiStopIntent),
+              : _OptionsCard(multiStop: state.multiStopIntent, extent: extent),
         );
       },
     );
@@ -70,8 +73,9 @@ class AddOptionsHost extends StatelessWidget {
 class _OptionsCard extends StatelessWidget {
   /// Whether the driver has already said this trip has several stops.
   final bool multiStop;
+  final ValueNotifier<double> extent;
 
-  const _OptionsCard({required this.multiStop});
+  const _OptionsCard({required this.multiStop, required this.extent});
 
   @override
   Widget build(BuildContext context) {
@@ -84,18 +88,24 @@ class _OptionsCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: WhereToBar(
-              onSearch: () => showAddressSearchSheet(context, cubit),
-              onPickOnMap: cubit.beginManualPlacement,
-              // Both of these open a demo of how the import works, with the
-              // way out to the other app on it — the driver who has never
-              // done it before is the one tapping.
-              onGoogleMaps: () =>
-                  RoutePlannerActions.showGoogleMapsInfo(context, cubit),
-              onWhatsapp: () => RoutePlannerActions.showWhatsappInfo(context),
-              multiStop: multiStop,
-              onPlanMultiStop: cubit.beginMultiStopTrip,
-              onExitMultiStop: cubit.endMultiStopTrip,
+            child: SheetExtent(
+              extent: extent,
+              child: ReportsExtent(
+                child: WhereToBar(
+                  onSearch: () => showAddressSearchSheet(context, cubit),
+                  onPickOnMap: cubit.beginManualPlacement,
+                  // Both of these open a demo of how the import works, with the
+                  // way out to the other app on it — the driver who has never
+                  // done it before is the one tapping.
+                  onGoogleMaps: () =>
+                      RoutePlannerActions.showGoogleMapsInfo(context, cubit),
+                  onWhatsapp: () =>
+                      RoutePlannerActions.showWhatsappInfo(context),
+                  multiStop: multiStop,
+                  onPlanMultiStop: cubit.beginMultiStopTrip,
+                  onExitMultiStop: cubit.endMultiStopTrip,
+                ),
+              ),
             ),
           ),
         ),

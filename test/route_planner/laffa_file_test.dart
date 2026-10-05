@@ -140,6 +140,24 @@ void main() {
       expect(file.points[1].weight, 7);
     });
 
+    test('keeps phone text, including leading zeroes and legacy aliases', () {
+      const contacts = '''
+      {"laffa": 1, "stops": [
+        {"kind":"depot","lat":33.89,"lon":35.50},
+        {"kind":"delivery","lat":33.87,"lon":35.52,
+         "phone":" 0033 783719427 "},
+        {"kind":"delivery","lat":33.86,"lon":35.53,
+         "telephone":"+216 20 000 000"},
+        {"kind":"delivery","lat":33.85,"lon":35.54,
+         "contact_phone":"+221 77 000 00 00"}
+      ]}''';
+      final file = LaffaFile.parse(contacts);
+
+      expect(file.points[1].phone, '0033 783719427');
+      expect(file.points[2].phone, '+216 20 000 000');
+      expect(file.points[3].phone, '+221 77 000 00 00');
+    });
+
     test('ignores keys it has never heard of', () {
       const future = '''
       {"laffa": 1, "somethingNew": {"a": 1}, "stops": [

@@ -4,24 +4,65 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants/app_constants.dart';
 import 'core/di/service_locator.dart';
+import 'core/routing/auth_gate.dart';
 import 'core/services/location_ping_service.dart';
 import 'core/services/saved_routes_sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/driver_palette.dart';
 import 'core/utils/tree_refresh.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
+import 'features/dispatch/dispatch_service.dart';
+import 'features/dispatch/dispatch_strings.dart';
 import 'features/route_planner/presentation/pages/splash_page.dart';
+import 'features/onboarding/presentation/pages/onboarding_page.dart';
 
 class LaffahApp extends StatefulWidget {
-  const LaffahApp({super.key});
+  const LaffahApp({super.key, this.showSplash = true});
+
+  final bool showSplash;
 
   @override
   State<LaffahApp> createState() => _LaffahAppState();
 }
 
 class _LaffahAppState extends State<LaffahApp> with WidgetsBindingObserver {
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
+  String? _lastDispatchNotice;
+  void _dispatchChanged() {
+    final inbox = sl<DispatchService>();
+    if (!inbox.signedIn) {
+      _lastDispatchNotice = null;
+      return;
+    }
+    final latest = inbox.trips.where((t) => !t.opened).firstOrNull;
+    if (latest == null || latest.id == _lastDispatchNotice) return;
+    _lastDispatchNotice = latest.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && inbox.auth.currentUser?.id == latest.driverId) {
+        _messenger.currentState?.showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 8),
+            content: Row(
+              children: [
+                const Icon(Icons.route_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${latest.company} · ${latest.name}\n${DispatchStrings.newTrip}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    });
+  }
+
   /// Language and palette both live in plain statics — [AppStrings] and
   /// [AppColors] — read at build time by widgets that never subscribe to
   /// anything. Watched together here so one change refreshes the app.
@@ -35,11 +76,20 @@ class _LaffahAppState extends State<LaffahApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _appearance.addListener(_onAppearanceChanged);
+    if (sl.isRegistered<DispatchService>()) {
+      sl<DispatchService>().addListener(_dispatchChanged);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _dispatchChanged();
+      });
+    }
   }
 
   @override
   void dispose() {
     _appearance.removeListener(_onAppearanceChanged);
+    if (sl.isRegistered<DispatchService>()) {
+      sl<DispatchService>().removeListener(_dispatchChanged);
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -80,6 +130,9 @@ class _LaffahAppState extends State<LaffahApp> with WidgetsBindingObserver {
       sl<LocationPingService>().ping();
 
       sl<SavedRoutesSyncService>().syncNow();
+      if (sl.isRegistered<DispatchService>()) sl<DispatchService>().resume();
+    } else {
+      if (sl.isRegistered<DispatchService>()) sl<DispatchService>().pause();
     }
   }
 
@@ -99,6 +152,7 @@ class _LaffahAppState extends State<LaffahApp> with WidgetsBindingObserver {
                 valueListenable: AppStrings.localeNotifier,
                 builder: (_, locale, __) {
                   return MaterialApp(
+                    scaffoldMessengerKey: _messenger,
                     onGenerateTitle: (_) => AppStrings.appName,
                     debugShowCheckedModeBanner: false,
                     theme: AppTheme.data,
@@ -131,7 +185,14 @@ class _LaffahAppState extends State<LaffahApp> with WidgetsBindingObserver {
                         );
                       },
                     ),
-                    home: const SplashPage(),
+                    home: widget.showSplash
+                        ? const SplashPage()
+                        : (sl<SharedPreferences>().getBool(
+                                AppStrings.onboardingDoneKey,
+                              ) ??
+                              false)
+                        ? const AuthGate()
+                        : const OnboardingPage(),
                   );
                 },
               );

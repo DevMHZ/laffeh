@@ -61,7 +61,7 @@ class _FakeRouteCubit extends Cubit<RoutePlannerState>
   @override
   Future<void> refreshConnectivity() async {}
   @override
-  Future<void> refreshLocationAccess() async {}
+  Future<void> refreshLocationAccess({bool retryMissingFix = false}) async {}
   @override
   void setAppForeground(bool foreground) {}
 

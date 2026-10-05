@@ -129,6 +129,8 @@ class PlannerConnectivityNotice extends StatelessWidget {
           a.isOffline != b.isOffline ||
           a.optimizedRoute != b.optimizedRoute ||
           a.locationAccess != b.locationAccess ||
+          a.userLocation != b.userLocation ||
+          a.status != b.status ||
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
           a.movingPointId != b.movingPointId,
@@ -140,8 +142,10 @@ class PlannerConnectivityNotice extends StatelessWidget {
           return const SizedBox.shrink();
         }
         final hasLocationChip =
-            state.locationAccess != null &&
-            state.locationAccess != LocationAccess.granted;
+            state.status != RoutePlannerStatus.initial &&
+            state.status != RoutePlannerStatus.loadingLocation &&
+            (state.userLocation == null ||
+                state.locationAccess != LocationAccess.granted);
         final route = state.optimizedRoute;
         return Positioned(
           top: 0,
@@ -152,7 +156,7 @@ class PlannerConnectivityNotice extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.fromLTRB(
                 14,
-                hasLocationChip ? 110 : 62,
+                hasLocationChip ? 280 : 62,
                 14,
                 0,
               ),
@@ -179,17 +183,8 @@ class PlannerConnectivityNotice extends StatelessWidget {
   }
 }
 
-/// A standing "turn location on" pill, tucked under the leading top-bar
-/// button on the map.
-///
-/// The sheet's warning banner says *why* the dot is missing, but it is
-/// transient — the next successful action clears it — and it sits inside a
-/// draggable sheet that may be collapsed past it. A driver who came in past
-/// the splash gate ([LocationGate]) therefore had no standing way back. This
-/// is that way: frosted like the rest of the map chrome, out of the way of
-/// both the sheet and the add-stop CTA, and it removes itself the moment
-/// access is granted — including a permission granted out in the system
-/// settings, which the page re-checks on resume.
+/// A persistent recovery message when permission or the first GPS fix is
+/// missing. It remains visible even when the planning sheet is collapsed.
 class LocationAccessChip extends StatelessWidget {
   const LocationAccessChip({super.key});
 
@@ -198,19 +193,28 @@ class LocationAccessChip extends StatelessWidget {
     return BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
       buildWhen: (a, b) =>
           a.locationAccess != b.locationAccess ||
+          a.userLocation != b.userLocation ||
+          a.status != b.status ||
           a.simulationActive != b.simulationActive ||
           a.navigationActive != b.navigationActive ||
           a.movingPointId != b.movingPointId,
       builder: (context, state) {
         final access = state.locationAccess;
-        // Unknown (not checked yet) and granted both mean "nothing to offer".
-        // Driving, simulating and dragging a point all own the screen.
         final show =
-            access != null &&
-            access != LocationAccess.granted &&
+            state.status != RoutePlannerStatus.initial &&
+            state.status != RoutePlannerStatus.loadingLocation &&
+            (state.userLocation == null || access != LocationAccess.granted) &&
             !state.simulationActive &&
             !state.navigationActive &&
             state.movingPointId == null;
+        final body = switch (access) {
+          LocationAccess.servicesOff => AppStrings.locationRecoveryServices,
+          LocationAccess.denied ||
+          LocationAccess.blocked => AppStrings.locationRecoveryPermission,
+          _ => AppStrings.locationRecoveryNoFix,
+        };
+        final needsSettings =
+            access != null && access != LocationAccess.granted;
 
         return Positioned(
           top: 0,
@@ -222,7 +226,7 @@ class LocationAccessChip extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 62, 14, 0),
               child: Align(
-                alignment: AlignmentDirectional.centerStart,
+                alignment: AlignmentDirectional.topCenter,
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 260),
                   switchInCurve: Curves.easeOutBack,
@@ -232,36 +236,55 @@ class LocationAccessChip extends StatelessWidget {
                     child: ScaleTransition(scale: anim, child: child),
                   ),
                   child: show
-                      ? GlassPanel(
-                          padding: EdgeInsets.zero,
-                          radius: 20,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: context
-                                .read<RoutePlannerCubit>()
-                                .resolveLocationAccess,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Iconsax.location_slash,
-                                    size: 17,
-                                    color: AppColors.warning,
-                                  ),
-                                  const SizedBox(width: 7),
-                                  Text(
-                                    AppStrings.enableLocationCta,
-                                    style: AppTextStyles.bodySm.copyWith(
-                                      fontWeight: FontWeight.w700,
+                      ? ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 500),
+                          child: GlassPanel(
+                            padding: const EdgeInsets.all(16),
+                            radius: 20,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Iconsax.location_slash,
+                                      size: 20,
+                                      color: AppColors.warning,
+                                    ),
+                                    const SizedBox(width: 9),
+                                    Expanded(
+                                      child: Text(
+                                        AppStrings.locationRecoveryTitle,
+                                        style: AppTextStyles.bodyMd.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(body, style: AppTextStyles.bodySm),
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: TextButton.icon(
+                                    onPressed: needsSettings
+                                        ? context
+                                              .read<RoutePlannerCubit>()
+                                              .resolveLocationAccess
+                                        : context
+                                              .read<RoutePlannerCubit>()
+                                              .retryLocationFix,
+                                    icon: const Icon(Iconsax.refresh, size: 17),
+                                    label: Text(
+                                      needsSettings
+                                          ? AppStrings.enableLocationCta
+                                          : AppStrings.locationRecoveryRetry,
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         )

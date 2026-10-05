@@ -39,7 +39,18 @@ part 'splash_page_widgets.dart';
 /// place that asked, which meant a driver could be looking at a map centred on
 /// a fallback city before anything explained why.
 class SplashPage extends StatefulWidget {
-  const SplashPage({super.key});
+  const SplashPage({
+    super.key,
+    this.startup,
+    this.onFinished,
+    this.autoProceed = true,
+  });
+
+  /// Startup begins before the first Flutter frame. The animation stays visible
+  /// until this finishes and the location question has been settled.
+  final Future<void>? startup;
+  final VoidCallback? onFinished;
+  final bool autoProceed;
 
   @override
   State<SplashPage> createState() => _SplashPageState();
@@ -52,6 +63,7 @@ class _SplashPageState extends State<SplashPage>
 
   /// Repeating: road dashes, logo breath, loading dots.
   late final AnimationController _loop;
+  late final AnimationController _exit;
 
   late final Animation<double> _fadeIn;
   late final Animation<Offset> _slideIn;
@@ -73,11 +85,11 @@ class _SplashPageState extends State<SplashPage>
   /// after explaining why. Prompting here, before the app has said a word
   /// about itself, is worse for the driver and is exactly the context-free
   /// permission request App Store review objects to.
-  late final bool _seenOnboarding;
+  bool _seenOnboarding = false;
 
   /// `null` until the gate has an answer; the dots keep spinning meanwhile.
   LocationAccess? _access;
-  bool _showOver = false;
+  bool _startupReady = false;
   bool _wentInWithout = false;
   bool _resolving = false;
   bool _navigated = false;
@@ -85,7 +97,7 @@ class _SplashPageState extends State<SplashPage>
   bool get _locationSettled =>
       !_seenOnboarding || _wentInWithout || _access == LocationAccess.granted;
 
-  bool get _showsGate => _showOver && !_locationSettled && _access != null;
+  bool get _showsGate => _startupReady && !_locationSettled && _access != null;
 
   @override
   void initState() {
@@ -102,6 +114,10 @@ class _SplashPageState extends State<SplashPage>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat();
+    _exit = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
 
     _fadeIn = CurvedAnimation(
       parent: _intro,
@@ -114,24 +130,24 @@ class _SplashPageState extends State<SplashPage>
 
     // Guarded because the splash is also pumped bare in a widget preview,
     // with no service locator behind it — there the gate simply sits out.
+    unawaited(_waitForStartup());
+  }
+
+  Future<void> _waitForStartup() async {
+    if (!widget.autoProceed) return;
+    if (widget.startup != null) await widget.startup;
+    if (!mounted) return;
     _seenOnboarding =
         sl.isRegistered<SharedPreferences>() &&
         (sl<SharedPreferences>().getBool(AppStrings.onboardingDoneKey) ??
             false);
+    setState(() => _startupReady = true);
     if (_seenOnboarding) {
-      // Observed so a driver sent out to the system settings is re-checked
-      // when they come back, without having to tap anything again.
       WidgetsBinding.instance.addObserver(this);
       unawaited(_resolveLocation());
-    }
-
-    // Both cars finish at _showDuration; give the pins a beat to settle, then
-    // hand off — or show the gate, if location is still unanswered.
-    Timer(_showDuration + const Duration(milliseconds: 450), () {
-      if (!mounted) return;
-      setState(() => _showOver = true);
+    } else {
       _handOff();
-    });
+    }
   }
 
   Future<void> _resolveLocation() async {
@@ -183,11 +199,20 @@ class _SplashPageState extends State<SplashPage>
     }
   }
 
-  /// Leaves for the app once the show is over *and* location has an answer.
+  /// Leaves as soon as startup and location are ready, even mid animation.
   void _handOff() {
-    if (!mounted || _navigated || !_showOver || !_locationSettled) return;
+    if (!mounted || _navigated || !_startupReady || !_locationSettled) return;
     _navigated = true;
-    _go();
+    _loop.stop();
+    if (widget.onFinished != null) {
+      // The launch shell fades the entire overlay, including its Navigator.
+      widget.onFinished!();
+      return;
+    }
+    _exit.forward().whenComplete(() {
+      if (!mounted) return;
+      _go();
+    });
   }
 
   void _go() {
@@ -220,6 +245,7 @@ class _SplashPageState extends State<SplashPage>
     if (_seenOnboarding) WidgetsBinding.instance.removeObserver(this);
     _intro.dispose();
     _loop.dispose();
+    _exit.dispose();
     // Restore the rest-of-app overlay style.
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
@@ -271,92 +297,98 @@ class _SplashPageState extends State<SplashPage>
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: _splashOverlay,
-      child: Scaffold(
-        backgroundColor: AppColors.leaf,
-        // Flat logo green on purpose: the logo image carries the same
-        // background, so it floats seamlessly with no visible edges.
-        body: Column(
-          children: [
-            // The road-logo scene, flush against the very top edge so its
-            // road begins at the top of the phone screen — edge-to-edge,
-            // running up behind the status bar. A top-down car drives the
-            // whole winding road and pops the three pins as it passes.
-            const LaffaRoadLoader(driveDuration: _showDuration),
+      child: FadeTransition(
+        opacity: Tween<double>(
+          begin: 1,
+          end: 0,
+        ).animate(CurvedAnimation(parent: _exit, curve: Curves.easeInOut)),
+        child: Scaffold(
+          backgroundColor: AppColors.leaf,
+          // Flat logo green on purpose: the logo image carries the same
+          // background, so it floats seamlessly with no visible edges.
+          body: Column(
+            children: [
+              // The road-logo scene, flush against the very top edge so its
+              // road begins at the top of the phone screen — edge-to-edge,
+              // running up behind the status bar. A top-down car drives the
+              // whole winding road and pops the three pins as it passes.
+              const LaffaRoadLoader(driveDuration: _showDuration),
 
-            // Everything below sits in the remaining space, bottom-safe.
-            // Two layouts, not one with holes punched in it: the show, and
-            // the gate that replaces it. The gate drops the flourish and the
-            // Spacers — the panel needs that room, and it scrolls rather than
-            // overflowing on a short screen.
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: _showsGate
-                    ? Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _brandName(),
-                              const SizedBox(height: 26),
-                              _LocationGatePanel(
-                                access: _access!,
-                                busy: _resolving,
-                                onEnable: _enableLocation,
-                                onContinue: _goInWithoutLocation,
-                              ),
-                            ],
+              // Everything below sits in the remaining space, bottom-safe.
+              // Two layouts, not one with holes punched in it: the show, and
+              // the gate that replaces it. The gate drops the flourish and the
+              // Spacers — the panel needs that room, and it scrolls rather than
+              // overflowing on a short screen.
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: _showsGate
+                      ? Center(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _brandName(),
+                                const SizedBox(height: 26),
+                                _LocationGatePanel(
+                                  access: _access!,
+                                  busy: _resolving,
+                                  onEnable: _enableLocation,
+                                  onContinue: _goInWithoutLocation,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      )
-                    : Column(
-                        children: [
-                          const Spacer(flex: 2),
-                          _brandName(),
-                          const Spacer(flex: 2),
+                        )
+                      : Column(
+                          children: [
+                            const Spacer(flex: 2),
+                            _brandName(),
+                            const Spacer(flex: 2),
 
-                          // The original brand flourish, kept: a little car
-                          // drives a straight road, popping its own pins.
-                          SizedBox(
-                            height: 110,
-                            width: double.infinity,
-                            child: AnimatedBuilder(
-                              animation: Listenable.merge([_intro, _loop]),
-                              builder: (_, __) => CustomPaint(
-                                painter: _RoadTripPainter(
-                                  // Full window so it travels in lock-step
-                                  // with the road-logo car above (both start
-                                  // and end together).
-                                  trip: Curves.easeInOutCubic.transform(
-                                    _intro.value,
+                            // The original brand flourish, kept: a little car
+                            // drives a straight road, popping its own pins.
+                            SizedBox(
+                              height: 110,
+                              width: double.infinity,
+                              child: AnimatedBuilder(
+                                animation: Listenable.merge([_intro, _loop]),
+                                builder: (_, __) => CustomPaint(
+                                  painter: _RoadTripPainter(
+                                    // Full window so it travels in lock-step
+                                    // with the road-logo car above (both start
+                                    // and end together).
+                                    trip: Curves.easeInOutCubic.transform(
+                                      _intro.value,
+                                    ),
+                                    dashPhase: _loop.value,
                                   ),
-                                  dashPhase: _loop.value,
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 22),
+                            const SizedBox(height: 22),
 
-                          // Loading dots in the three pin colors.
-                          AnimatedBuilder(
-                            animation: _loop,
-                            builder: (_, __) => _PinDots(phase: _loop.value),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            AppStrings.initializing,
-                            style: AppTextStyles.bodySm.copyWith(
-                              color: AppColors.white.withValues(alpha: 0.85),
-                              letterSpacing: 0.4,
+                            // Loading dots in the three pin colors.
+                            AnimatedBuilder(
+                              animation: _loop,
+                              builder: (_, __) => _PinDots(phase: _loop.value),
                             ),
-                          ),
-                          const SizedBox(height: 28),
-                        ],
-                      ),
+                            const SizedBox(height: 12),
+                            Text(
+                              AppStrings.initializing,
+                              style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.white.withValues(alpha: 0.85),
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
+                        ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

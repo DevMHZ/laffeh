@@ -111,6 +111,12 @@ class AppStrings {
   static String get errLocationServiceDisabled =>
       _t('errLocationServiceDisabled');
   static String get enableLocationCta => _t('enableLocationCta');
+  static String get locationRecoveryTitle => _t('locationRecoveryTitle');
+  static String get locationRecoveryNoFix => _t('locationRecoveryNoFix');
+  static String get locationRecoveryPermission =>
+      _t('locationRecoveryPermission');
+  static String get locationRecoveryServices => _t('locationRecoveryServices');
+  static String get locationRecoveryRetry => _t('locationRecoveryRetry');
 
   /// The splash's location gate — shown when access is missing on the way in.
   static String get locGateTitle => _t('locGateTitle');
@@ -1168,6 +1174,14 @@ const Map<String, Map<String, String>> _copy = {
     'errLocationServiceDisabled':
         'Location service is disabled. Please enable GPS and try again.',
     'enableLocationCta': 'Enable location',
+    'locationRecoveryTitle': 'We cannot find your location yet',
+    'locationRecoveryNoFix':
+        'Location is allowed, but your phone has not returned a GPS position. Move to an open area and tap Try again. If it still shows the wrong place, fully close and reopen Laffah.',
+    'locationRecoveryPermission':
+        'Allow Laffah to use your location in your phone settings, then return here and try again. If the map still shows the wrong place, fully close and reopen Laffah.',
+    'locationRecoveryServices':
+        'Turn on Location Services or GPS on your phone, then return here and try again. If the map still shows the wrong place, fully close and reopen Laffah.',
+    'locationRecoveryRetry': 'Try again',
     'pointAdded': 'Point added',
     'stopPhoneTitle': 'Phone number',
     'stopPhoneHint': 'With the country code, e.g. +963944123456',
@@ -1835,6 +1849,14 @@ const Map<String, Map<String, String>> _copy = {
     'errLocationServiceDisabled':
         'خدمة الموقع غير مفعّلة. يرجى تفعيل GPS وإعادة المحاولة.',
     'enableLocationCta': 'تفعيل الموقع',
+    'locationRecoveryTitle': 'لم نتمكن من تحديد موقعك بعد',
+    'locationRecoveryNoFix':
+        'إذن الموقع مفعّل، لكن الهاتف لم يحدّد موقع GPS بعد. انتقل إلى مكان مكشوف واضغط «إعادة المحاولة». إذا بقيت الخريطة في مكان خاطئ، أغلق تطبيق لفّة تمامًا وافتحه من جديد.',
+    'locationRecoveryPermission':
+        'اسمح لتطبيق لفّة بالوصول إلى موقعك من إعدادات الهاتف، ثم ارجع إلى هنا وأعد المحاولة. إذا بقيت الخريطة في مكان خاطئ، أغلق التطبيق تمامًا وافتحه من جديد.',
+    'locationRecoveryServices':
+        'فعّل خدمات الموقع أو GPS على هاتفك، ثم ارجع إلى هنا وأعد المحاولة. إذا بقيت الخريطة في مكان خاطئ، أغلق تطبيق لفّة تمامًا وافتحه من جديد.',
+    'locationRecoveryRetry': 'إعادة المحاولة',
     'pointAdded': 'تمت إضافة النقطة',
     'stopPhoneTitle': 'رقم الهاتف',
     'stopPhoneHint': 'مع رمز الدولة، مثل ‎+963944123456',
@@ -2493,6 +2515,14 @@ const Map<String, Map<String, String>> _copy = {
     'errLocationServiceDisabled':
         'Le service de localisation est desactive. Activez le GPS puis reessayez.',
     'enableLocationCta': 'Activer la localisation',
+    'locationRecoveryTitle': 'Nous ne trouvons pas encore votre position',
+    'locationRecoveryNoFix':
+        'La localisation est autorisée, mais le téléphone n’a pas encore obtenu de position GPS. Allez dans un endroit dégagé et réessayez. Si la carte reste au mauvais endroit, fermez complètement Laffah puis rouvrez-la.',
+    'locationRecoveryPermission':
+        'Autorisez Laffah à accéder à votre position dans les réglages du téléphone, puis revenez et réessayez. Si la carte reste au mauvais endroit, fermez complètement Laffah puis rouvrez-la.',
+    'locationRecoveryServices':
+        'Activez les services de localisation ou le GPS du téléphone, puis revenez et réessayez. Si la carte reste au mauvais endroit, fermez complètement Laffah puis rouvrez-la.',
+    'locationRecoveryRetry': 'Réessayer',
     'pointAdded': 'Point ajoute',
     'stopPhoneTitle': 'Numero de telephone',
     'stopPhoneHint': 'Avec l\'indicatif du pays, ex. +963944123456',

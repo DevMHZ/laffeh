@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'package:laffeh/core/network/api_result.dart';
+import 'package:laffeh/features/dispatch/dispatch_service.dart';
 import 'package:laffeh/core/network/network_info.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osm_geocoding_datasource.dart';
 import 'package:laffeh/features/route_planner/data/datasources/osrm_routing_datasource.dart';
@@ -126,12 +127,14 @@ void main() {
 
   late _FakeGeolocator geo;
   late RoutePlannerCubit cubit;
+  late _MockRouting dispatchRouting;
 
   setUpAll(() {
     registerFallbackValue(_FakeDraft());
     registerFallbackValue(_FakeLatLng());
     registerFallbackValue(_FakeFinish());
     registerFallbackValue(<RoutePoint>[]);
+    registerFallbackValue(<LatLng>[]);
   });
 
   setUp(() async {
@@ -161,6 +164,7 @@ void main() {
           ApiSuccess(_route(inv.namedArguments[#points] as List<RoutePoint>)),
     );
 
+    dispatchRouting = _MockRouting();
     cubit = RoutePlannerCubit(
       optimize,
       _MockSavedRoutes(),
@@ -168,7 +172,7 @@ void main() {
       _MockPlaces(),
       draft,
       network,
-      _MockRouting(),
+      dispatchRouting,
     );
     await cubit.recenterOnUser();
   });
@@ -176,6 +180,38 @@ void main() {
   tearDown(() async {
     await cubit.close();
     await geo.dispose();
+  });
+
+  for (final finish in ['depot', 'open', 'custom']) {
+    test('dispatched $finish round keeps order, phone and finish', () async {
+      when(() => dispatchRouting.fetchRoute(origin: any(named:'origin'), destination:any(named:'destination'),waypoints:any(named:'waypoints'),includeSteps:true))
+        .thenAnswer((_) async => const OsrmRoute(polyline:[LatLng(33.8,35.5),LatLng(33.9,35.6)],distanceMeters:1000,durationSeconds:120));
+      final received=ReceivedTrip.fromJson({
+        'id':'trip-1','driver_id':'driver-a','trip_name':'Round','sender_name':'Boss','company_name':'Company','created_at':'2026-10-02T08:00:00Z',
+        'document':{'laffa':1,'kind':'route','finish':{'mode':finish,if(finish=='custom')...{'lat':34.0,'lon':36.0,'label':'Factory'}},
+          'stops':[
+            {'seq':0,'kind':'depot','label':'Depot','lat':33.8,'lon':35.5},
+            {'seq':1,'kind':'delivery','label':'First','lat':33.9,'lon':35.6,'phone':'+33783719427'},
+            {'seq':2,'kind':'delivery','label':'Second','lat':33.7,'lon':35.4},
+            if(finish=='depot') {'seq':3,'kind':'depot','lat':33.8,'lon':35.5},
+          ]}
+      });
+      expect(await cubit.loadDispatchedRound(received,stillAuthorized:()=>true),isNull);
+      final points=cubit.state.optimizedRoute!.orderedPoints;
+      expect(points.length,finish=='open'?3:4);
+      expect(points[1].latitude,33.9);expect(points[2].latitude,33.7);
+      expect(points[1].phone,'+33783719427');
+      expect(cubit.state.finish.mode.name,finish);
+      expect(cubit.state.optimizedRoute!.hasRoadGeometry,true);
+    });
+  }
+
+  test('dispatch does not replace a draft when account authorization changed',() async {
+    final original=cubit.state;
+    final received=ReceivedTrip.fromJson({'id':'x','driver_id':'other','trip_name':'Private','sender_name':'Boss','company_name':'Company','created_at':'2026-10-02T08:00:00Z'});
+    expect(await cubit.loadDispatchedRound(received,stillAuthorized:()=>false),isNotNull);
+    expect(cubit.state,original);
+    verifyZeroInteractions(dispatchRouting);
   });
 
   test('only an explicit optimize requests automatic preview', () async {

@@ -24,6 +24,7 @@ class DioClient {
   DioClient._();
 
   static Dio? _aiRouteDio;
+  static Dio? _mobilePlacesDio;
   static Dio? _osrmDio;
   static Dio? _nominatimDio;
   static Dio? _photonDio;
@@ -32,6 +33,22 @@ class DioClient {
   static Dio get aiRouteDio {
     _aiRouteDio ??= _buildAiRouteDio();
     return _aiRouteDio!;
+  }
+
+  static Dio get mobilePlacesDio {
+    _mobilePlacesDio ??= Dio(
+      BaseOptions(
+        baseUrl: EnvConfig.dispatchBaseUrl.replaceAll(RegExp(r'/+$'), ''),
+        connectTimeout: const Duration(seconds: 2),
+        receiveTimeout: const Duration(seconds: 3),
+        headers: {
+          'Accept': 'application/json',
+          'X-Laffa-Mobile-Key': EnvConfig.laffaMobileAppKey,
+        },
+        responseType: ResponseType.json,
+      ),
+    );
+    return _mobilePlacesDio!;
   }
 
   static Dio get osrmDio {

@@ -12,6 +12,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/phone_utils.dart';
+import '../../../../core/di/service_locator.dart';
+import '../../../../core/widgets/app_dialog.dart';
+import '../../../dispatch/dispatch_service.dart';
+import '../../../dispatch/dispatch_strings.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -40,11 +44,36 @@ class RoutePlannerActions {
   /// Pushes the saved-routes page and loads any picked route into the cubit.
   static Future<void> openSavedRoutes(BuildContext context) async {
     final cubit = context.read<RoutePlannerCubit>();
-    final picked = await Navigator.of(context).push<SavedRoute>(
-      MaterialPageRoute(builder: (_) => const SavedRoutesPage()),
-    );
-    if (picked != null) {
+    final picked = await Navigator.of(
+      context,
+    ).push<Object>(MaterialPageRoute(builder: (_) => const SavedRoutesPage()));
+    if (picked is SavedRoute) {
       cubit.loadSavedRoute(picked);
+    } else if (picked is ReceivedTrip && context.mounted) {
+      if (cubit.state.points.length > 1) {
+        final confirmed = await AppDialog.confirm(
+          context: context,
+          title: AppStrings.laffaReplaceTitle,
+          message: AppStrings.laffaReplaceMessage,
+          confirmLabel: AppStrings.laffaReplaceConfirm,
+        );
+        if (confirmed != true || !context.mounted) return;
+      }
+      final inbox = sl<DispatchService>();
+      EasyLoading.show(status: DispatchStrings.preparing);
+      try {
+        final error = await cubit.loadDispatchedRound(
+          picked,
+          stillAuthorized: () => inbox.auth.currentUser?.id == picked.driverId,
+        );
+        if (error == null) {
+          await inbox.markOpened(picked);
+        } else if (context.mounted) {
+          AppToast.show(context, error, tone: ToastTone.failure);
+        }
+      } finally {
+        EasyLoading.dismiss();
+      }
     }
   }
 

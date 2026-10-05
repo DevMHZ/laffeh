@@ -17,14 +17,13 @@ class RoutingConfig {
   /// Seconds the solver may spend searching for the best route.
   static const int defaultTimeLimitSeconds = 4;
 
-  /// Length of the driver's working day, in hours — the `driver_hours`
-  /// field of the VRP request. It is also the ceiling every stop time
-  /// window is measured against, so a trip with a late window raises it
-  /// (see [driverHoursForHorizon]).
+  /// Compatibility hint sent in the phone request. The mobile backend now
+  /// expands accepted requests to a ten-day planning horizon, including old
+  /// app builds that still send this eight-hour value.
   static const int defaultDriverHours = 8;
 
-  /// Hard ceiling for [driverHoursForHorizon]: a single trip never spans
-  /// more than a day.
+  /// The app's clock-window picker covers the first 24 hours. This is not
+  /// the mobile backend's ten-day trip-planning limit.
   static const int maxDriverHours = 24;
 
   /// Minutes the solver assumes are spent at each stop before driving on

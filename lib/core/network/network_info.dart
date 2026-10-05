@@ -9,7 +9,7 @@ import '../config/env_config.dart';
 /// must not disable online features backed by another service.
 ///
 /// No result is cached between checks, so a retry or app resume sees a newly
-/// restored connection. Concurrent callers share the same bounded probe.
+/// restored connection. Concurre nt callers share the same bounded probe.
 class NetworkInfo {
   NetworkInfo({
     Future<bool> Function(Uri)? probe,

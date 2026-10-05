@@ -1,8 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:laffeh/core/constants/app_constants.dart';
 import 'package:laffeh/core/config/routing_config.dart';
 import 'package:laffeh/features/route_planner/data/models/route_point_model.dart';
 import 'package:laffeh/features/route_planner/data/models/route_request_model.dart';
 import 'package:laffeh/features/route_planner/domain/entities/stop_time_window.dart';
+import 'package:laffeh/features/route_planner/presentation/widgets/stop_time_window_sheet.dart';
 
 StopTimeWindow _w(int startH, int startM, int endH, int endM) => StopTimeWindow(
   startMinuteOfDay: startH * 60 + startM,
@@ -12,6 +15,26 @@ StopTimeWindow _w(int startH, int startM, int endH, int endM) => StopTimeWindow(
 int _at(int hour, [int minute = 0]) => hour * 60 + minute;
 
 void main() {
+  testWidgets('multi-day ETA shows its day offset', (tester) async {
+    AppStrings.setLocale(const Locale('en'));
+    late String sameDay, nextDay, thirdDay;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            sameDay = formatRelativeArrival(context, _at(8), 60);
+            nextDay = formatRelativeArrival(context, _at(23), 120);
+            thirdDay = formatRelativeArrival(context, _at(8), 2 * 1440 + 60);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+    expect(sameDay, isNot(contains('Day +')));
+    expect(nextDay, contains('Day +1'));
+    expect(thirdDay, contains('Day +2'));
+  });
+
   group('StopTimeWindow.relativeTo', () {
     test('a window later the same day is a plain offset', () {
       // Leave 08:00, be there 14:00–15:00 → 360..420 minutes out.

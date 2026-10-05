@@ -1,4 +1,7 @@
 import 'package:get_it/get_it.dart';
+import 'package:dio/dio.dart';
+import '../config/env_config.dart';
+import '../../features/dispatch/dispatch_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Hide Supabase's AuthUser so our domain entity (used by the disabled repo) wins.
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthUser;
@@ -38,6 +41,7 @@ import '../network/network_info.dart';
 import '../services/consent_store.dart';
 import '../services/location_ping_service.dart';
 import '../../features/route_planner/data/datasources/overpass_poi_datasource.dart';
+import '../../features/route_planner/data/datasources/google_mobile_places_datasource.dart';
 import '../../features/route_planner/data/datasources/photon_geocoding_datasource.dart';
 import '../../features/route_planner/data/datasources/recent_places_local_datasource.dart';
 import '../../features/route_planner/data/repositories/place_search_repository.dart';
@@ -108,6 +112,7 @@ Future<void> setupServiceLocator() async {
         nominatim: sl<OsmGeocodingDataSource>(),
         overpass: sl<OverpassPoiDataSource>(),
         recents: sl<RecentPlacesLocalDataSource>(),
+        google: GoogleMobilePlacesDataSource(DioClient.mobilePlacesDio),
       ),
     );
   }
@@ -247,6 +252,24 @@ Future<void> setupServiceLocator() async {
   }
 
   // AuthCubit is app-global (singleton): the whole app reacts to sign-in /
+  if (!sl.isRegistered<DispatchService>()) {
+    sl.registerLazySingleton<DispatchService>(
+      () => DispatchService(
+        sl<AuthRepository>(),
+        Dio(
+          BaseOptions(
+            baseUrl: EnvConfig.dispatchBaseUrl,
+            connectTimeout: const Duration(seconds: 12),
+            receiveTimeout: const Duration(seconds: 20),
+          ),
+        ),
+        () => SupabaseConfig.isReady
+            ? SupabaseConfig.client.auth.currentSession?.accessToken
+            : null,
+      ),
+    );
+  }
+
   // sign-out. Always available — backed by the disabled repo when Supabase
   // isn't configured.
   if (!sl.isRegistered<AuthCubit>()) {

@@ -36,7 +36,7 @@ void main() {
       MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.data,
-        home: const SplashPage(),
+        home: const SplashPage(autoProceed: false),
       ),
     );
 

@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+import '../../../dispatch/dispatch_service.dart';
+import '../../../dispatch/dispatch_strings.dart';
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
@@ -29,6 +32,7 @@ import '../../../../core/utils/location_utils.dart';
 import '../../../saved_routes/domain/entities/saved_route.dart';
 import '../../../saved_routes/domain/repositories/saved_routes_repository.dart';
 import '../../data/datasources/osm_geocoding_datasource.dart';
+import '../../data/datasources/google_mobile_places_datasource.dart';
 import '../../data/datasources/osrm_routing_datasource.dart';
 import '../../data/datasources/planner_draft_local_datasource.dart';
 import '../../data/repositories/place_search_repository.dart';
@@ -41,6 +45,7 @@ import '../../data/models/laffa_file.dart';
 import '../../domain/entities/route_finish.dart';
 import '../../domain/entities/route_point.dart';
 import '../../domain/entities/route_maneuver.dart';
+import '../../domain/entities/route_metrics.dart';
 import '../../domain/entities/stop_time_window.dart';
 import '../../domain/usecases/optimize_route_usecase.dart';
 import '../widgets/map_geometry.dart';
@@ -124,6 +129,8 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
 
   /// Coalesces rapid draft writes into one debounced disk write.
   Timer? _persistDebounce;
+  Future<void>? _locationProbe;
+  bool _awaitingFirstFix = false;
 
   /// Tap-to-add debounce/dedup state — see [PlannerConfig] for the windows.
   DateTime? _lastTapAt;
@@ -148,17 +155,37 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     _startConnectivityMonitor();
     unawaited(refreshLocationAccess());
 
+    await retryLocationFix();
+  }
+
+  /// Retry a missing startup position without restoring the draft or
+  /// restarting the planner. Concurrent resume/button requests share one GPS
+  /// attempt, and a live stream can still deliver a fix after a timeout.
+  Future<void> retryLocationFix() {
+    if (_locationProbe != null) return _locationProbe!;
+    final probe = _fetchLocationFix();
+    _locationProbe = probe;
+    return probe.whenComplete(() => _locationProbe = null);
+  }
+
+  Future<void> _fetchLocationFix() async {
     try {
-      final loc = await LocationUtils.getCurrentLatLng();
+      final loc = await LocationUtils.getCurrentLatLng(
+        maxCachedAge: const Duration(minutes: 1),
+        maxCachedAccuracyMeters: 100,
+      );
+      if (isClosed) return;
+      final firstFix = state.userLocation == null;
+      _awaitingFirstFix = false;
       emit(
         state.copyWith(
           status: RoutePlannerStatus.locationReady,
           userLocation: loc,
-          // Only recentre on the user when there's no restored route to
-          // frame — otherwise keep the draft's geometry in view.
-          cameraTarget: state.hasOptimizedRoute || state.hasPoints
-              ? state.cameraTarget
-              : loc,
+          locationAccess: LocationAccess.granted,
+          cameraTarget: firstFix && !state.hasOptimizedRoute && !state.hasPoints
+              ? loc
+              : state.cameraTarget,
+          clearError: true,
         ),
       );
       // Permission is granted and a fix landed, so the dot can start
@@ -167,6 +194,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       _keepOfflineMapAround(loc);
     } on LocationException catch (e) {
       developer.log('Location unavailable: ${e.message}');
+      if (isClosed) return;
       emit(
         state.copyWith(
           status: RoutePlannerStatus.locationReady,
@@ -176,6 +204,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       );
     } catch (e) {
       developer.log('initialize() failed', error: e);
+      if (isClosed) return;
       emit(
         state.copyWith(
           status: RoutePlannerStatus.locationReady,
@@ -183,6 +212,18 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
           errorMessage: AppStrings.errLocationUnavailable,
         ),
       );
+    }
+
+    // A GPS timeout with permission granted is temporary. Keep listening so
+    // the first late fix can replace the fallback map without an app restart.
+    try {
+      final access = await LocationGate.status();
+      if (isClosed) return;
+      emit(state.copyWith(locationAccess: access));
+      _awaitingFirstFix = access == LocationAccess.granted;
+      if (_awaitingFirstFix) _startLiveLocation();
+    } catch (e) {
+      developer.log('location status after failed fix', error: e);
     }
   }
 
@@ -296,7 +337,18 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
       return;
     }
     final loc = LatLng(position.latitude, position.longitude);
-    emit(state.copyWith(userLocation: loc));
+    final firstFix = state.userLocation == null;
+    _awaitingFirstFix = false;
+    emit(
+      state.copyWith(
+        userLocation: loc,
+        locationAccess: LocationAccess.granted,
+        cameraTarget: firstFix && !state.hasPoints && !state.hasOptimizedRoute
+            ? loc
+            : state.cameraTarget,
+        clearError: firstFix,
+      ),
+    );
     _keepOfflineMapAround(loc);
   }
 
@@ -532,7 +584,7 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   Future<void> resolveLocationAccess() async {
     try {
       final granted = await LocationUtils.resolveAccess();
-      if (granted) await initialize();
+      if (granted) await retryLocationFix();
     } catch (e) {
       developer.log('resolveLocationAccess() failed', error: e);
     }
@@ -545,11 +597,20 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
   /// only: no prompt and no fix, so it is cheap enough to run on every
   /// resume, which is how a permission granted out in the system settings
   /// makes the chip disappear on its own.
-  Future<void> refreshLocationAccess() async {
+  Future<void> refreshLocationAccess({bool retryMissingFix = false}) async {
     try {
       final access = await LocationGate.status();
-      if (isClosed || access == state.locationAccess) return;
-      emit(state.copyWith(locationAccess: access));
+      if (isClosed) return;
+      if (access != state.locationAccess) {
+        emit(state.copyWith(locationAccess: access));
+      }
+      if (access != LocationAccess.granted) {
+        _awaitingFirstFix = false;
+        _liveWanted = false;
+        _stopLiveLocation();
+      } else if (retryMissingFix && state.userLocation == null) {
+        await retryLocationFix();
+      }
     } catch (e) {
       developer.log('refreshLocationAccess() failed', error: e);
     }
@@ -582,6 +643,21 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     mapCentre: state.cameraTarget,
     language: AppStrings.languageCode,
     routePoints: _routePointSuggestions(),
+  );
+
+  Future<List<GooglePlacePrediction>> autocompleteGoogle(String query) =>
+      _places.autocompleteGoogle(
+        query,
+        near: searchAnchor,
+        language: AppStrings.languageCode,
+      );
+
+  Future<PlaceSuggestion?> resolveGooglePrediction(
+    GooglePlacePrediction prediction,
+  ) => _places.resolveGooglePrediction(
+    prediction,
+    near: searchAnchor,
+    language: AppStrings.languageCode,
   );
 
   /// Places picked before, newest first — what the sheet shows before the
@@ -1506,6 +1582,68 @@ class RoutePlannerCubit extends Cubit<RoutePlannerState> {
     );
     _schedulePersist();
     return null;
+  }
+
+  /// Prepare road directions in the dispatcher-assigned order. This must
+  /// never run the optimizer again or replace a draft before it is ready.
+  Future<String?> loadDispatchedRound(
+    ReceivedTrip trip, {
+    required bool Function() stillAuthorized,
+  }) async {
+    if (!stillAuthorized()) return DispatchStrings.sessionChanged;
+    try {
+      final round = LaffaFile.parse(jsonEncode(trip.document));
+      final points = [...round.points];
+      if (round.finish.effectiveMode == RouteEndMode.depot &&
+          (points.last.latitude != points.first.latitude ||
+              points.last.longitude != points.first.longitude)) {
+        points.add(points.first.copyWith(id: '${points.first.id}_return'));
+      } else if (round.finish.effectiveMode == RouteEndMode.custom) {
+        points.add(
+          points.first.copyWith(
+            id: '${points.first.id}$kFinishPointIdSuffix',
+            latitude: round.finish.location!.latitude,
+            longitude: round.finish.location!.longitude,
+            label: round.finish.label ?? 'Finish',
+          ),
+        );
+      }
+      final directions = await _routing.fetchRoute(
+        origin: points.first.latLng,
+        destination: points.last.latLng,
+        waypoints: points
+            .sublist(1, points.length - 1)
+            .map((p) => p.latLng)
+            .toList(),
+        includeSteps: true,
+      );
+      if (isClosed || !stillAuthorized()) return DispatchStrings.sessionChanged;
+      if (directions.isEmpty || directions.polyline.length < 2) {
+        return DispatchStrings.roadFailed;
+      }
+      loadSavedRoute(
+        SavedRoute(
+          id: 'dispatch_${trip.id}',
+          name: trip.name,
+          savedAt: trip.receivedAt,
+          routingMode: 'driving',
+          orderedPoints: points,
+          metrics: RouteMetrics(
+            totalDistanceKm: directions.distanceMeters / 1000,
+            estimatedDurationMinutes: directions.durationSeconds / 60,
+          ),
+          fullPolyline: directions.polyline,
+          goPolyline: directions.polyline,
+          returnPolyline: const [],
+          hasRoadGeometry: true,
+          maneuvers: directions.maneuvers,
+        ),
+      );
+      _schedulePersist();
+      return null;
+    } catch (_) {
+      return DispatchStrings.roadFailed;
+    }
   }
 
   /// Change where the day ends and replan, because the answer depends on it.

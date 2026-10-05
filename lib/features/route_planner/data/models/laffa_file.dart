@@ -114,7 +114,11 @@ class LaffaFile {
           longitude: lon,
           label: _asText(entry['label']) ?? 'Stop ${points.length}',
           address: _asText(entry['address']),
-          phone: _asText(entry['phone']),
+          // `phone` is canonical. The aliases keep rounds made from older
+          // CSV-based dispatch tools callable after they are renamed .laffa.
+          phone: _asText(
+            entry['phone'] ?? entry['telephone'] ?? entry['contact_phone'],
+          ),
           weight: _asInt(entry['weight']) ?? 1,
           kind: isDepot ? RoutePointKind.depot : RoutePointKind.stop,
           timeWindow: _windowFrom(entry['window']),

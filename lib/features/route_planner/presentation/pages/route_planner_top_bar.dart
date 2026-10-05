@@ -5,8 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../dispatch/dispatch_service.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../cubit/route_planner_cubit.dart';
 import '../cubit/route_planner_state.dart';
@@ -44,16 +46,32 @@ class TopBar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
               child: Row(
                 children: [
-                  GlassPanel(
-                    padding: EdgeInsets.zero,
-                    radius: 16,
-                    child: TopIconButton(
-                      tooltip: AppStrings.savedRoutes,
-                      icon: Iconsax.routing_2,
-                      onPressed: () =>
-                          RoutePlannerActions.openSavedRoutes(context),
+                  if (sl.isRegistered<DispatchService>())
+                    ListenableBuilder(
+                      listenable: sl<DispatchService>(),
+                      builder: (context, _) => GlassPanel(
+                        padding: EdgeInsets.zero,
+                        radius: 16,
+                        child: TopIconButton(
+                          tooltip: AppStrings.savedRoutes,
+                          icon: Iconsax.routing_2,
+                          unread: sl<DispatchService>().unread,
+                          onPressed: () =>
+                              RoutePlannerActions.openSavedRoutes(context),
+                        ),
+                      ),
+                    )
+                  else
+                    GlassPanel(
+                      padding: EdgeInsets.zero,
+                      radius: 16,
+                      child: TopIconButton(
+                        tooltip: AppStrings.savedRoutes,
+                        icon: Iconsax.routing_2,
+                        onPressed: () =>
+                            RoutePlannerActions.openSavedRoutes(context),
+                      ),
                     ),
-                  ),
                   // DEBUG-ONLY: loads the reproducible 10-stop Beirut demo
                   // route — the playground for the drive simulator. Compiled
                   // out of release builds via [kDebugMode], so it's invisible
@@ -268,12 +286,14 @@ class TopIconButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
+  final int unread;
 
   const TopIconButton({
     super.key,
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.unread = 0,
   });
 
   @override
@@ -289,7 +309,11 @@ class TopIconButton extends StatelessWidget {
         HapticFeedback.selectionClick();
         onPressed();
       },
-      icon: Icon(icon, color: AppColors.textPrimary, size: 22),
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text(unread > 99 ? '99+' : '$unread'),
+        child: Icon(icon, color: AppColors.textPrimary, size: 22),
+      ),
     );
   }
 }

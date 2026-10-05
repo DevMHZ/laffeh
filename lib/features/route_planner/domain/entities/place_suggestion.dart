@@ -32,6 +32,7 @@ enum PlaceKind {
 /// ties, the UI can label a recent as a recent, and a provider that starts
 /// misbehaving can be identified from a log line.
 enum PlaceSource {
+  google,
   photon,
   nominatim,
   overpass,

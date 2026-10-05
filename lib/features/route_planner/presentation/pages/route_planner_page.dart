@@ -107,6 +107,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
   /// the sheet, read by the map chrome so the compass and the 2D/3D toggle
   /// sit just above it instead of floating over its middle.
   final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(0);
+  final ValueNotifier<double> _emptyOptionsExtent = ValueNotifier<double>(0);
 
   /// Timestamp of the last Android back press — used so the app only exits on
   /// a second back within the window, never on a single accidental tap.
@@ -166,6 +167,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
     PreviewPrefs.notifier.removeListener(_onPreviewPreferenceChanged);
     _autoPreview.dispose();
     _sheetExtent.dispose();
+    _emptyOptionsExtent.dispose();
     super.dispose();
   }
 
@@ -196,7 +198,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
       cubit.refreshConnectivity();
       // Catches a permission granted (or revoked) out in the system settings
       // while we were away, so the location chip corrects itself.
-      cubit.refreshLocationAccess();
+      cubit.refreshLocationAccess(retryMissingFix: true);
     }
   }
 
@@ -327,6 +329,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
                           child: RouteMapView(
                             key: _mapKey,
                             onRouteReady: _autoPreview.mapReady,
+                            emptyOptionsExtent: _emptyOptionsExtent,
                           ),
                         ),
                         const TopBar(),
@@ -334,7 +337,7 @@ class _RoutePlannerViewState extends State<_RoutePlannerView>
                         const PlannerConnectivityNotice(),
                         CenterPin(mapKey: _mapKey),
                         const BottomSheetHost(),
-                        const AddOptionsHost(),
+                        AddOptionsHost(extent: _emptyOptionsExtent),
                         ManualPlacementHost(mapKey: _mapKey),
                         MovePointHost(mapKey: _mapKey),
                         const TripOverlayHost(),

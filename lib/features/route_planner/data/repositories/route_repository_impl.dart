@@ -72,8 +72,8 @@ class RouteRepositoryImpl implements RouteRepository {
     }
 
     // Clock windows → the solver's frame (minutes after departure). The
-    // working day has to stretch far enough to contain the latest one,
-    // otherwise the solver treats an evening stop as unreachable.
+    // app hint must contain the latest first-day clock window. The mobile
+    // backend expands the full route horizon to ten days independently.
     final windows = <String, RelativeTimeWindow>{
       for (final s in stops)
         if (s.timeWindow != null)

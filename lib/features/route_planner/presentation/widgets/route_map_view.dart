@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+    show defaultTargetPlatform, kIsWeb, TargetPlatform, ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
@@ -103,10 +103,40 @@ class _MapMotionUpdate {
 const double _mapChromeFloor = 0.10;
 const double _mapChromeCeiling = 0.70;
 const double _mapChromeGap = 14;
+const double _emptyOptionsChromeGap = 28;
+
+bool _showsEmptyOptions(RoutePlannerState state) =>
+    !state.hasPoints &&
+    !state.hasOptimizedRoute &&
+    !state.simulationActive &&
+    !state.navigationActive &&
+    !state.manualPlacement &&
+    state.movingPointId == null;
+
+double _mapChromeBottom(
+  BuildContext context,
+  RoutePlannerState state,
+  double emptyOptionsExtent,
+) {
+  final height = MediaQuery.sizeOf(context).height;
+  if (_showsEmptyOptions(state)) {
+    // The address field is the top of this card. Its measured height plus
+    // the card's 16 px bottom margin leaves the controls just above it.
+    return height * emptyOptionsExtent + _emptyOptionsChromeGap;
+  }
+  return height *
+          SheetExtent.of(context).clamp(_mapChromeFloor, _mapChromeCeiling) +
+      _mapChromeGap;
+}
 
 class RouteMapView extends StatefulWidget {
   final ValueChanged<OptimizedRoute?>? onRouteReady;
-  const RouteMapView({super.key, this.onRouteReady});
+  final ValueListenable<double> emptyOptionsExtent;
+  const RouteMapView({
+    super.key,
+    this.onRouteReady,
+    this.emptyOptionsExtent = const AlwaysStoppedAnimation<double>(0),
+  });
 
   @override
   State<RouteMapView> createState() => RouteMapViewState();
@@ -2300,7 +2330,9 @@ class RouteMapViewState extends State<RouteMapView>
             ),
           ),
           BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-            buildWhen: (a, b) => a.navigationActive != b.navigationActive,
+            buildWhen: (a, b) =>
+                a.navigationActive != b.navigationActive ||
+                _showsEmptyOptions(a) != _showsEmptyOptions(b),
             builder: (context, state) {
               if (state.navigationActive) return const SizedBox.shrink();
               // Sits just above the bottom sheet rather than halfway up the
@@ -2310,46 +2342,44 @@ class RouteMapViewState extends State<RouteMapView>
               // card, neither of which reports an extent; the ceiling stops
               // them climbing into the top bar when the sheet is dragged
               // fully open.
-              final extent = SheetExtent.of(
-                context,
-              ).clamp(_mapChromeFloor, _mapChromeCeiling);
-              return Align(
-                alignment: Alignment.bottomLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: 14,
-                    bottom:
-                        MediaQuery.sizeOf(context).height * extent +
-                        _mapChromeGap,
-                  ),
-                  child: SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        MapCompass(
-                          bearing: _bearing,
-                          tilt: _tilt,
-                          onTap: _resetViewAngle,
-                        ),
-                        const SizedBox(height: 10),
-                        // Says what tapping will give you, not what you are
-                        // looking at: flat map offers "3D", tilted offers "2D".
-                        ValueListenableBuilder<double>(
-                          valueListenable: _tilt,
-                          builder: (context, tilt, _) {
-                            final tilted = tilt.abs() > 1;
-                            return MapActionButton(
-                              label: tilted ? '2D' : '3D',
-                              tooltip: tilted
-                                  ? AppStrings.viewFlat
-                                  : AppStrings.view3d,
-                              onPressed: _toggleTilt,
-                              iconColor: tilted ? AppColors.primary : null,
-                            );
-                          },
-                        ),
-                      ],
+              return ValueListenableBuilder<double>(
+                valueListenable: widget.emptyOptionsExtent,
+                builder: (context, emptyExtent, _) => Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: 14,
+                      bottom: _mapChromeBottom(context, state, emptyExtent),
+                    ),
+                    child: SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          MapCompass(
+                            bearing: _bearing,
+                            tilt: _tilt,
+                            onTap: _resetViewAngle,
+                          ),
+                          const SizedBox(height: 10),
+                          // Says what tapping will give you, not what you are
+                          // looking at: flat map offers "3D", tilted offers "2D".
+                          ValueListenableBuilder<double>(
+                            valueListenable: _tilt,
+                            builder: (context, tilt, _) {
+                              final tilted = tilt.abs() > 1;
+                              return MapActionButton(
+                                label: tilted ? '2D' : '3D',
+                                tooltip: tilted
+                                    ? AppStrings.viewFlat
+                                    : AppStrings.view3d,
+                                onPressed: _toggleTilt,
+                                iconColor: tilted ? AppColors.primary : null,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -2360,55 +2390,54 @@ class RouteMapViewState extends State<RouteMapView>
           // compass) only while planning, once the user has panned away from
           // their current position. Rides above the sheet on the same rail as
           // the compass, so the pair stays level as the sheet moves.
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: EdgeInsets.only(
-                right: 14,
-                bottom:
-                    MediaQuery.sizeOf(context).height *
-                        SheetExtent.of(
-                          context,
-                        ).clamp(_mapChromeFloor, _mapChromeCeiling) +
-                    _mapChromeGap,
-              ),
-              child: SafeArea(
-                child: BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
-                  buildWhen: (a, b) =>
-                      a.simulationActive != b.simulationActive ||
-                      a.navigationActive != b.navigationActive ||
-                      a.movingPointId != b.movingPointId ||
-                      a.optimizedRoute != b.optimizedRoute ||
-                      (a.userLocation == null) != (b.userLocation == null),
-                  builder: (context, state) {
-                    final eligible =
-                        !state.simulationActive &&
-                        !state.navigationActive &&
-                        state.movingPointId == null &&
-                        !state.hasOptimizedRoute &&
-                        state.userLocation != null;
-                    return ValueListenableBuilder<bool>(
-                      valueListenable: _showRecenter,
-                      builder: (context, away, __) {
-                        return AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          transitionBuilder: (child, anim) => FadeTransition(
-                            opacity: anim,
-                            child: ScaleTransition(scale: anim, child: child),
-                          ),
-                          child: (eligible && away)
-                              ? LocateFab(
-                                  key: const ValueKey('locate'),
-                                  onTap: _returnToUser,
-                                )
-                              : const SizedBox.shrink(),
-                        );
-                      },
-                    );
-                  },
+          BlocBuilder<RoutePlannerCubit, RoutePlannerState>(
+            buildWhen: (a, b) =>
+                _showsEmptyOptions(a) != _showsEmptyOptions(b) ||
+                a.simulationActive != b.simulationActive ||
+                a.navigationActive != b.navigationActive ||
+                a.movingPointId != b.movingPointId ||
+                a.optimizedRoute != b.optimizedRoute ||
+                (a.userLocation == null) != (b.userLocation == null),
+            builder: (context, state) {
+              final eligible =
+                  !state.simulationActive &&
+                  !state.navigationActive &&
+                  state.movingPointId == null &&
+                  !state.hasOptimizedRoute &&
+                  state.userLocation != null;
+              return ValueListenableBuilder<double>(
+                valueListenable: widget.emptyOptionsExtent,
+                builder: (context, emptyExtent, _) => Align(
+                  alignment: Alignment.bottomRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: 14,
+                      bottom: _mapChromeBottom(context, state, emptyExtent),
+                    ),
+                    child: SafeArea(
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: _showRecenter,
+                        builder: (context, away, __) {
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, anim) => FadeTransition(
+                              opacity: anim,
+                              child: ScaleTransition(scale: anim, child: child),
+                            ),
+                            child: (eligible && away)
+                                ? LocateFab(
+                                    key: const ValueKey('locate'),
+                                    onTap: _returnToUser,
+                                  )
+                                : const SizedBox.shrink(),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
           // Reset-view / recenter control — a FAB tucked at the bottom-right,
           // clear of the top card and the bottom control bar.

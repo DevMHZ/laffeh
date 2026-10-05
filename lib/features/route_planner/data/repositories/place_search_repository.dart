@@ -8,6 +8,7 @@ import '../../../../core/utils/distance_utils.dart';
 import '../../../../core/utils/link_parser.dart';
 import '../../domain/entities/place_suggestion.dart';
 import '../datasources/osm_geocoding_datasource.dart';
+import '../datasources/google_mobile_places_datasource.dart';
 import '../datasources/overpass_poi_datasource.dart';
 import '../datasources/photon_geocoding_datasource.dart';
 import '../datasources/place_category_lexicon.dart';
@@ -40,16 +41,53 @@ class PlaceSearchRepository {
   final OsmGeocodingDataSource _nominatim;
   final OverpassPoiDataSource _overpass;
   final RecentPlacesLocalDataSource _recents;
+  final GoogleMobilePlacesDataSource? _google;
 
   PlaceSearchRepository({
     required PhotonGeocodingDataSource photon,
     required OsmGeocodingDataSource nominatim,
     required OverpassPoiDataSource overpass,
     required RecentPlacesLocalDataSource recents,
+    GoogleMobilePlacesDataSource? google,
   }) : _photon = photon,
        _nominatim = nominatim,
        _overpass = overpass,
-       _recents = recents;
+       _recents = recents,
+       _google = google;
+
+  Future<List<GooglePlacePrediction>> autocompleteGoogle(
+    String query, {
+    LatLng? near,
+    String? language,
+  }) async =>
+      await _google?.autocomplete(
+        query,
+        near: near,
+        language: language ?? 'en',
+      ) ??
+      const [];
+
+  Future<PlaceSuggestion?> resolveGooglePrediction(
+    GooglePlacePrediction prediction, {
+    LatLng? near,
+    String? language,
+  }) async {
+    final resolved = await _google?.resolve(
+      prediction.placeId,
+      language: language ?? 'en',
+    );
+    final point =
+        resolved?.point ?? await resolveOne(prediction.fullLabel, near: near);
+    if (point == null) return null;
+    return PlaceSuggestion(
+      id: resolved?.placeId ?? 'address:${point.latitude},${point.longitude}',
+      name: prediction.name,
+      context: prediction.context,
+      latLng: point,
+      kind: PlaceKind.address,
+      source: resolved == null ? PlaceSource.photon : PlaceSource.google,
+    );
+  }
 
   final _cache = <String, _CacheEntry>{};
 
@@ -330,6 +368,9 @@ class PlaceSearchRepository {
         LinkParser.tryParseMapUrl(trimmed) ??
         LinkParser.parseLatLngPair(trimmed);
     if (pasted != null) return pasted;
+
+    final googleResult = await _google?.geocode(trimmed);
+    if (googleResult != null) return googleResult.point;
 
     final photon = await _photon.search(
       trimmed,

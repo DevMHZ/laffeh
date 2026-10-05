@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../../dispatch/dispatch_strings.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:iconsax/iconsax.dart';
 
@@ -40,6 +42,7 @@ class _AccountSectionState extends State<AccountSection> {
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) {
         final user = state is AuthAuthenticated ? state.user : null;
+        final driverCode = user?.id.replaceAll('-', '').substring(0, 8).toUpperCase();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -53,6 +56,24 @@ class _AccountSectionState extends State<AccountSection> {
                 onTap: _busy ? null : _openSignIn,
               )
             else ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(DispatchStrings.driverId),
+                subtitle: SelectableText(
+                  driverCode!,
+                  textDirection: TextDirection.ltr,
+                ),
+                trailing: IconButton(
+                  tooltip: DispatchStrings.t(
+                    'Copy code',
+                    'Copier le code',
+                    'نسخ الرمز',
+                  ),
+                  icon: const Icon(Icons.copy),
+                  onPressed: () =>
+                      Clipboard.setData(ClipboardData(text: driverCode)),
+                ),
+              ),
               _ActionRow(
                 icon: Iconsax.logout,
                 label: AppStrings.signOut,

@@ -12,6 +12,7 @@ import '../../../../core/utils/distance_utils.dart';
 import '../../domain/entities/place_suggestion.dart';
 import '../pages/route_planner_actions.dart';
 import '../cubit/route_planner_cubit.dart';
+import '../../data/datasources/google_mobile_places_datasource.dart';
 
 /// Single-place search: type, pick one match, and the chosen place is added
 /// as the next point. One address at a time — there is deliberately no
@@ -72,6 +73,8 @@ class _AddressSearchBodyState extends State<_AddressSearchBody> {
   bool _refining = false;
 
   List<PlaceSuggestion> _results = const [];
+  List<GooglePlacePrediction> _googleResults = const [];
+  int _searchGeneration = 0;
   late final List<PlaceSuggestion> _recents = widget.cubit.recentPlaces();
 
   @override
@@ -83,6 +86,7 @@ class _AddressSearchBodyState extends State<_AddressSearchBody> {
   }
 
   void _onChanged(String value) {
+    _searchGeneration++;
     _debounce?.cancel();
     _subscription?.cancel();
 
@@ -92,6 +96,7 @@ class _AddressSearchBodyState extends State<_AddressSearchBody> {
         _loading = false;
         _refining = false;
         _results = const [];
+        _googleResults = const [];
       });
       return;
     }
@@ -99,17 +104,39 @@ class _AddressSearchBodyState extends State<_AddressSearchBody> {
     setState(() {
       _loading = true;
       _refining = false;
+      _googleResults = const [];
     });
     _debounce = Timer(GeocodingConfig.debounce, () => _search(query));
   }
 
-  void _search(String query) {
+  Future<void> _search(String query) async {
     _subscription?.cancel();
+    final generation = ++_searchGeneration;
+    final predictions = await widget.cubit.autocompleteGoogle(query);
+    if (!mounted || generation != _searchGeneration) return;
+    if (predictions.isNotEmpty) {
+      setState(() {
+        _googleResults = predictions;
+        _results = const [];
+        _loading = false;
+        _refining = false;
+      });
+      return;
+    }
+    _startLegacySearch(query, generation);
+  }
+
+  void _startLegacySearch(String query, int generation) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _googleResults = const [];
+      _loading = true;
+    });
     _subscription = widget.cubit
         .searchPlaces(query)
         .listen(
           (results) {
-            if (!mounted) return;
+            if (!mounted || generation != _searchGeneration) return;
             setState(() {
               _loading = false;
               // More is still coming; what is on screen is already usable.
@@ -118,20 +145,32 @@ class _AddressSearchBodyState extends State<_AddressSearchBody> {
             });
           },
           onDone: () {
-            if (!mounted) return;
+            if (!mounted || generation != _searchGeneration) return;
             setState(() {
               _loading = false;
               _refining = false;
             });
           },
           onError: (_) {
-            if (!mounted) return;
+            if (!mounted || generation != _searchGeneration) return;
             setState(() {
               _loading = false;
               _refining = false;
             });
           },
         );
+  }
+
+  Future<void> _pickGoogle(GooglePlacePrediction prediction) async {
+    final generation = _searchGeneration;
+    setState(() => _loading = true);
+    final result = await widget.cubit.resolveGooglePrediction(prediction);
+    if (!mounted || generation != _searchGeneration) return;
+    if (result != null) {
+      _pick(result);
+      return;
+    }
+    _startLegacySearch(_controller.text.trim(), generation);
   }
 
   void _pick(PlaceSuggestion result) {
@@ -264,6 +303,37 @@ class _AddressSearchBodyState extends State<_AddressSearchBody> {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 28),
         child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_googleResults.isNotEmpty) {
+      return ListView.builder(
+        shrinkWrap: true,
+        itemCount: _googleResults.length + 1,
+        itemBuilder: (context, index) {
+          if (index == _googleResults.length) {
+            return Padding(
+              padding: const EdgeInsets.all(10),
+              child: Text('Google Maps', style: AppTextStyles.mutedSm),
+            );
+          }
+          final result = _googleResults[index];
+          return ListTile(
+            leading: const Icon(Iconsax.location),
+            title: Text(
+              result.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: result.context.isEmpty
+                ? null
+                : Text(
+                    result.context,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+            onTap: () => _pickGoogle(result),
+          );
+        },
       );
     }
     if (_results.isEmpty) {

@@ -12,8 +12,8 @@ import 'route_point_model.dart';
 ///
 /// Note: earlier versions of this client sent `max_vehicle_time`, which is
 /// not part of the schema and was silently discarded by the server. The
-/// working-day cap is `driver_hours`, and it doubles as the ceiling for
-/// every stop's time window, so it is derived from the windows we send.
+/// `driver_hours` is a legacy compatibility hint. The mobile API extends its
+/// planning horizon to ten days even when an installed app sends 8 hours.
 class RouteRequestModel {
   final int numVehicles;
   final double vehicleCapacity;
@@ -22,8 +22,8 @@ class RouteRequestModel {
   final String routingMode;
   final int timeLimitSeconds;
 
-  /// Length of the driver's working day, in hours. Windows are measured
-  /// against this horizon, so it must cover the latest one.
+  /// App-provided clock-window horizon. The mobile API accepts this value
+  /// but expands it to ten days for long-distance trips.
   final int driverHours;
 
   /// Minutes spent at each stop before moving on.

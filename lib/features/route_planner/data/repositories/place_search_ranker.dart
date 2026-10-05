@@ -288,6 +288,7 @@ class PlaceSearchRanker {
       PlaceSource.mapLabel => 0.12,
       PlaceSource.overpass => 0.02,
       PlaceSource.photon => 0.0,
+      PlaceSource.google => 0.0,
       PlaceSource.nominatim => 0.0,
       PlaceSource.category => 0.0,
     };

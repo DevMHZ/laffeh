@@ -108,6 +108,7 @@ void main() {
   ) async {
     final cubit = _Planner(
       const RoutePlannerState(
+        status: RoutePlannerStatus.locationReady,
         isOffline: true,
         locationAccess: LocationAccess.denied,
       ),

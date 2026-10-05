@@ -43,6 +43,28 @@ String formatMinuteOfDay(BuildContext context, int minuteOfDay) {
   return t.format(context);
 }
 
+/// Keep the day visible on long trips: a bare 09:00 can otherwise mean
+/// tomorrow morning or a week from now.
+String formatRelativeArrival(
+  BuildContext context,
+  int departureMinuteOfDay,
+  int etaMinutes,
+) {
+  final total = departureMinuteOfDay + etaMinutes;
+  final clock = formatMinuteOfDay(
+    context,
+    total % StopTimeWindow.minutesPerDay,
+  );
+  final daysLater = total ~/ StopTimeWindow.minutesPerDay;
+  if (daysLater == 0) return clock;
+  final day = switch (AppStrings.languageCode) {
+    'fr' => 'J+$daysLater',
+    'ar' => 'اليوم +$daysLater',
+    _ => 'Day +$daysLater',
+  };
+  return '$clock · $day';
+}
+
 class _StopTimeWindowSheet extends StatefulWidget {
   final String pointLabel;
   final StopTimeWindow? initial;

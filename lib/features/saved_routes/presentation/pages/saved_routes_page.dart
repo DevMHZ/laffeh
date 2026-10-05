@@ -13,6 +13,9 @@ import '../../domain/entities/saved_route.dart';
 import '../cubit/saved_routes_cubit.dart';
 import '../cubit/saved_routes_state.dart';
 import '../widgets/saved_route_card.dart';
+import '../../../dispatch/dispatch_service.dart';
+import '../../../dispatch/dispatch_strings.dart';
+import '../../../dispatch/dispatch_inbox_page.dart';
 
 /// Route history page. Returns the selected [SavedRoute] via
 /// Navigator.pop when the user taps "open", so the planner can
@@ -51,46 +54,80 @@ class _SavedRoutesView extends StatelessWidget {
           ),
         ],
       ),
-      body: BlocBuilder<SavedRoutesCubit, SavedRoutesState>(
-        builder: (context, state) {
-          if (state.isLoading) {
-            return const Center(child: AppLoading());
-          }
-          if (state.status == SavedRoutesStatus.failure) {
-            return AppErrorView(
-              message: state.errorMessage ?? AppStrings.errGeneric,
-              onRetry: () => context.read<SavedRoutesCubit>().load(),
-            );
-          }
-          if (state.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Center(
-                child: AppEmptyView(
-                  icon: Iconsax.archive_book,
-                  message:
-                      '${AppStrings.savedRoutesEmpty}\n\n${AppStrings.savedRoutesEmptyHint}',
+      body: Column(
+        children: [
+          if (sl.isRegistered<DispatchService>())
+            ListenableBuilder(
+              listenable: sl<DispatchService>(),
+              builder: (context, _) => ListTile(
+                leading: Badge(
+                  isLabelVisible: sl<DispatchService>().unread > 0,
+                  label: Text('${sl<DispatchService>().unread}'),
+                  child: const Icon(Icons.inbox_outlined),
                 ),
+                title: Text(DispatchStrings.inbox),
+                subtitle: Text(
+                  sl<DispatchService>().signedIn
+                      ? DispatchStrings.open
+                      : DispatchStrings.signIn,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  final trip = await Navigator.of(context).push<ReceivedTrip>(
+                    MaterialPageRoute(
+                      builder: (_) => const DispatchInboxPage(),
+                    ),
+                  );
+                  if (trip != null && context.mounted) {
+                    Navigator.of(context).pop<Object>(trip);
+                  }
+                },
               ),
-            );
-          }
+            ),
+          Expanded(
+            child: BlocBuilder<SavedRoutesCubit, SavedRoutesState>(
+              builder: (context, state) {
+                if (state.isLoading) {
+                  return const Center(child: AppLoading());
+                }
+                if (state.status == SavedRoutesStatus.failure) {
+                  return AppErrorView(
+                    message: state.errorMessage ?? AppStrings.errGeneric,
+                    onRetry: () => context.read<SavedRoutesCubit>().load(),
+                  );
+                }
+                if (state.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Center(
+                      child: AppEmptyView(
+                        icon: Iconsax.archive_book,
+                        message:
+                            '${AppStrings.savedRoutesEmpty}\n\n${AppStrings.savedRoutesEmptyHint}',
+                      ),
+                    ),
+                  );
+                }
 
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-            itemCount: state.routes.length,
-            itemBuilder: (ctx, i) {
-              final r = state.routes[i];
-              final busy = state.pendingId == r.id;
-              return SavedRouteCard(
-                route: r,
-                busy: busy,
-                onOpen: () => Navigator.of(context).pop<SavedRoute>(r),
-                onRename: () => _renameDialog(context, r),
-                onDelete: () => _deleteDialog(context, r),
-              );
-            },
-          );
-        },
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                  itemCount: state.routes.length,
+                  itemBuilder: (ctx, i) {
+                    final r = state.routes[i];
+                    final busy = state.pendingId == r.id;
+                    return SavedRouteCard(
+                      route: r,
+                      busy: busy,
+                      onOpen: () => Navigator.of(context).pop<SavedRoute>(r),
+                      onRename: () => _renameDialog(context, r),
+                      onDelete: () => _deleteDialog(context, r),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

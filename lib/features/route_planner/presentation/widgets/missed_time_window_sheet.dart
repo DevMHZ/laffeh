@@ -516,12 +516,10 @@ class _LateStopCard extends StatelessWidget {
                       child: _ClockColumn(
                         icon: Iconsax.car,
                         label: AppStrings.youWouldArrive,
-                        value: formatMinuteOfDay(
+                        value: formatRelativeArrival(
                           context,
-                          StopTimeWindow.clockFromRelative(
-                            departureMinute,
-                            eta,
-                          ),
+                          departureMinute,
+                          eta,
                         ),
                         color: AppColors.danger,
                       ),

@@ -51,6 +51,7 @@ Position _fix(double lat, double lon) => Position(
 class _FakeGeolocator extends GeolocatorPlatform
     with MockPlatformInterfaceMixin {
   final _controller = StreamController<Position>.broadcast();
+  Future<Position>? freshRequest;
 
   int listens = 0;
   int cancels = 0;
@@ -93,9 +94,13 @@ class _FakeGeolocator extends GeolocatorPlatform
       LocationPermission.whileInUse;
 
   @override
-  Future<Position> getCurrentPosition({
-    LocationSettings? locationSettings,
-  }) async => _fix(33.8938, 35.5018);
+  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) =>
+      freshRequest ?? Future.value(_fix(33.8938, 35.5018));
+
+  @override
+  Future<Position?> getLastKnownPosition({
+    bool forceLocationManager = false,
+  }) async => null;
 
   Future<void> dispose() => _controller.close();
 }
@@ -133,6 +138,36 @@ void main() {
   });
 
   group('live location — the dot with no route in sight', () {
+    test(
+      'a late GPS fix replaces the Riyadh fallback after startup timeout',
+      () async {
+        geo.freshRequest = Future<Position>.delayed(
+          Duration.zero, () => throw TimeoutException('cold GPS'),
+        );
+        await cubit.initialize();
+        expect(cubit.state.userLocation, isNull);
+        expect(geo.isStreaming, isTrue);
+
+        await geo.emitFix(33.8938, 35.5018);
+        expect(cubit.state.userLocation?.latitude, closeTo(33.8938, 1e-9));
+        expect(cubit.state.cameraTarget?.latitude, closeTo(33.8938, 1e-9));
+        expect(cubit.state.errorMessage, isNull);
+      },
+    );
+
+    test('returning to the app retries a missing position', () async {
+      geo.freshRequest = Future<Position>.delayed(
+        Duration.zero, () => throw TimeoutException('cold GPS'),
+      );
+      await cubit.initialize();
+      cubit.setAppForeground(false);
+
+      geo.freshRequest = Future.value(_fix(33.8938, 35.5018));
+      await cubit.refreshLocationAccess(retryMissingFix: true);
+      expect(cubit.state.userLocation?.latitude, closeTo(33.8938, 1e-9));
+      expect(cubit.state.cameraTarget?.latitude, closeTo(33.8938, 1e-9));
+    });
+
     test('a fix moves the dot and leaves the camera alone', () async {
       await cubit.recenterOnUser();
       expect(geo.isStreaming, isTrue, reason: 'a granted fix starts the dot');
